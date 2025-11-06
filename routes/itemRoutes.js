@@ -1,8 +1,15 @@
-import express from "express";
+const express = require('express');
 const router = express.Router();
+const {
+  getAllItems,
+  getItemById,
+  createItem,
+  deleteItem
+} = require('../controller/itemController');
 
-router.get("/", (req, res) => {
-  res.send("Item routes working ✅");
-});
+router.get('/', getAllItems);
+router.get('/:id', getItemById);
+router.post('/', createItem);
+router.delete('/:id', deleteItem);
 
-export default router;
+module.exports = router;
