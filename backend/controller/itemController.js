@@ -1,4 +1,5 @@
-const cloudinary = require('../config/cloudinary');
+const path = require('path');
+const fs = require('fs');
 const Item = require('../models/itemModel');
 const jwt = require('jsonwebtoken');
 
@@ -31,30 +32,37 @@ exports.getItemById = async (req, res) => {
   }
 };
 
-// ✅ Create item (with Cloudinary image upload)
 exports.createItem = async (req, res) => {
   try {
     const userData = verifyToken(req);
-
     const { title, description, price, category } = req.body;
-    const file = req.files?.image; // image file from frontend
 
-    if (!file) {
-      return res.status(400).json({ message: 'Image file is required' });
+    let imagePath = null;
+
+    if (req.files?.image) {
+      const file = req.files.image;
+
+      // Create uploads folder if it doesn't exist
+      const uploadDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir);
+      }
+
+      // Save file locally
+      const fileName = Date.now() + '_' + file.name;
+      const filePath = path.join(uploadDir, fileName);
+      await file.mv(filePath);
+
+      imagePath = `/uploads/${fileName}`; // relative path to store in DB
     }
 
-    // 📤 Upload image to Cloudinary
-    const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
-      folder: 'studyreuse_items',
-    });
-
-    // 💾 Create and save item
+    // Create and save item
     const newItem = await Item.create({
       title,
       description,
       price,
       category,
-      image: uploadResult.secure_url, // store uploaded image URL
+      image: imagePath, // will be null if no image
       owner: userData.id,
     });
 
