@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+
+  // 🔥 This useEffect will run once when the page loads
+  useEffect(() => {
+    fetch("http://localhost:5000/api/items")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Backend Response:", data)
+      })
+      .catch(err => console.error("Error connecting to backend:", err))
+  }, [])
 
   return (
     <>
