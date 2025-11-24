@@ -1,45 +1,35 @@
-import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Import your pages
+import Home from './pages/home';
+import Items from './pages/items';
+import AddItem from './pages/additem';
+import Login from './pages/login';
+import Register from './pages/register';
+
+// Import common components
+import Navbar from './components/navbar';
+import Footer from './components/footer';
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  // 🔥 This useEffect will run once when the page loads
-  useEffect(() => {
-    fetch("http://localhost:5000/api/items")
-      .then(res => res.json())
-      .then(data => {
-        console.log("Backend Response:", data)
-      })
-      .catch(err => console.error("Error connecting to backend:", err))
-  }, [])
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <BrowserRouter>
+      <Navbar />
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/items" element={<Items />} />
+        <Route path="/add-item" element={<AddItem />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        {/* Optional: a fallback 404 page */}
+        <Route path="*" element={<h1>Page Not Found</h1>} />
+      </Routes>
+
+      <Footer />
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
