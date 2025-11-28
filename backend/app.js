@@ -16,8 +16,12 @@ app.use('/api/items', itemRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch((err) => console.error('❌ Connection Failed:', err.message));
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  .then(() => {
+    console.log('✅ MongoDB Connected');
+    const PORT = process.env.PORT || 4000;
+    app.listen(PORT, "127.0.0.1", () => console.log(`🚀 Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB Connection Failed:', err.message);
+    process.exit(1); // Stop server if DB not connected
+  });
