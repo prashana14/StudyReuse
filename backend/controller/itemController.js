@@ -11,27 +11,40 @@ function verifyToken(req) {
   return jwt.verify(token, process.env.JWT_SECRET);
 }
 
-// ✅ Get all items (populate owner info)
+// ✅ Get all items (populate owner info + full imageURL)
 exports.getAllItems = async (req, res) => {
   try {
     const items = await Item.find().populate('owner', 'name email');
-    res.json(items);
+
+    const itemsWithURL = items.map(item => ({
+      ...item.toObject(),
+      imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
+    }));
+
+    res.json(itemsWithURL);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching items', error: err.message });
   }
 };
 
-// ✅ Get single item by ID
+// ✅ Get single item by ID (with full imageURL)
 exports.getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id).populate('owner', 'name email');
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    res.json(item);
+
+    const itemWithURL = {
+      ...item.toObject(),
+      imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
+    };
+
+    res.json(itemWithURL);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching item', error: err.message });
   }
 };
 
+// ✅ Create new item with optional image upload
 exports.createItem = async (req, res) => {
   try {
     const userData = verifyToken(req);
@@ -42,38 +55,40 @@ exports.createItem = async (req, res) => {
     if (req.files?.image) {
       const file = req.files.image;
 
-      // Create uploads folder if it doesn't exist
       const uploadDir = path.join(__dirname, '..', 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir);
-      }
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-      // Save file locally
       const fileName = Date.now() + '_' + file.name;
       const filePath = path.join(uploadDir, fileName);
       await file.mv(filePath);
 
-      imagePath = `/uploads/${fileName}`; // relative path to store in DB
+      imagePath = `/uploads/${fileName}`;
     }
 
-    // Create and save item
     const newItem = await Item.create({
       title,
       description,
       price,
       category,
-      image: imagePath, // will be null if no image
+      image: imagePath,
       owner: userData.id,
     });
 
-    res.status(201).json({ message: 'Item added successfully', newItem });
+    const imageURL = newItem.image
+      ? `${req.protocol}://${req.get('host')}${newItem.image}`
+      : null;
+
+    res.status(201).json({
+      message: 'Item added successfully',
+      newItem: { ...newItem.toObject(), imageURL }
+    });
   } catch (err) {
     console.error('Error creating item:', err);
     res.status(500).json({ message: 'Error creating item', error: err.message });
   }
 };
 
-// ✅ Delete item (with owner authorization)
+// ✅ Delete item (owner only)
 exports.deleteItem = async (req, res) => {
   try {
     const userData = verifyToken(req);
@@ -81,7 +96,6 @@ exports.deleteItem = async (req, res) => {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
 
-    // Ensure the logged-in user is the item owner
     if (item.owner.toString() !== userData.id) {
       return res.status(403).json({ message: 'Not authorized to delete this item' });
     }

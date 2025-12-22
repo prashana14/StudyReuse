@@ -5,14 +5,25 @@ const cors = require('cors');
 
 const userRoutes = require('./routes/userRoutes');
 const itemRoutes = require('./routes/itemRoutes');
+const barterRoutes = require('./routes/barterRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
+app.use("/uploads", express.static("uploads")); // serve images publicly
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/barter', barterRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
+
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -25,3 +36,6 @@ mongoose
     console.error('❌ MongoDB Connection Failed:', err.message);
     process.exit(1); // Stop server if DB not connected
   });
+app.get("/", (req, res) => {
+  res.send("✅ StudyReuse backend is running!");
+});
