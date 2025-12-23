@@ -13,7 +13,10 @@ const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // or 5374 depending on your frontend port
+  credentials: true
+}));
 app.use(express.json());
 app.use("/uploads", express.static("uploads")); // serve images publicly
 app.use('/api/users', userRoutes);

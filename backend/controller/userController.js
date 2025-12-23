@@ -12,11 +12,8 @@ exports.registerUser = async (req, res) => {
     if (existing)
       return res.status(400).json({ message: 'User already exists' });
 
-    // Hash password
-    const hashed = await bcrypt.hash(password, 10);
-
-    // Create user
-    const user = await User.create({ name, email, password: hashed });
+    // Create user with plain password - pre-save hook will hash it
+    const user = await User.create({ name, email, password }); // FIXED: removed ": hashed"
 
     // Generate token
     const token = jwt.sign(

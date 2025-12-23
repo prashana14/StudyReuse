@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 
 router.post('/register', registerUser);
-router.post('/login', loginUser);
+router.post(
+'/login', loginUser);
 
 module.exports = router;

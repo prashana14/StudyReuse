@@ -1,59 +1,96 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Navbar, Nav, Container, Button } from "react-bootstrap";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Import your pages
-import Home from './pages/home';
-// import Items from './pages/items';
-// import AddItem from './pages/additem';
-// import Login from './pages/login';
-// import Register from './pages/register';
-
-// Import common components
-// import Navbar from './components/navbar';
-// import Footer from './components/footer';
-
-// function App() {
-//   return (
-//     <BrowserRouter>
-//       {/* <Navbar /> */}
-
-//       {/* <Routes> */}
-//         {/* <Route path="/" element={<Home />} /> */}
-//         {/* <Route path="/items" element={<Items />} /> */}
-//         {/* <Route path="/add-item" element={<AddItem />} /> */}
-//         {/* <Route path="/login" element={<Login />} /> */}
-//         {/* <Route path="/register" element={<Register />} /> */}
-//         {/* Optional: a fallback 404 page */}
-//         {/* <Route path="*" element={<h1>Page Not Found</h1>} /> */}
-//       {/* </Routes> */}
-
-//       {/* <Footer /> */}
-//     </BrowserRouter>
-//   );
-// }
-
+// Import all pages
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import AddItem from "./pages/Additem";
+import ItemDetails from "./pages/ItemDetails";
+import ChatBox from "./pages/ChatBox";
+import BarterRequests from "./pages/BarterRequests";
+import Notifications from "./pages/Notifications";
+import Reviews from "./pages/Reviews";
+import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/Profile"; // Add this import
+import MyItems from "./pages/MyItems";
 function App() {
   return (
-    <div>
-      <Navbar bg="dark" data-bs-theme="dark">
-        <Container>
-          <Navbar.Brand href="#home">My App</Navbar.Brand>
-          <Nav className="me-auto">
-            <Nav.Link href="#home">Home</Nav.Link>
-            <Nav.Link href="#features">Features</Nav.Link>
-            <Nav.Link href="#pricing">Pricing</Nav.Link>
-          </Nav>
-        </Container>
-      </Navbar>
-
-      <div className="text-center mt-5">
-        <h1>Welcome!</h1>
-        <Button variant="primary">Click Me</Button>
+    <BrowserRouter>
+      <Navbar />
+      
+      <div style={{ minHeight: "calc(100vh - 140px)" }}> {/* Add wrapper for content */}
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/item/:id" element={<ItemDetails />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* User protected routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/add-item" element={
+            <ProtectedRoute>
+              <AddItem />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/chat/:itemId" element={
+            <ProtectedRoute>
+              <ChatBox />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/barter" element={
+            <ProtectedRoute>
+              <BarterRequests />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/notifications" element={
+            <ProtectedRoute>
+              <Notifications />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/reviews/:itemId" element={
+            <ProtectedRoute>
+              <Reviews />
+            </ProtectedRoute>
+          } />
+          
+          {/* Profile route - ADD THIS */}
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-items" element={
+            <ProtectedRoute>
+              <MyItems />
+            </ProtectedRoute>
+          }/>
+          
+          {/* Admin route */}
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
+        </Routes>
       </div>
-    </div>
+      
+      <Footer />
+    </BrowserRouter>
   );
 }
-
 
 export default App;
