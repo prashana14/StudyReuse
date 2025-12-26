@@ -13,11 +13,15 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
 
     // Create user with plain password - pre-save hook will hash it
-    const user = await User.create({ name, email, password }); // FIXED: removed ": hashed"
+    const user = await User.create({ name, email, password });
 
-    // Generate token
+    // Generate token WITH ROLE
     const token = jwt.sign(
-      { id: user._id },
+      { 
+        id: user._id,
+        role: user.role,
+        email: user.email
+      },
       process.env.JWT_SECRET,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
@@ -27,7 +31,9 @@ exports.registerUser = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        role: user.role,
+        isBlocked: user.isBlocked
       },
       token
     });
@@ -54,9 +60,21 @@ exports.loginUser = async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Generate token
+    // Check if user is blocked
+    if (user.isBlocked) {
+      return res.status(403).json({ 
+        message: 'Account is blocked',
+        reason: user.blockedReason 
+      });
+    }
+
+    // Generate token WITH ROLE
     const token = jwt.sign(
-      { id: user._id },
+      { 
+        id: user._id,
+        role: user.role,
+        email: user.email
+      },
       process.env.JWT_SECRET,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
@@ -66,7 +84,9 @@ exports.loginUser = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        role: user.role,
+        isBlocked: user.isBlocked
       },
       token
     });

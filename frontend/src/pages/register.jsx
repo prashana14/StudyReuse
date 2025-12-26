@@ -84,29 +84,48 @@ const Register = () => {
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
         overflow: "hidden"
       }}>
-        {/* Header with gradient */}
-        <div style={{
-          background: "linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)",
-          padding: "30px 20px",
-          textAlign: "center",
-          color: "white"
+       {/* Header with gradient */}
+      <div style={{
+        background: "linear-gradient(135deg, #d2baebc3 0%, #87a8e1c8 100%)",
+        padding: "30px 20px",
+        textAlign: "center",
+        color: "black"
+      }}>
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        gap: "15px"
+      }}>
+        <img 
+          src="/logo.png" 
+          alt="StudyReuse Logo"
+          style={{ 
+            height: "50px",
+            borderRadius: "8px",
+            backgroundColor: "rgba(248, 208, 208, 0.2)", // Optional background
+            padding: "5px"
+          }}
+        />
+        <h1 style={{ 
+          margin: 0, 
+          fontSize: "32px", 
+          fontWeight: "800",
+          letterSpacing: "1px",
+          color: "white",
+          textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)"
         }}>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: "28px", 
-            fontWeight: "700",
-            letterSpacing: "0.5px"
-          }}>
-            StudyReuse
-          </h1>
-          <p style={{ 
-            margin: "10px 0 0 0", 
-            opacity: 0.9,
-            fontSize: "15px"
-          }}>
-            Join our community of students
-          </p>
-        </div>
+          StudyReuse
+        </h1>
+      </div>
+      <p style={{ 
+        margin: "10px 0 0 0", 
+        opacity: 0.9,
+        fontSize: "25px"
+      }}>
+        Join our community of students
+      </p>
+      </div>
 
         <div style={{ padding: "40px 30px" }}>
           <h2 style={{ 
@@ -230,32 +249,55 @@ const Register = () => {
                   onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
                 />
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute",
-                    right: "16px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "20px",
-                    padding: "0",
-                    color: "#666",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "30px",
-                    height: "30px",
-                    borderRadius: "50%",
-                    transition: "all 0.3s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: "16px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0",
+                  color: "#666",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "50%",
+                  transition: "all 0.3s"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              >
+                {/* Eye icon from your photo - simplified design */}
+                <svg 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  {showPassword ? "🙈" : "👁️"}
-                </button>
+                  {showPassword ? (
+                    /* When password is visible - show eye closed or crossed */
+                    <>
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </>
+                  ) : (
+                    /* When password is hidden - show simple eye */
+                    <>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </>
+                  )}
+                </svg>
+              </button>
               </div>
               <p style={{ 
                 marginTop: "8px", 

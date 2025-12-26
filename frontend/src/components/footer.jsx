@@ -6,14 +6,16 @@ const Footer = () => {
       <div className="container">
         <div className="footer-content">
           <div className="footer-section">
+            <img 
+              src="/logo.png" 
+              alt="StudyReuse Logo"
+              style={{ 
+                height: "50px",
+                borderRadius: "8px"
+              }}
+            />
             <h3>StudyReuse</h3>
-            <p>Exchange or donate second-hand books, notes, and study materials with fellow students.</p>
-            <div style={{ marginTop: "20px", display: "flex", gap: "15px" }}>
-              <a href="#" style={{ color: "white", fontSize: "20px" }}>📘</a>
-              <a href="#" style={{ color: "white", fontSize: "20px" }}>🐦</a>
-              <a href="#" style={{ color: "white", fontSize: "20px" }}>📸</a>
-              <a href="#" style={{ color: "white", fontSize: "20px" }}>💼</a>
-            </div>
+            <p>Exchange,Buy and Sell second-hand books, notes, and study materials with fellow students.</p>
           </div>
           
           <div className="footer-section">
@@ -28,9 +30,8 @@ const Footer = () => {
           
           <div className="footer-section">
             <h3>Contact</h3>
-            <p>📧 contact@studyreuse.com</p>
-            <p>📞 +1 (123) 456-7890</p>
-            <p>🏢 123 Campus Drive, University City</p>
+            <p>📧 studyreuse@gmail.com</p>
+            <p>📞 01-4151615</p>
           </div>
         </div>
         

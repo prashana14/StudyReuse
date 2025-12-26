@@ -21,14 +21,25 @@ const Login = () => {
     console.log("Login attempt with:", { email, password });
 
     try {
-      // IMPORTANT: Check what endpoint we're calling
+      // IMPORTANT: Make sure this is the correct endpoint
       console.log("Calling API endpoint: /users/login");
       
       const res = await API.post("/users/login", { email, password });
       console.log("Login response:", res.data);
       
       if (res.data.token && res.data.user) {
+        // Save to localStorage FIRST
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+        
+        console.log("Saved to localStorage:", {
+          token: res.data.token,
+          user: res.data.user
+        });
+        
+        // Then update AuthContext
         login(res.data);
+        
         console.log("Login successful, redirecting to dashboard");
         navigate("/dashboard");
       } else {
@@ -37,7 +48,6 @@ const Login = () => {
     } catch (err) {
       console.error("Login error:", err);
       console.error("Error response data:", err.response?.data);
-      console.error("Error status:", err.response?.status);
       
       if (err.response?.status === 400) {
         if (err.response?.data?.message === "Invalid credentials") {
@@ -64,7 +74,7 @@ const Login = () => {
       padding: "30px",
       backgroundColor: "white",
       borderRadius: "10px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+      boxShadow: "0 4px 12px rgba(26, 26, 27, 0)"
     }}>
       <h2 style={{ textAlign: "center", marginBottom: "30px" }}>Login</h2>
       
@@ -80,7 +90,18 @@ const Login = () => {
           {error}
         </div>
       )}
-      
+      <div style={{ textAlign: "center", marginBottom: "30px" }}>
+        <img 
+          src="/logo.png" 
+          alt="StudyReuse Logo"
+          style={{ 
+            height: "150px",
+            marginBottom: "20px",
+            borderRadius: "10px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+          }}
+        />
+      </div>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>
@@ -124,23 +145,55 @@ const Login = () => {
               }}
             />
             <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: "absolute",
-                right: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "18px",
-                padding: "0",
-                color: "#666"
-              }}
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: "absolute",
+              right: "16px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "0",
+              color: "#666",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "24px",
+              height: "24px",
+              borderRadius: "50%",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+          >
+            {/* Eye icon from your photo - simplified design */}
+            <svg 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {showPassword ? "🙈" : "👁️"}
-            </button>
+              {showPassword ? (
+                /* When password is visible - show eye closed or crossed */
+                <>
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </>
+              ) : (
+                /* When password is hidden - show simple eye */
+                <>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </>
+              )}
+            </svg>
+          </button>
           </div>
         </div>
 

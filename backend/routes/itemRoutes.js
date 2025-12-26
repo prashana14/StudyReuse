@@ -6,8 +6,10 @@ const {
   getAllItems,
   getItemById,
   createItem,
-  deleteItem
+  deleteItem,
+  getMyItems  // Add this import
 } = require('../controller/itemController');
+const authMiddleware = require('../middleware/authMiddleware'); // Add this import
 
 // --------------------
 // Multer setup
@@ -43,9 +45,9 @@ const upload = multer({
 // Routes
 // --------------------
 router.get('/', getAllItems);
+router.get('/my', authMiddleware, getMyItems); // Add this route - requires authentication
 router.get('/:id', getItemById);
 router.post('/', upload.single("image"), createItem); // add upload middleware here
 router.delete('/:id', deleteItem);
 
 module.exports = router;
-

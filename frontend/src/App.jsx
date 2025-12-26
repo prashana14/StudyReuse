@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useContext } from "react"; // Add this
+import { AuthContext } from "./context/AuthContext"; // Add this
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -14,21 +16,64 @@ import ChatBox from "./pages/ChatBox";
 import BarterRequests from "./pages/BarterRequests";
 import Notifications from "./pages/Notifications";
 import Reviews from "./pages/Reviews";
-import AdminDashboard from "./pages/AdminDashboard";
-import Profile from "./pages/Profile"; // Add this import
+import Profile from "./pages/Profile";
 import MyItems from "./pages/MyItems";
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import ItemManagement from './pages/admin/ItemManagement';
+import SendNotification from './pages/admin/SendNotification';
+
 function App() {
+  const { user, loading } = useContext(AuthContext); // Get auth state
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          border: '4px solid rgba(255,255,255,0.3)',
+          borderTop: '4px solid white',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Navbar />
       
-      <div style={{ minHeight: "calc(100vh - 140px)" }}> {/* Add wrapper for content */}
+      <div style={{ minHeight: "calc(100vh - 140px)" }}>
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/item/:id" element={<ItemDetails />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          
+          {/* Login/Register - redirect to dashboard if already logged in */}
+          <Route 
+            path="/login" 
+            element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
+          />
+          <Route 
+            path="/register" 
+            element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
+          />
           
           {/* User protected routes */}
           <Route path="/dashboard" element={
@@ -67,24 +112,35 @@ function App() {
             </ProtectedRoute>
           } />
           
-          {/* Profile route - ADD THIS */}
           <Route path="/profile" element={
             <ProtectedRoute>
               <Profile />
             </ProtectedRoute>
           } />
+          
           <Route path="/my-items" element={
             <ProtectedRoute>
               <MyItems />
             </ProtectedRoute>
           }/>
           
-          {/* Admin route */}
+          {/* Admin Routes - protect these too */}
           <Route path="/admin" element={
             <ProtectedRoute>
-              <AdminDashboard />
+              <AdminLayout />
             </ProtectedRoute>
-          } />
+          }>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="items" element={<ItemManagement />} />
+            <Route path="notifications" element={<SendNotification />} />
+          </Route>
+          
+          {/* Catch all - redirect based on auth status */}
+          <Route 
+            path="*" 
+            element={<Navigate to={user ? "/dashboard" : "/"} replace />} 
+          />
         </Routes>
       </div>
       

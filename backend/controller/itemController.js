@@ -14,7 +14,22 @@ function verifyToken(req) {
 // ✅ Get all items (populate owner info + full imageURL)
 exports.getAllItems = async (req, res) => {
   try {
-    const items = await Item.find().populate('owner', 'name email');
+    // ===== ADD THIS CHECK =====
+    // Check if user is admin (for special access)
+    let isAdmin = false;
+    try {
+      const userData = verifyToken(req);
+      isAdmin = userData.role === 'admin';
+    } catch (err) {
+      // Not logged in or invalid token - treat as regular user
+      isAdmin = false;
+    }
+    
+    // Build query: admins see all items, regular users see only approved items
+    const query = isAdmin ? {} : { isApproved: true, isFlagged: false };
+    // ==========================
+    
+    const items = await Item.find(query).populate('owner', 'name email');
 
     const itemsWithURL = items.map(item => ({
       ...item.toObject(),
@@ -27,11 +42,50 @@ exports.getAllItems = async (req, res) => {
   }
 };
 
+// ✅ Get current user's items
+exports.getMyItems = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    console.log("Fetching items for user:", userData.id);
+    
+    // Find items where owner matches the logged-in user's ID
+    // Users can see ALL their items (including pending/flagged)
+    const items = await Item.find({ owner: userData.id }).populate('owner', 'name email');
+
+    const itemsWithURL = items.map(item => ({
+      ...item.toObject(),
+      imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
+    }));
+
+    console.log(`Found ${itemsWithURL.length} items for user`);
+    res.json(itemsWithURL);
+  } catch (err) {
+    console.error('Error fetching user items:', err);
+    res.status(500).json({ message: 'Error fetching your items', error: err.message });
+  }
+};
+
 // ✅ Get single item by ID (with full imageURL)
 exports.getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id).populate('owner', 'name email');
     if (!item) return res.status(404).json({ message: 'Item not found' });
+
+    // ===== ADD THIS CHECK =====
+    // If item is not approved and user is not admin/owner, don't show it
+    let canView = true;
+    try {
+      const userData = verifyToken(req);
+      canView = userData.role === 'admin' || userData.id === item.owner._id.toString();
+    } catch (err) {
+      // Not logged in
+      canView = item.isApproved && !item.isFlagged;
+    }
+    
+    if (!canView) {
+      return res.status(403).json({ message: 'Item not available or pending approval' });
+    }
+    // ==========================
 
     const itemWithURL = {
       ...item.toObject(),
@@ -72,6 +126,10 @@ exports.createItem = async (req, res) => {
       category,
       image: imagePath,
       owner: userData.id,
+      // ===== ADD THIS =====
+      isApproved: userData.role === 'admin', // Admins' items auto-approve
+      isFlagged: false
+      // ====================
     });
 
     const imageURL = newItem.image
@@ -96,9 +154,15 @@ exports.deleteItem = async (req, res) => {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
 
-    if (item.owner.toString() !== userData.id) {
+    // ===== UPDATE THIS CHECK =====
+    // Allow admins OR owners to delete
+    const isOwner = item.owner.toString() === userData.id;
+    const isAdmin = userData.role === 'admin';
+    
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: 'Not authorized to delete this item' });
     }
+    // =============================
 
     await Item.findByIdAndDelete(req.params.id);
     res.json({ message: 'Item deleted successfully' });
