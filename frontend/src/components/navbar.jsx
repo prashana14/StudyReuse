@@ -200,7 +200,6 @@ const Navbar = () => {
   };
 
   const dropdownItemStyle = {
-    display: "block",
     padding: "14px 20px",
     textDecoration: "none",
     color: "#212529",
