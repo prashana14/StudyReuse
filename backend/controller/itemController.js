@@ -46,7 +46,6 @@ exports.getAllItems = async (req, res) => {
 exports.getMyItems = async (req, res) => {
   try {
     const userData = verifyToken(req);
-    console.log("Fetching items for user:", userData.id);
     
     // Find items where owner matches the logged-in user's ID
     // Users can see ALL their items (including pending/flagged)
@@ -57,7 +56,6 @@ exports.getMyItems = async (req, res) => {
       imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
     }));
 
-    console.log(`Found ${itemsWithURL.length} items for user`);
     res.json(itemsWithURL);
   } catch (err) {
     console.error('Error fetching user items:', err);

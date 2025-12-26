@@ -13,9 +13,14 @@ const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
+// Replace your current CORS with this
 app.use(cors({
-  origin: 'http://localhost:5173', // or 5374 depending on your frontend port
-  credentials: true
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 app.use(express.json());
 app.use("/uploads", express.static("uploads")); // serve images publicly

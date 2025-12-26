@@ -1,18 +1,20 @@
 import axios from 'axios';
 
 // Vite uses import.meta.env, not process.env
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = 'http://localhost:4000/api';
 
 const API = axios.create({
   baseURL: API_BASE_URL,
 });
 
-// Add token to requests
+// Add token to requests - CLEAN VERSION
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
   return config;
 });
 
