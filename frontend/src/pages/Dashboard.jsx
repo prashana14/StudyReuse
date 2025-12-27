@@ -97,7 +97,11 @@ const Dashboard = () => {
         
         // Get user info from localStorage or context
         const user = JSON.parse(localStorage.getItem("user") || "{}");
-        const pendingRequests = barters.filter(b => b.status === "pending" && b.owner === user._id).length;
+        const pendingRequests = barters.filter(b => {
+        const ownerId = b.owner?._id?.toString() || b.owner?.toString();
+        const userId = user?._id?.toString();
+        return b.status === "pending" && ownerId === userId;
+      }).length;
         
         // Get current month items
         const currentMonth = new Date().getMonth();

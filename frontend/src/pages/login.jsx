@@ -14,10 +14,28 @@ const Login = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
+  // ✅ ADD CLIENT-SIDE VALIDATION
+  if (!email || !password) {
+    setError("Email and password are required");
+    setLoading(false);
+    return;
+  }
+  
+  if (!/\S+@\S+\.\S+/.test(email)) {
+    setError("Please enter a valid email address");
+    setLoading(false);
+    return;
+  }
+  
+  if (password.length < 6) {
+    setError("Password must be at least 6 characters");
+    setLoading(false);
+    return;
+  }
     console.log("Login attempt with:", { email, password });
 
     try {

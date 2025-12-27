@@ -1,19 +1,40 @@
+
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { useAuth } from "../context/AuthContext"; // ✅ Now this will work
 
 const ItemDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, token, isAuthenticated } = useAuth(); // ✅ Use the hook
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchItem = async () => {
       try {
         const res = await API.get(`/items/${id}`);
         setItem(res.data);
+        
+        // ✅ Check if current user is the owner
+        if (user && res.data.owner && res.data.owner._id === user.id) {
+          setIsOwner(true);
+        }
+        
+        // ✅ Check if current user is admin
+        if (user && user.role === 'admin') {
+          setIsAdmin(true);
+        }
+        
+        console.log("Item fetched:", res.data);
+        console.log("Current user:", user);
+        console.log("Is owner:", isOwner);
+        console.log("Is admin:", isAdmin);
       } catch (err) {
         console.error("Error fetching item:", err);
         setError("Failed to load item details. Please try again.");
@@ -22,7 +43,41 @@ const ItemDetails = () => {
       }
     };
     fetchItem();
-  }, [id]);
+  }, [id, user]); // ✅ Add user to dependencies
+
+  const handleDelete = async () => {
+    // ✅ Check if user is authenticated
+    if (!isAuthenticated) {
+      alert("Please login to delete items");
+      navigate('/login');
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this item? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await API.delete(`/items/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}` // ✅ Use token from auth context
+        }
+      });
+      
+      alert("Item deleted successfully!");
+      navigate("/dashboard"); // Or navigate to user's items page
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      alert(err.response?.data?.message || "Failed to delete item. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleEdit = () => {
+    navigate(`/edit-item/${id}`);
+  };
 
   if (loading) {
     return (
@@ -67,28 +122,85 @@ const ItemDetails = () => {
     );
   }
 
-  return (
+return (
     <div className="container" style={{ maxWidth: "1200px", margin: "40px auto" }}>
-      {/* Breadcrumb */}
-      <div style={{ marginBottom: "30px", fontSize: "14px", color: "#6c757d" }}>
-        <Link to="/" style={{ color: "#4361ee", textDecoration: "none" }}>Home</Link>
-        <span style={{ margin: "0 10px" }}>›</span>
-        <Link to="/dashboard" style={{ color: "#4361ee", textDecoration: "none" }}>Browse</Link>
-        <span style={{ margin: "0 10px" }}>›</span>
-        <span>{item.title}</span>
-      </div>
+      {/* ✅ Owner/Admin Actions Section - Add this */}
+      {(isOwner || isAdmin) && (
+        <div style={{
+          background: "linear-gradient(135deg, #f8f9fa, #e9ecef)",
+          padding: "20px",
+          borderRadius: "12px",
+          marginBottom: "30px",
+          borderLeft: "5px solid #4361ee"
+        }}>
+          <h3 style={{ marginBottom: "15px", color: "#212529" }}>
+            {isAdmin && !isOwner ? "Admin Controls" : "Manage Your Item"}
+          </h3>
+          <div style={{ display: "flex", gap: "15px" }}>
+            {isOwner && (
+              <button
+                onClick={handleEdit}
+                className="btn btn-outline"
+                style={{
+                  padding: "12px 24px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
+              >
+                ✏️ Edit Item
+              </button>
+            )}
+            
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn"
+              style={{
+                padding: "12px 24px",
+                background: "#e63946",
+                color: "white",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                opacity: deleting ? 0.7 : 1
+              }}
+            >
+              {deleting ? (
+                <>
+                  <div className="loading" style={{ width: "16px", height: "16px", borderWidth: "2px", borderTopColor: "white" }}></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  🗑️ Delete Item
+                </>
+              )}
+            </button>
+          </div>
+          <p style={{ marginTop: "10px", fontSize: "13px", color: "#6c757d" }}>
+            {isAdmin && !isOwner 
+              ? "As an admin, you can delete any item from the system."
+              : "Only you can edit or delete this item."
+            }
+          </p>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "50px" }}>
         {/* Left Column - Image */}
         <div>
-          {item.image ? (
+          {item.imageURL || item.image ? (
             <img
-              src={item.image}
+              src={item.imageURL || item.image}
               alt={item.title}
               style={{
                 width: "100%",
                 borderRadius: "16px",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.1)"
+                boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+                maxHeight: "500px",
+                objectFit: "cover"
               }}
             />
           ) : (
@@ -148,6 +260,39 @@ const ItemDetails = () => {
         {/* Right Column - Details */}
         <div>
           <div style={{ marginBottom: "30px" }}>
+            {/* Item Status Badge */}
+            <div style={{ marginBottom: "15px" }}>
+              {!item.isApproved && (
+                <span style={{
+                  display: "inline-block",
+                  background: "#fff3cd",
+                  color: "#856404",
+                  padding: "8px 20px",
+                  borderRadius: "20px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  border: "1px solid #ffeaa7"
+                }}>
+                  ⏳ Pending Approval
+                </span>
+              )}
+              {item.isFlagged && (
+                <span style={{
+                  display: "inline-block",
+                  background: "#f8d7da",
+                  color: "#721c24",
+                  padding: "8px 20px",
+                  borderRadius: "20px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  border: "1px solid #f5c6cb",
+                  marginLeft: "10px"
+                }}>
+                  ⚠️ Flagged
+                </span>
+              )}
+            </div>
+            
             <h1 style={{ 
               fontSize: "2.5rem", 
               marginBottom: "16px",
@@ -181,6 +326,20 @@ const ItemDetails = () => {
                   fontWeight: "600"
                 }}>
                   {item.category}
+                </span>
+              )}
+              
+              {item.condition && (
+                <span style={{
+                  display: "inline-block",
+                  background: "#f0f9ff",
+                  color: "#0369a1",
+                  padding: "8px 20px",
+                  borderRadius: "20px",
+                  fontSize: "14px",
+                  fontWeight: "600"
+                }}>
+                  Condition: {item.condition}
                 </span>
               )}
             </div>
@@ -230,7 +389,10 @@ const ItemDetails = () => {
                     {item.owner?.name || "Seller"}
                   </p>
                   <p style={{ margin: 0, opacity: 0.9, fontSize: "14px" }}>
-                    Member since 2024
+                    {item.owner?.email || "Contact via chat"}
+                  </p>
+                  <p style={{ margin: "4px 0 0 0", opacity: 0.8, fontSize: "13px" }}>
+                    Member since {new Date(item.createdAt).getFullYear() || "2024"}
                   </p>
                 </div>
               </div>
@@ -242,7 +404,7 @@ const ItemDetails = () => {
             <button 
               onClick={() => {
                 // Handle barter request
-                alert("Barter request sent!");
+                navigate(`/barter/request/${item._id}`);
               }}
               className="btn"
               style={{ 
@@ -274,6 +436,21 @@ const ItemDetails = () => {
               }}
             >
               ♡
+            </button>
+            
+            <button 
+              onClick={() => {
+                // Share item
+                navigator.clipboard.writeText(window.location.href);
+                alert("Link copied to clipboard!");
+              }}
+              className="btn btn-outline"
+              style={{ 
+                padding: "16px 24px",
+                fontSize: "20px"
+              }}
+            >
+              📤
             </button>
           </div>
         </div>

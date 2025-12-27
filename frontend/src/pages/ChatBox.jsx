@@ -11,36 +11,32 @@ const ChatBox = () => {
   const [otherUser, setOtherUser] = useState(null);
   const messagesEndRef = useRef(null);
 
-  const fetchMessages = async () => {
-    try {
-      const res = await API.get(`/chat/${itemId}`);
-      setMessages(res.data || []);
+ // pages/ChatBox.jsx - Lines 22-23
+const fetchMessages = async () => {
+  try {
+    const res = await API.get(`/chat/${itemId}`);
+    setMessages(res.data || []);
+    
+    // ✅ FIX: Use consistent property names
+    if (res.data && res.data.length > 0) {
+      const currentUser = JSON.parse(localStorage.getItem("user"));
+      const firstMessage = res.data[0];
       
-      // If there are messages, get the other user's info
-      if (res.data && res.data.length > 0) {
-        const currentUser = JSON.parse(localStorage.getItem("user"));
-        const firstMessage = res.data[0];
-        const otherUserId = firstMessage.sender._id === currentUser.id 
-          ? firstMessage.receiver 
-          : firstMessage.sender;
-        
-        // In a real app, you'd fetch user details here
-        setOtherUser({
-          name: firstMessage.sender._id === currentUser.id 
-            ? firstMessage.receiver?.name || "User" 
-            : firstMessage.sender?.name || "User",
-          avatar: firstMessage.sender._id === currentUser.id 
-            ? firstMessage.receiver?.avatar 
-            : firstMessage.sender?.avatar
-        });
-      }
+      // Compare string representations
+      const senderId = firstMessage.sender?._id?.toString();
+      const currentUserId = currentUser?._id?.toString() || currentUser?.id?.toString();
       
-    } catch (err) {
-      console.error("Error fetching messages:", err);
-    } finally {
-      setLoading(false);
+      const otherUserId = senderId === currentUserId 
+        ? firstMessage.receiver?._id || firstMessage.receiver
+        : firstMessage.sender?._id || firstMessage.sender;
+      // ... rest of code
     }
-  };
+  } catch (err) {
+    console.error("Error fetching messages:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchItemDetails = async () => {
     try {

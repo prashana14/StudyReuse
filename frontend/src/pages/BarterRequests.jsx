@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useContext } from "react"; // ✅ FIXED
+import { AuthContext } from "../context/AuthContext"; // ✅ ADDED
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 const BarterRequests = () => {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext); // ✅ NOW WORKING
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -26,13 +28,22 @@ const BarterRequests = () => {
       const barters = res.data || [];
       setRequests(barters);
       
+      // ✅ FIX: Use proper user comparison
+      const userId = user?._id?.toString();
+      
       // Calculate stats
       const stats = {
         pending: barters.filter(b => b.status === "pending").length,
         accepted: barters.filter(b => b.status === "accepted").length,
         rejected: barters.filter(b => b.status === "rejected").length,
-        sent: barters.filter(b => b.requester === user._id).length,
-        received: barters.filter(b => b.owner === user._id).length
+        sent: barters.filter(b => {
+          const requesterId = b.requester?._id?.toString() || b.requester?.toString();
+          return requesterId === userId;
+        }).length,
+        received: barters.filter(b => {
+          const ownerId = b.owner?._id?.toString() || b.owner?.toString();
+          return ownerId === userId;
+        }).length
       };
       setStats(stats);
       
@@ -76,14 +87,23 @@ const BarterRequests = () => {
   const filteredRequests = requests.filter(req => {
     if (activeFilter === "all") return true;
     if (activeFilter === "pending") return req.status === "pending";
-    if (activeFilter === "sent") return req.requester === user._id;
-    if (activeFilter === "received") return req.owner === user._id;
+    
+    const userId = user?._id?.toString();
+    const requesterId = req.requester?._id?.toString() || req.requester?.toString();
+    const ownerId = req.owner?._id?.toString() || req.owner?.toString();
+    
+    if (activeFilter === "sent") return requesterId === userId;
+    if (activeFilter === "received") return ownerId === userId;
     return req.status === activeFilter;
   });
 
   const BarterCard = ({ request }) => {
-    const isOwner = request.owner === user._id;
-    const isRequester = request.requester === user._id;
+    const userId = user?._id?.toString();
+    const requesterId = request.requester?._id?.toString() || request.requester?.toString();
+    const ownerId = request.owner?._id?.toString() || request.owner?.toString();
+    
+    const isOwner = ownerId === userId;
+    const isRequester = requesterId === userId;
     
     return (
       <div className="card hover-lift" style={{ padding: "25px" }}>

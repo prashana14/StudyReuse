@@ -1,11 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser } = require('../controller/userController');
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const { registerUser, loginUser, refreshToken } = require('../controller/userController'); // ✅ ADD refreshToken
 
 router.post('/register', registerUser);
-router.post(
-'/login', loginUser);
+router.post('/login', loginUser);
+router.post('/refresh-token', refreshToken); // ✅ ADD THIS LINE
 
 module.exports = router;

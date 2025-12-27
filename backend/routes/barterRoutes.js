@@ -12,11 +12,12 @@ router.post("/", authMiddleware, async (req, res) => {
   const item = await Item.findById(itemId);
   if (!item) return res.status(404).json({ message: "Item not found" });
 
-  const barter = new Barter({
-    item: item._id,
-    requester: req.user._id,
-    owner: item.user
-  });
+ // routes/barterRoutes.js - Line 15
+const barter = new Barter({
+  item: item._id,
+  requester: req.user._id,
+  owner: item.owner  // ✅ FIXED (was item.user)
+});
 
   await barter.save();
 

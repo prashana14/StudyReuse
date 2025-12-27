@@ -97,3 +97,61 @@ exports.loginUser = async (req, res) => {
     });
   }
 };
+// ✅ STEP 2: ADD THIS FUNCTION AT THE END OF userController.js
+
+// Refresh JWT token
+exports.refreshToken = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    // Verify the existing token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find user
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate new token
+    const newToken = jwt.sign(
+      { 
+        id: user._id,
+        role: user.role,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d', algorithm: 'HS256' }
+    );
+
+    res.json({ 
+      message: 'Token refreshed successfully',
+      token: newToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+    
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired, please login again' });
+    }
+    
+    res.status(500).json({ 
+      message: 'Error refreshing token', 
+      error: err.message 
+    });
+  }
+};
