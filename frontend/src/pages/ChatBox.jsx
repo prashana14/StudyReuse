@@ -35,14 +35,14 @@ const ChatBox = () => {
       
       if (response?.data) {
         console.log("✅ Item loaded:", response.data);
-        setItemDetails(response.data);
+        setItemDetails(response.data.data);
         
         // Set other user from item owner
         const currentUser = getCurrentUser();
         if (currentUser && response.data.owner) {
           const owner = response.data.owner;
           const ownerId = owner._id || owner;
-          const currentUserId = currentUser._id || currentUser.id;
+          const currentUserId = currentUser.id || currentUser.id;
           
           if (ownerId.toString() !== currentUserId?.toString()) {
             console.log("👤 Setting other user from item owner:", owner);
@@ -76,13 +76,13 @@ const ChatBox = () => {
       console.log("📨 Messages response:", response.data);
       
       if (response.data?.success) {
-        const messagesData = response.data.data || [];
+        const messagesData = response.data.data[0].messages || [];
         setMessages(Array.isArray(messagesData) ? messagesData : []);
         
         // If we have messages, extract other user from them
         if (messagesData.length > 0) {
           const firstMsg = messagesData[0];
-          const currentUserId = currentUser._id || currentUser.id;
+          const currentUserId = currentUser.id || currentUser.id;
           
           if (firstMsg.sender?._id?.toString() !== currentUserId?.toString()) {
             setOtherUser(firstMsg.sender);
@@ -119,7 +119,7 @@ const ChatBox = () => {
       receiverName = itemDetails.owner.name || receiverName;
       
       // Check if user is trying to message themselves
-      if (receiverId.toString() === currentUser._id?.toString()) {
+      if (receiverId.toString() === currentUser.id?.toString()) {
         alert("You cannot send messages to yourself about your own item");
         return;
       }
@@ -193,7 +193,7 @@ const ChatBox = () => {
       receiverName = itemDetails.owner.name || receiverName;
       
       // Check if user is trying to message themselves
-      if (receiverId.toString() === currentUser._id?.toString()) {
+      if (receiverId.toString() === currentUser.id?.toString()) {
         alert("You cannot send messages to yourself");
         return;
       }
@@ -210,7 +210,7 @@ const ChatBox = () => {
       _id: tempId,
       item: itemId,
       sender: { 
-        _id: currentUser._id || currentUser.id, 
+        _id: currentUser.id || currentUser.id, 
         name: currentUser.name || "You" 
       },
       receiver: { 
@@ -449,8 +449,9 @@ const ChatBox = () => {
               ) : (
                 <>
                   {messages.map((message, index) => {
+                    {console.log("Message object:", message)}
                     const isCurrentUser = currentUser && 
-                      message.sender?._id?.toString() === currentUser._id?.toString();
+                      message.sender?._id?.toString() === currentUser.id?.toString();
                     const isTemporary = message.isTemporary;
                     
                     return (
