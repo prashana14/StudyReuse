@@ -9,7 +9,7 @@ const BarterRequests = () => {
    // ✅ NOW WORKING
     console.log("🔍 USER CONTEXT DEBUG:");
   console.log("User object:", user);
-  console.log("User ID:", user?._id);
+  console.log("User ID:", user?.id);
   console.log("Is user loaded?", !!user);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,7 @@ const BarterRequests = () => {
       setRequests(barters);
       
       // ✅ FIX: Use proper user comparison
-      const userId = user?._id?.toString();
+      const userId = user?.id?.toString();
       
       // Calculate stats
       const stats = {
@@ -126,7 +126,7 @@ const BarterRequests = () => {
     if (activeFilter === "all") return true;
     if (activeFilter === "pending") return req.status === "pending";
     
-    const userId = user?._id?.toString();
+    const userId = user?.id?.toString();
     const requesterId = req.requester?._id?.toString() || req.requester?.toString();
     const ownerId = req.owner?._id?.toString() || req.owner?.toString();
     
@@ -136,7 +136,7 @@ const BarterRequests = () => {
   });
 
   const BarterCard = ({ request }) => {
-  const userId = user?._id?.toString();
+  const userId = user?.id?.toString();
   
   console.log("🔍 BARTER CARD DEBUG:");
   console.log("Request ID:", request._id);
