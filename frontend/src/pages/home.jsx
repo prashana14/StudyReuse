@@ -9,16 +9,25 @@ const Home = () => {
 
   useEffect(() => {
     const fetchItems = async () => {
-      try {
-        const res = await api.get("/items");
-        setItems(res.data.slice(0, 6)); // Show only 6 items on home
-      } catch (err) {
-        console.error("Error fetching items:", err);
-        setError("Failed to load items. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  try {
+    const res = await api.get("/items");
+    
+    // Direct access to the items array
+    const itemsArray = res.data?.data?.items || [];
+    
+    console.log(`Found ${itemsArray.length} items`);
+    
+    // Now safely slice the array
+    setItems(itemsArray.slice(0, 6));
+    
+  } catch (err) {
+    console.error("Error fetching items:", err);
+    setError("Failed to load items. Please try again.");
+    setItems([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
     fetchItems();
   }, []);
@@ -104,7 +113,7 @@ const Home = () => {
               gap: "30px" 
             }}>
               {items.map((item) => (
-                <div key={item._id} className="card">
+                <div key={item._id || item.id} className="card">
                   {item.imageURL ? (
                     <img
                       src={item.imageURL}
@@ -134,8 +143,10 @@ const Home = () => {
                     </div>
                   )}
                   
-                  <h3 style={{ marginBottom: "8px" }}>{item.title}</h3>
-                  <p style={{ color: "var(--gray)", marginBottom: "12px" }}>{item.description?.substring(0, 100)}...</p>
+                  <h3 style={{ marginBottom: "8px" }}>{item.title || "Untitled Item"}</h3>
+                  <p style={{ color: "var(--gray)", marginBottom: "12px" }}>
+                    {item.description ? item.description.substring(0, 100) + "..." : "No description available"}
+                  </p>
                   
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ 
@@ -147,9 +158,9 @@ const Home = () => {
                       WebkitTextFillColor: "transparent",
                       backgroundClip: "text"
                     }}>
-                      Rs. {item.price}
+                      Rs. {item.price || 0}
                     </span>
-                    <Link to={`/item/${item._id}`} className="btn btn-outline">
+                    <Link to={`/item/${item._id || item.id}`} className="btn btn-outline">
                       View Details
                     </Link>
                   </div>

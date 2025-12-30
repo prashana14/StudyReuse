@@ -1,361 +1,508 @@
-import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
 
 const ChatBox = () => {
   const { itemId } = useParams();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [itemDetails, setItemDetails] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
 
- // pages/ChatBox.jsx - Lines 22-23
-const fetchMessages = async () => {
-  try {
-    const res = await API.get(`/chat/${itemId}`);
-    setMessages(res.data || []);
-    
-    // ✅ FIX: Use consistent property names
-    if (res.data && res.data.length > 0) {
-      const currentUser = JSON.parse(localStorage.getItem("user"));
-      const firstMessage = res.data[0];
-      
-      // Compare string representations
-      const senderId = firstMessage.sender?._id?.toString();
-      const currentUserId = currentUser?._id?.toString() || currentUser?.id?.toString();
-      
-      const otherUserId = senderId === currentUserId 
-        ? firstMessage.receiver?._id || firstMessage.receiver
-        : firstMessage.sender?._id || firstMessage.sender;
-      // ... rest of code
-    }
-  } catch (err) {
-    console.error("Error fetching messages:", err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const fetchItemDetails = async () => {
+  // Safe get current user
+  const getCurrentUser = useCallback(() => {
     try {
-      const res = await API.get(`/items/${itemId}`);
-      setItemDetails(res.data);
-    } catch (err) {
-      console.error("Error fetching item details:", err);
+      const userStr = localStorage.getItem("user");
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
     }
-  };
+  }, []);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!text.trim()) return;
+  // Fetch item details
+  const fetchItemDetails = useCallback(async () => {
+    if (!itemId) return;
 
-    const currentUser = JSON.parse(localStorage.getItem("user"));
+    try {
+      console.log(`📦 Fetching item: ${itemId}`);
+      
+      const response = await API.get(`/items/${itemId}`);
+      
+      if (response?.data) {
+        console.log("✅ Item loaded:", response.data);
+        setItemDetails(response.data);
+        
+        // Set other user from item owner
+        const currentUser = getCurrentUser();
+        if (currentUser && response.data.owner) {
+          const owner = response.data.owner;
+          const ownerId = owner._id || owner;
+          const currentUserId = currentUser._id || currentUser.id;
+          
+          if (ownerId.toString() !== currentUserId?.toString()) {
+            console.log("👤 Setting other user from item owner:", owner);
+            setOtherUser(typeof owner === 'object' ? owner : { _id: owner });
+          } else {
+            console.log("⚠️ You are the owner of this item");
+            setError("You cannot chat with yourself about your own item");
+          }
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error fetching item:", err);
+      setError("Failed to load item details");
+    }
+  }, [itemId, getCurrentUser]);
+
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    if (!itemId) return;
+
+    try {
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        console.warn("No user logged in");
+        return;
+      }
+
+      console.log(`💬 Fetching messages for item: ${itemId}`);
+      
+      const response = await API.get(`/chat/item/${itemId}`);
+      console.log("📨 Messages response:", response.data);
+      
+      if (response.data?.success) {
+        const messagesData = response.data.data || [];
+        setMessages(Array.isArray(messagesData) ? messagesData : []);
+        
+        // If we have messages, extract other user from them
+        if (messagesData.length > 0) {
+          const firstMsg = messagesData[0];
+          const currentUserId = currentUser._id || currentUser.id;
+          
+          if (firstMsg.sender?._id?.toString() !== currentUserId?.toString()) {
+            setOtherUser(firstMsg.sender);
+          } else if (firstMsg.receiver?._id?.toString() !== currentUserId?.toString()) {
+            setOtherUser(firstMsg.receiver);
+          }
+        }
+        
+        console.log(`📊 Loaded ${messagesData.length} messages`);
+      }
+      
+    } catch (err) {
+      console.error("❌ Error fetching messages:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [itemId, getCurrentUser]);
+
+  // Send first message to create chat
+  const sendFirstMessage = useCallback(async (messageText = "Hi, I'm interested in this item!") => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      alert("Please log in to send messages");
+      navigate("/login");
+      return;
+    }
+
+    // Get receiver from item owner
+    let receiverId = null;
+    let receiverName = "User";
+    
+    if (itemDetails?.owner) {
+      receiverId = itemDetails.owner._id || itemDetails.owner;
+      receiverName = itemDetails.owner.name || receiverName;
+      
+      // Check if user is trying to message themselves
+      if (receiverId.toString() === currentUser._id?.toString()) {
+        alert("You cannot send messages to yourself about your own item");
+        return;
+      }
+      
+      // Set other user
+      if (!otherUser) {
+        setOtherUser(itemDetails.owner);
+      }
+    }
+    
+    if (!receiverId) {
+      alert("Cannot identify item owner");
+      return;
+    }
+
+    setSending(true);
+    
+    try {
+      console.log("🚀 Sending first message to create chat...");
+      
+      const response = await API.post("/chat", {
+        itemId: itemId,
+        receiverId: receiverId,
+        message: messageText
+      });
+
+      console.log("✅ Chat created:", response.data);
+      
+      // Set the text input to the sent message
+      setText(messageText);
+      
+      // Refresh messages to show the new chat
+      setTimeout(fetchMessages, 1000);
+      
+      alert("Chat started! You can now continue the conversation.");
+      
+    } catch (err) {
+      console.error("❌ Error creating chat:", err);
+      alert(err.response?.data?.message || "Failed to start chat");
+    } finally {
+      setSending(false);
+    }
+  }, [itemId, getCurrentUser, itemDetails, otherUser, navigate, fetchMessages]);
+
+  // Send message
+  const sendMessage = useCallback(async (e) => {
+    if (e) e.preventDefault();
+    
+    const messageText = text.trim();
+    if (!messageText) {
+      console.warn("⚠️ Cannot send empty message");
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      alert("Please log in to send messages");
+      navigate("/login");
+      return;
+    }
+
+    // Get receiver
+    let receiverId = null;
+    let receiverName = "User";
+    
+    if (otherUser) {
+      receiverId = otherUser._id || otherUser.id;
+      receiverName = otherUser.name || receiverName;
+    } else if (itemDetails?.owner) {
+      receiverId = itemDetails.owner._id || itemDetails.owner;
+      receiverName = itemDetails.owner.name || receiverName;
+      
+      // Check if user is trying to message themselves
+      if (receiverId.toString() === currentUser._id?.toString()) {
+        alert("You cannot send messages to yourself");
+        return;
+      }
+    }
+    
+    if (!receiverId) {
+      alert("Cannot identify who to send message to");
+      return;
+    }
+
+    // Create temporary message
+    const tempId = `temp_${Date.now()}`;
     const newMessage = {
-      _id: Date.now().toString(), // Temporary ID
+      _id: tempId,
       item: itemId,
-      sender: { _id: currentUser.id, name: currentUser.name },
-      receiver: otherUser?._id || null,
-      message: text,
+      sender: { 
+        _id: currentUser._id || currentUser.id, 
+        name: currentUser.name || "You" 
+      },
+      receiver: { 
+        _id: receiverId, 
+        name: receiverName 
+      },
+      message: messageText,
       createdAt: new Date().toISOString(),
       isTemporary: true
     };
 
-    // Optimistically update UI
+    // Optimistic update
     setMessages(prev => [...prev, newMessage]);
     setText("");
+    setSending(true);
 
     try {
-      await API.post("/chat", {
-        itemId,
-        receiverId: otherUser?._id,
-        message: text
+      console.log("🚀 Sending message...");
+      
+      const response = await API.post("/chat", {
+        itemId: itemId,
+        receiverId: receiverId,
+        message: messageText
       });
+
+      console.log("✅ Message sent:", response.data);
       
-      // Refresh messages to get actual ID from server
-      fetchMessages();
-      
+      // Replace temporary message with real one
+      setMessages(prev => prev.map(msg => 
+        msg._id === tempId 
+          ? { 
+              ...msg, 
+              isTemporary: false,
+              _id: response.data.data?._id || msg._id,
+              ...(response.data.data || {})
+            }
+          : msg
+      ));
+
+      // Refresh messages
+      setTimeout(fetchMessages, 500);
+
     } catch (err) {
-      console.error("Error sending message:", err);
-      // Remove temporary message on error
-      setMessages(prev => prev.filter(msg => !msg.isTemporary));
-      alert("Failed to send message. Please try again.");
+      console.error("❌ Error sending message:", err);
+      
+      // Remove temporary message
+      setMessages(prev => prev.filter(msg => msg._id !== tempId));
+      
+      alert(err.response?.data?.message || "Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  }, [text, itemId, getCurrentUser, otherUser, itemDetails, navigate, fetchMessages]);
+
+  // Load data
+  useEffect(() => {
+    if (!itemId) {
+      setError("No item selected");
+      setLoading(false);
+      return;
+    }
+    
+    const loadData = async () => {
+      try {
+        await fetchItemDetails();
+        await fetchMessages();
+      } catch (err) {
+        console.error("Error loading chat:", err);
+      }
+    };
+
+    loadData();
+
+    // Poll for new messages
+    const interval = setInterval(fetchMessages, 5000);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [itemId, fetchItemDetails, fetchMessages]);
+
+  // Scroll to bottom
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: "smooth",
+          block: "end"
+        });
+      }, 100);
+    }
+  }, [messages]);
+
+  // Format time
+  const formatTime = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return "";
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    fetchItemDetails();
-    fetchMessages();
-    
-    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
-    
-    return () => clearInterval(interval);
-  }, [itemId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const currentUser = JSON.parse(localStorage.getItem("user"));
+  const currentUser = getCurrentUser();
 
   return (
-    <div className="container" style={{ maxWidth: "1200px", margin: "40px auto" }}>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {/* Chat Header */}
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
+      <div style={{ 
+        background: "white", 
+        borderRadius: "12px", 
+        overflow: "hidden",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+      }}>
+        {/* Header */}
         <div style={{ 
-          padding: "24px 30px", 
+          padding: "20px 25px", 
           background: "linear-gradient(135deg, #4361ee, #7209b7)",
           color: "white",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
+          alignItems: "center",
+          gap: "15px"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-            <div style={{
-              width: "60px",
-              height: "60px",
-              borderRadius: "12px",
-              background: "rgba(255, 255, 255, 0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "28px"
-            }}>
-              💬
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "24px" }}>Chat</h2>
-              <p style={{ margin: "8px 0 0 0", opacity: 0.9, fontSize: "14px" }}>
-                {itemDetails?.title || "Item Discussion"}
-              </p>
-            </div>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              color: "white",
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              cursor: "pointer",
+              fontSize: "18px"
+            }}
+          >
+            ←
+          </button>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ margin: 0 }}>Chat</h2>
+            <p style={{ margin: "5px 0 0 0", opacity: 0.9 }}>
+              {itemDetails?.title || "Loading..."}
+              {otherUser && ` • With ${otherUser.name}`}
+            </p>
           </div>
-          
-          {itemDetails && (
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>Item Price</p>
-              <p style={{ margin: "4px 0 0 0", fontSize: "20px", fontWeight: "700" }}>
-                Rs. {itemDetails.price}
-              </p>
-            </div>
-          )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", minHeight: "600px" }}>
-          {/* Main Chat Area */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {/* User Info Bar */}
-            <div style={{ 
-              padding: "20px 30px", 
-              borderBottom: "1px solid #e0e0e0",
-              display: "flex",
-              alignItems: "center",
-              gap: "15px"
-            }}>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #38b000, #2d9100)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                fontSize: "20px",
-                fontWeight: "bold"
-              }}>
-                {otherUser?.name?.charAt(0) || "U"}
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "18px" }}>{otherUser?.name || "User"}</h3>
-                <p style={{ margin: "4px 0 0 0", color: "#6c757d", fontSize: "14px" }}>
-                  {otherUser ? "Online" : "Connecting..."}
-                </p>
-              </div>
-            </div>
-
-            {/* Messages Container */}
+        <div style={{ display: "flex", minHeight: "500px" }}>
+          {/* Chat Area */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            {/* Messages */}
             <div style={{ 
               flex: 1, 
-              padding: "30px", 
+              padding: "20px", 
               overflowY: "auto",
               background: "#f8f9fa",
               display: "flex",
               flexDirection: "column",
-              gap: "20px"
+              justifyContent: messages.length === 0 ? "center" : "flex-start",
+              alignItems: messages.length === 0 ? "center" : "stretch"
             }}>
               {loading ? (
-                <div style={{ textAlign: "center", padding: "40px" }}>
-                  <div className="loading" style={{ 
-                    margin: "0 auto", 
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ 
                     width: "40px", 
                     height: "40px", 
-                    borderWidth: "3px",
-                    borderTopColor: "#4361ee"
+                    border: "3px solid #f3f3f3",
+                    borderTop: "3px solid #4361ee",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                    margin: "0 auto 15px auto"
                   }}></div>
-                  <p style={{ marginTop: "20px", color: "#6c757d" }}>Loading messages...</p>
+                  <p style={{ color: "#6c757d" }}>Loading chat...</p>
                 </div>
               ) : messages.length === 0 ? (
-                <div style={{ 
-                  textAlign: "center", 
-                  padding: "60px 20px",
-                  background: "white",
-                  borderRadius: "12px",
-                  margin: "auto",
-                  maxWidth: "400px"
-                }}>
+                <div style={{ textAlign: "center", maxWidth: "400px" }}>
                   <div style={{ fontSize: "64px", marginBottom: "20px", opacity: 0.3 }}>💬</div>
-                  <h3 style={{ marginBottom: "12px", color: "#212529" }}>No messages yet</h3>
-                  <p style={{ color: "#6c757d", marginBottom: "0" }}>
-                    Start the conversation about this item
+                  <h3 style={{ marginBottom: "10px", color: "#212529" }}>No messages yet</h3>
+                  <p style={{ color: "#6c757d", marginBottom: "25px" }}>
+                    {itemDetails?.owner 
+                      ? `Start a conversation with ${itemDetails.owner.name} about "${itemDetails.title}"`
+                      : "Be the first to send a message!"}
                   </p>
+                  
+                  <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                    <button
+                      onClick={() => sendFirstMessage("Hi, I'm interested in this item!")}
+                      disabled={sending || !itemDetails?.owner}
+                      style={{
+                        padding: "12px 24px",
+                        background: "#4361ee",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        opacity: (itemDetails?.owner && !sending) ? 1 : 0.5
+                      }}
+                    >
+                      {sending ? "Starting chat..." : "Say Hello 👋"}
+                    </button>
+                    
+                    <button
+                      onClick={() => sendFirstMessage("Is this item still available?")}
+                      disabled={sending || !itemDetails?.owner}
+                      style={{
+                        padding: "12px 24px",
+                        background: "#e9ecef",
+                        color: "#495057",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        opacity: (itemDetails?.owner && !sending) ? 1 : 0.5
+                      }}
+                    >
+                      Ask Availability
+                    </button>
+                  </div>
+                  
+                  {itemDetails?.owner && (
+                    <div style={{ 
+                      marginTop: "20px", 
+                      padding: "12px",
+                      background: "#eef2ff",
+                      borderRadius: "8px",
+                      fontSize: "14px"
+                    }}>
+                      <p style={{ margin: "0 0 5px 0", fontWeight: "500" }}>Chatting with:</p>
+                      <p style={{ margin: 0 }}>
+                        <strong>{itemDetails.owner.name}</strong>
+                        {itemDetails.owner.email && ` (${itemDetails.owner.email})`}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
-                  {/* Date Separator */}
-                  {messages.length > 0 && (
-                    <div style={{ textAlign: "center", marginBottom: "10px" }}>
-                      <span style={{
-                        background: "white",
-                        padding: "8px 20px",
-                        borderRadius: "20px",
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-                      }}>
-                        {formatDate(messages[0].createdAt)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Messages */}
                   {messages.map((message, index) => {
-                    const isCurrentUser = message.sender._id === currentUser.id;
-                    const showDate = index === 0 || 
-                      formatDate(messages[index].createdAt) !== formatDate(messages[index-1].createdAt);
+                    const isCurrentUser = currentUser && 
+                      message.sender?._id?.toString() === currentUser._id?.toString();
+                    const isTemporary = message.isTemporary;
                     
                     return (
-                      <div key={message._id || index}>
-                        {showDate && index > 0 && (
-                          <div style={{ textAlign: "center", margin: "20px 0" }}>
-                            <span style={{
-                              background: "white",
-                              padding: "8px 20px",
-                              borderRadius: "20px",
-                              fontSize: "14px",
-                              color: "#6c757d",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-                            }}>
-                              {formatDate(message.createdAt)}
-                            </span>
-                          </div>
-                        )}
-                        
+                      <div 
+                        key={message._id || index}
+                        style={{ 
+                          marginBottom: "10px",
+                          opacity: isTemporary ? 0.7 : 1
+                        }}
+                      >
                         <div style={{ 
                           display: "flex", 
-                          justifyContent: isCurrentUser ? "flex-end" : "flex-start",
-                          alignItems: "flex-end",
-                          gap: "10px"
+                          justifyContent: isCurrentUser ? "flex-end" : "flex-start"
                         }}>
-                          {!isCurrentUser && (
-                            <div style={{
-                              width: "36px",
-                              height: "36px",
-                              borderRadius: "50%",
-                              background: "linear-gradient(135deg, #38b000, #2d9100)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "white",
-                              fontSize: "16px",
-                              fontWeight: "bold",
-                              flexShrink: 0
-                            }}>
-                              {message.sender?.name?.charAt(0) || "U"}
-                            </div>
-                          )}
-                          
                           <div style={{
                             maxWidth: "70%",
-                            position: "relative"
+                            background: isCurrentUser ? "#4361ee" : "white",
+                            color: isCurrentUser ? "white" : "#212529",
+                            padding: "10px 15px",
+                            borderRadius: isCurrentUser 
+                              ? "15px 15px 5px 15px" 
+                              : "15px 15px 15px 5px",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
                           }}>
-                            <div style={{
-                              background: isCurrentUser 
-                                ? "linear-gradient(135deg, #4361ee, #7209b7)" 
-                                : "white",
-                              color: isCurrentUser ? "white" : "#212529",
-                              padding: "14px 18px",
-                              borderRadius: isCurrentUser 
-                                ? "18px 18px 4px 18px" 
-                                : "18px 18px 18px 4px",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                              position: "relative"
-                            }}>
-                              <p style={{ margin: 0, lineHeight: 1.5, fontSize: "15px" }}>
-                                {message.message}
-                              </p>
-                              
-                              {/* Temporary message indicator */}
-                              {message.isTemporary && (
-                                <div style={{
-                                  position: "absolute",
-                                  top: "-20px",
-                                  right: "0",
-                                  fontSize: "12px",
-                                  color: "#6c757d"
-                                }}>
-                                  Sending...
-                                </div>
-                              )}
-                            </div>
+                            {!isCurrentUser && message.sender?.name && (
+                              <div style={{
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                marginBottom: "4px",
+                                opacity: 0.8
+                              }}>
+                                {message.sender.name}
+                              </div>
+                            )}
                             
+                            <p style={{ margin: 0, lineHeight: 1.4, fontSize: "14px" }}>
+                              {message.message}
+                              {isTemporary && (
+                                <span style={{ marginLeft: "8px", fontSize: "11px", opacity: 0.7 }}>
+                                  (sending...)
+                                </span>
+                              )}
+                            </p>
                             <div style={{
-                              fontSize: "12px",
-                              color: "#6c757d",
-                              marginTop: "6px",
-                              textAlign: isCurrentUser ? "right" : "left",
-                              padding: "0 8px"
+                              fontSize: "11px",
+                              opacity: 0.8,
+                              marginTop: "5px",
+                              textAlign: "right"
                             }}>
                               {formatTime(message.createdAt)}
                             </div>
                           </div>
-                          
-                          {isCurrentUser && (
-                            <div style={{
-                              width: "36px",
-                              height: "36px",
-                              borderRadius: "50%",
-                              background: "linear-gradient(135deg, #4361ee, #7209b7)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "white",
-                              fontSize: "16px",
-                              fontWeight: "bold",
-                              flexShrink: 0
-                            }}>
-                              {currentUser.name?.charAt(0) || "Y"}
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
@@ -365,164 +512,135 @@ const fetchMessages = async () => {
               )}
             </div>
 
-            {/* Message Input */}
-            <div style={{ 
-              padding: "20px 30px", 
-              borderTop: "1px solid #e0e0e0",
-              background: "white"
-            }}>
-              <form onSubmit={sendMessage} style={{ display: "flex", gap: "15px" }}>
-                <input
-                  type="text"
-                  placeholder="Type your message here..."
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: "14px 20px",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "12px",
-                    fontSize: "16px",
-                    outline: "none",
-                    transition: "all 0.3s"
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
-                />
-                <button
-                  type="submit"
-                  disabled={!text.trim()}
-                  className="btn btn-primary"
-                  style={{ 
-                    padding: "14px 28px",
-                    fontSize: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    opacity: !text.trim() ? 0.5 : 1
-                  }}
-                >
-                  <span>📤</span> Send
-                </button>
-              </form>
-              
+            {/* Input - Only show if we have messages or otherUser is identified */}
+            {(messages.length > 0 || otherUser) && (
               <div style={{ 
-                display: "flex", 
-                gap: "15px", 
-                marginTop: "15px",
-                fontSize: "14px",
-                color: "#6c757d"
+                padding: "15px 20px", 
+                borderTop: "1px solid #e0e0e0",
+                background: "white"
               }}>
-                <span>💡</span>
-                <span>Discuss price, condition, and exchange details</span>
+                <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder={
+                      !otherUser 
+                        ? "Loading..." 
+                        : `Message ${otherUser.name}...`
+                    }
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "12px 15px",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "8px",
+                      fontSize: "14px"
+                    }}
+                    disabled={!otherUser || sending}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!text.trim() || !otherUser || sending}
+                    style={{
+                      padding: "12px 20px",
+                      background: "#4361ee",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      opacity: (otherUser && text.trim() && !sending) ? 1 : 0.5
+                    }}
+                  >
+                    {sending ? "Sending..." : "Send"}
+                  </button>
+                </form>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Sidebar - Item Details */}
+          {/* Sidebar */}
           <div style={{ 
+            width: "300px", 
             borderLeft: "1px solid #e0e0e0",
-            padding: "30px",
+            padding: "20px",
             background: "white"
           }}>
-            <h3 style={{ marginBottom: "20px", fontSize: "18px" }}>Item Details</h3>
+            <h3 style={{ marginBottom: "15px" }}>Item Details</h3>
             
             {itemDetails ? (
               <>
-                {itemDetails.imageURL ? (
+                {itemDetails.images?.[0] && (
                   <img
-                    src={itemDetails.imageURL}
+                    src={itemDetails.images[0]}
                     alt={itemDetails.title}
                     style={{
                       width: "100%",
-                      height: "180px",
+                      height: "150px",
                       objectFit: "cover",
-                      borderRadius: "12px",
-                      marginBottom: "20px"
+                      borderRadius: "8px",
+                      marginBottom: "15px"
                     }}
                   />
-                ) : (
-                  <div style={{
-                    width: "100%",
-                    height: "180px",
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    borderRadius: "12px",
-                    marginBottom: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: "48px"
-                  }}>
-                    📚
-                  </div>
                 )}
                 
-                <h4 style={{ marginBottom: "10px", fontSize: "18px" }}>{itemDetails.title}</h4>
-                <p style={{ color: "#6c757d", marginBottom: "20px", fontSize: "14px" }}>
-                  {itemDetails.description?.substring(0, 100)}...
+                <h4 style={{ marginBottom: "8px" }}>{itemDetails.title}</h4>
+                <p style={{ color: "#6c757d", fontSize: "14px", marginBottom: "15px" }}>
+                  {itemDetails.description?.substring(0, 100)}
+                  {itemDetails.description?.length > 100 && "..."}
                 </p>
                 
-                <div style={{ marginBottom: "25px" }}>
-                  <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Price</p>
-                  <p style={{ fontSize: "24px", fontWeight: "700", color: "#4361ee" }}>
-                    Rs. {itemDetails.price}
+                <div style={{ marginBottom: "15px" }}>
+                  <p style={{ margin: 0, color: "#6c757d", fontSize: "13px" }}>Price</p>
+                  <p style={{ fontSize: "24px", fontWeight: "bold", color: "#4361ee", margin: "5px 0" }}>
+                    Rs. {itemDetails.price?.toLocaleString() || "0"}
                   </p>
                 </div>
                 
-                {itemDetails.category && (
-                  <div style={{ marginBottom: "25px" }}>
-                    <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Category</p>
-                    <span style={{
-                      display: "inline-block",
-                      background: "#eef2ff",
-                      color: "#4361ee",
-                      padding: "6px 16px",
-                      borderRadius: "20px",
-                      fontSize: "14px",
-                      fontWeight: "500"
-                    }}>
-                      {itemDetails.category}
-                    </span>
+                {itemDetails.owner && (
+                  <div style={{ 
+                    padding: "12px",
+                    background: "#f8f9fa",
+                    borderRadius: "8px",
+                    marginTop: "20px"
+                  }}>
+                    <p style={{ margin: "0 0 5px 0", fontSize: "13px", color: "#6c757d" }}>Item Owner</p>
+                    <p style={{ margin: 0, fontWeight: "500" }}>
+                      {itemDetails.owner.name || "Unknown"}
+                    </p>
+                    {itemDetails.owner.email && (
+                      <p style={{ margin: "5px 0 0 0", fontSize: "12px", color: "#6c757d" }}>
+                        {itemDetails.owner.email}
+                      </p>
+                    )}
                   </div>
                 )}
-                
-                <div style={{ 
-                  padding: "20px", 
-                  background: "#f8f9fa", 
-                  borderRadius: "12px",
-                  marginTop: "30px"
-                }}>
-                  <h4 style={{ marginBottom: "12px", fontSize: "16px" }}>💡 Chat Tips</h4>
-                  <ul style={{ 
-                    paddingLeft: "20px", 
-                    margin: 0, 
-                    fontSize: "14px",
-                    color: "#6c757d",
-                    lineHeight: 1.6
-                  }}>
-                    <li>Be clear about your offer</li>
-                    <li>Discuss item condition</li>
-                    <li>Agree on exchange method</li>
-                    <li>Set a meeting time/place</li>
-                  </ul>
-                </div>
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                <div className="loading" style={{ 
-                  margin: "0 auto", 
-                  width: "40px", 
-                  height: "40px", 
-                  borderWidth: "3px",
-                  borderTopColor: "#4361ee"
+              <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                <div style={{ 
+                  width: "30px", 
+                  height: "30px", 
+                  border: "3px solid #f3f3f3",
+                  borderTop: "3px solid #4361ee",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  margin: "0 auto 10px auto"
                 }}></div>
-                <p style={{ marginTop: "20px", color: "#6c757d" }}>Loading item details...</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "#6c757d" }}>
+                  Loading item...
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

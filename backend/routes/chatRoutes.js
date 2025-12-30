@@ -1,43 +1,37 @@
 const express = require("express");
 const router = express.Router();
-const Message = require("../models/messageModel"); // update filename if needed
-const Item = require("../models/itemModel");       // update filename if needed
-const Notification = require("../models/notificationModel"); // add Notification import
 const authMiddleware = require("../middleware/authMiddleware");
+const chatController = require("../controller/chatController");
 
-// Send message
-router.post("/", authMiddleware, async (req, res) => {
-  const { itemId, receiverId, message } = req.body;
+// ======================
+// 1. Message & Chat Routes
+// ======================
 
-  const msg = new Message({
-    item: itemId,
-    sender: req.user._id,
-    receiver: receiverId,
-    message
-  });
+// Send message (creates chat if doesn't exist)
+router.post("/", authMiddleware, chatController.sendMessage);
 
-  await msg.save();
+// Create or get existing chat
+router.post("/create", authMiddleware, chatController.createOrGetChat);
 
-  // ✅ Move Notification creation inside async route
-  await Notification.create({
-    user: receiverId,
-    message: "You received a new message."
-  });
+// Get chat by ID
+router.get("/:chatId", authMiddleware, chatController.getChatById);
 
-  res.json(msg);
-});
+// Get chats by item ID (legacy support)
+router.get("/item/:itemId", authMiddleware, chatController.getChatByItemId);
 
-// Get messages for an item
-router.get("/:itemId", authMiddleware, async (req, res) => {
-  const messages = await Message.find({
-    item: req.params.itemId,
-    $or: [
-      { sender: req.user._id },
-      { receiver: req.user._id }
-    ]
-  }).populate("sender receiver", "name");
+// Get all chats for current user
+router.get("/user/chats", authMiddleware, chatController.getUserChats);
 
-  res.json(messages);
-});
+// Mark messages as read in a chat
+router.patch("/:chatId/read", authMiddleware, chatController.markMessagesAsRead);
+
+// Get total unread messages count
+router.get("/user/unread", authMiddleware, chatController.getUnreadCount);
+
+// Delete a chat
+router.delete("/:chatId", authMiddleware, chatController.deleteChat);
+
+// Test endpoint
+router.get("/test/connection", chatController.testConnection);
 
 module.exports = router;

@@ -12,26 +12,34 @@ const Notifications = () => {
       setLoading(true);
       setError(null);
       
-      console.log("📨 Fetching notifications from API...");
+      console.log("📨 Fetching notifications...");
       const res = await API.get("/notifications");
-      console.log("✅ API Response received:", res);
+      console.log("✅ API Response:", res.data);
       
-      // SAFELY handle response - backend returns empty array []
-      const data = res.data || [];
+      // ✅ FIXED: Handle all possible response formats
+      let notificationsArray = [];
       
-      // Make sure it's an array
-      if (Array.isArray(data)) {
-        console.log(`📊 Setting ${data.length} notifications`);
-        setNotifications(data);
-      } else {
-        console.warn("⚠️ Unexpected response format, using empty array");
-        setNotifications([]);
+      if (Array.isArray(res.data)) {
+        // Format 1: Direct array (after fixing notificationController.js)
+        notificationsArray = res.data;
+      } else if (res.data && Array.isArray(res.data.notifications)) {
+        // Format 2: Nested notifications array
+        notificationsArray = res.data.notifications;
+      } else if (res.data && res.data.data && Array.isArray(res.data.data.notifications)) {
+        // Format 3: Deep nested
+        notificationsArray = res.data.data.notifications;
+      } else if (res.data && Array.isArray(res.data.data)) {
+        // Format 4: Array in data field
+        notificationsArray = res.data.data;
       }
+      
+      console.log(`📊 Setting ${notificationsArray.length} notifications`);
+      setNotifications(notificationsArray);
       
     } catch (err) {
       console.error("❌ Error fetching notifications:", err);
       setError(err.response?.data?.message || "Failed to load notifications");
-      setNotifications([]); // Set empty array on error
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -42,11 +50,16 @@ const Notifications = () => {
     
     try {
       console.log(`📝 Marking notification ${id} as read`);
+      
       // Try different endpoint formats
       try {
         await API.put(`/notifications/${id}/read`);
       } catch {
-        await API.put(`/notifications/${id}`);
+        try {
+          await API.put(`/notifications/${id}`);
+        } catch {
+          await API.patch(`/notifications/${id}`);
+        }
       }
       
       // Update local state
@@ -58,13 +71,30 @@ const Notifications = () => {
     }
   };
 
+  const markAllAsRead = async () => {
+    try {
+      console.log("📝 Marking ALL notifications as read");
+      await API.put("/notifications/read/all");
+      
+      // Update all notifications to read
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
+  };
+
   useEffect(() => {
     console.log("🔧 Notifications component mounted");
     fetchNotifications();
+    
+    // Auto-refresh every 30 seconds (optional polling)
+    const interval = setInterval(fetchNotifications, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // ======================
-  // RENDER LOGIC
+  // RENDER FUNCTIONS
   // ======================
 
   // 1. Loading State
@@ -88,12 +118,7 @@ const Notifications = () => {
         <p style={{ marginTop: "20px", color: "#6c757d" }}>
           Loading notifications...
         </p>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -127,7 +152,7 @@ const Notifications = () => {
     );
   }
 
-  // 3. Empty State (Most important - this is what's happening)
+  // 3. Empty State
   if (!notifications || notifications.length === 0) {
     return (
       <div className="container" style={{ 
@@ -145,7 +170,7 @@ const Notifications = () => {
           maxWidth: "500px",
           margin: "0 auto 40px"
         }}>
-          When you receive messages, item approvals, or other updates, 
+          When you receive messages, barter requests, or other updates, 
           they'll appear here.
         </p>
         
@@ -181,6 +206,20 @@ const Notifications = () => {
               📊 Browse Items
             </button>
           </Link>
+          
+          <button
+            onClick={fetchNotifications}
+            style={{
+              padding: "12px 24px",
+              background: "#f8f9fa",
+              border: "1px solid #dee2e6",
+              borderRadius: "8px",
+              fontSize: "16px",
+              cursor: "pointer"
+            }}
+          >
+            ↻ Refresh
+          </button>
         </div>
       </div>
     );
@@ -190,19 +229,50 @@ const Notifications = () => {
   return (
     <div className="container" style={{ maxWidth: "800px", margin: "40px auto", padding: "0 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
-        <h2 style={{ margin: 0 }}>Notifications</h2>
-        <button
-          onClick={fetchNotifications}
-          style={{
-            padding: "8px 16px",
-            background: "#f8f9fa",
-            border: "1px solid #dee2e6",
-            borderRadius: "5px",
-            cursor: "pointer"
-          }}
-        >
-          ↻ Refresh
-        </button>
+        <h2 style={{ margin: 0 }}>
+          Notifications 
+          <span style={{
+            marginLeft: "10px",
+            background: "#4361ee",
+            color: "white",
+            borderRadius: "50%",
+            padding: "2px 8px",
+            fontSize: "14px"
+          }}>
+            {notifications.filter(n => !n.isRead).length}
+          </span>
+        </h2>
+        
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            onClick={fetchNotifications}
+            style={{
+              padding: "8px 16px",
+              background: "#f8f9fa",
+              border: "1px solid #dee2e6",
+              borderRadius: "5px",
+              cursor: "pointer"
+            }}
+          >
+            ↻ Refresh
+          </button>
+          
+          {notifications.some(n => !n.isRead) && (
+            <button
+              onClick={markAllAsRead}
+              style={{
+                padding: "8px 16px",
+                background: "#4361ee",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                cursor: "pointer"
+              }}
+            >
+              Mark All as Read
+            </button>
+          )}
+        </div>
       </div>
       
       <div style={{
@@ -212,12 +282,24 @@ const Notifications = () => {
         overflow: "hidden"
       }}>
         {notifications.map((notification, index) => {
-          // SAFELY access all properties with fallbacks
           const id = notification?._id || `notification-${index}`;
           const message = notification?.message || "Notification";
           const isRead = notification?.isRead || false;
           const type = notification?.type || "system";
+          const title = notification?.title || "Notification";
           const createdAt = notification?.createdAt || new Date().toISOString();
+          
+          // Get icon based on type
+          const getIcon = () => {
+            switch(type) {
+              case 'barter': return '🔄';
+              case 'message': return '✉️';
+              case 'item_approved': return '✅';
+              case 'item_rejected': return '❌';
+              case 'system': return '📢';
+              default: return '🔔';
+            }
+          };
           
           return (
             <div 
@@ -228,8 +310,13 @@ const Notifications = () => {
                 background: isRead ? "white" : "#f0f9ff",
                 display: "flex",
                 alignItems: "center",
-                gap: "15px"
+                gap: "15px",
+                cursor: "pointer",
+                transition: "background 0.2s"
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = isRead ? "#f8f9fa" : "#e3f2fd"}
+              onMouseLeave={(e) => e.currentTarget.style.background = isRead ? "white" : "#f0f9ff"}
+              onClick={() => !isRead && markRead(id)}
             >
               <div style={{
                 width: "40px",
@@ -242,24 +329,35 @@ const Notifications = () => {
                 color: isRead ? "#6c757d" : "white",
                 fontSize: "18px"
               }}>
-                {type === 'message' && '✉️'}
-                {type === 'system' && '📢'}
-                {type === 'item_approved' && '✅'}
-                {!['message', 'system', 'item_approved'].includes(type) && '🔔'}
+                {getIcon()}
               </div>
               
               <div style={{ flex: 1 }}>
+                <h4 style={{ margin: "0 0 5px 0", color: "#212529" }}>
+                  {title}
+                  {!isRead && <span style={{
+                    display: "inline-block",
+                    width: "8px",
+                    height: "8px",
+                    background: "#4361ee",
+                    borderRadius: "50%",
+                    marginLeft: "8px"
+                  }}></span>}
+                </h4>
                 <p style={{ margin: "0 0 8px 0", color: "#495057" }}>
                   {message}
                 </p>
                 <small style={{ color: "#6c757d" }}>
-                  {new Date(createdAt).toLocaleString()}
+                  {new Date(createdAt).toLocaleDateString()} at {new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </small>
               </div>
               
               {!isRead && (
                 <button
-                  onClick={() => markRead(id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markRead(id);
+                  }}
                   style={{
                     padding: "6px 12px",
                     background: "transparent",

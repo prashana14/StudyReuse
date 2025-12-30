@@ -124,19 +124,19 @@ function addImageURLs(items, req) {
  */
 exports.getAllItems = async (req, res) => {
   try {
-   // console.log('📋 GET /items - Fetching all items');
+    // console.log('📋 GET /items - Fetching all items');
     
     let userData = null;
     try {
       userData = verifyToken(req);
-      //console.log(`👤 User authenticated: ${userData.id} (${userData.role})`);
+      // console.log(`👤 User authenticated: ${userData.id} (${userData.role})`);
     } catch (err) {
       console.log('👤 No user authenticated');
     }
     
     // Build query based on user role
     const query = buildItemQuery(userData);
-    //console.log('🔍 Query:', query);
+    // console.log('🔍 Query:', query);
     
     // Get items with pagination
     const { page = 1, limit = 20, category, condition, minPrice, maxPrice, sort = '-createdAt' } = req.query;
@@ -161,7 +161,7 @@ exports.getAllItems = async (req, res) => {
     // Add image URLs
     const itemsWithURL = addImageURLs(items, req);
     
-   // console.log(`✅ Found ${items.length} items`);
+    // console.log(`✅ Found ${items.length} items`);
     
     res.json({
       success: true,
@@ -193,10 +193,10 @@ exports.getAllItems = async (req, res) => {
  */
 exports.getMyItems = async (req, res) => {
   try {
-    //console.log('📋 GET /items/my - Fetching user items');
+    // console.log('📋 GET /items/my - Fetching user items');
     
     const userData = verifyToken(req);
-    //console.log(`👤 User: ${userData.id}`);
+    // console.log(`👤 User: ${userData.id}`);
     
     const { page = 1, limit = 20, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -222,7 +222,7 @@ exports.getMyItems = async (req, res) => {
     // Add image URLs
     const itemsWithURL = addImageURLs(items, req);
     
-    //console.log(`✅ Found ${items.length} items for user ${userData.id}`);
+    // console.log(`✅ Found ${items.length} items for user ${userData.id}`);
     
     res.json({
       success: true,
@@ -263,7 +263,7 @@ exports.getMyItems = async (req, res) => {
 };
 
 /**
- * Get single item by ID
+ * Get single item by ID - FIXED VERSION (403 Issue Resolved)
  */
 exports.getItemById = async (req, res) => {
   try {
@@ -281,36 +281,76 @@ exports.getItemById = async (req, res) => {
       });
     }
     
-    // Check if user can view the item
+    // FIXED: Check if user can view the item
     let canView = true;
     let userData = null;
     
     try {
       userData = verifyToken(req);
-      canView = userData.role === 'admin' || userData.id === item.owner._id.toString();
+      //console.log(`👤 Authenticated user: ${userData.id} (${userData.role})`);
+      
+      // User is authenticated - can view if:
+      // 1. They are admin OR
+      // 2. They are the owner OR  
+      // 3. The item is approved and not flagged
+      canView = userData.role === 'admin' || 
+                userData.id === item.owner._id.toString() || 
+                (item.isApproved && !item.isFlagged);
     } catch (err) {
       // Not logged in - can only view approved, non-flagged items
+      console.log('👤 Not authenticated - checking public access');
       canView = item.isApproved && !item.isFlagged;
     }
     
     if (!canView) {
-      console.log(`⛔ User not authorized to view item ${id}`);
+      console.log(`⛔ Access denied for item ${id}`);
+      console.log(`   Item status: approved=${item.isApproved}, flagged=${item.isFlagged}`);
       return res.status(403).json({ 
         success: false,
-        message: 'Item not available or pending approval' 
+        message: item.isApproved === false 
+          ? 'Item is pending approval' 
+          : item.isFlagged === true
+            ? 'Item has been flagged as inappropriate'
+            : 'Access denied'
       });
     }
     
     // Add image URL
     const itemWithURL = {
-      ...item.toObject(),
-      imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null,
-      canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
-      canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
-    };
+  ...item.toObject ? item.toObject() : item, // Ensure we get plain object
+  imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null,
+  canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
+  canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
+};
     
-    console.log(`✅ Item ${id} fetched successfully`);
-    
+//     console.log(`✅ Item ${id} fetched successfully:`, {
+//   title: itemWithURL.title,
+//   isApproved: itemWithURL.isApproved,
+//   imageURL: itemWithURL.imageURL
+// });
+    // Add this debugging code BEFORE the res.json()
+// console.log('🔍 DEBUG - Item data structure:', {
+//   itemId: item._id,
+//   title: item.title,
+//   isApproved: item.isApproved,
+//   isFlagged: item.isFlagged,
+//   image: item.image,
+//   imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null,
+//   itemWithURL: {
+//     ...item.toObject(),
+//     imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
+//   }
+// });
+
+// console.log('🔍 DEBUG - Final response data structure:', {
+//   success: true,
+//   message: 'Item fetched successfully',
+//   data: {
+//     ...itemWithURL,
+//     canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
+//     canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
+//   }
+// });
     res.json({
       success: true,
       message: 'Item fetched successfully',

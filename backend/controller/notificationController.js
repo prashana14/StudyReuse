@@ -1,4 +1,3 @@
-// controllers/notificationController.js
 const Notification = require('../models/notificationModel');
 const jwt = require('jsonwebtoken');
 
@@ -10,10 +9,9 @@ function verifyToken(req) {
   return jwt.verify(token, process.env.JWT_SECRET);
 }
 
-// ✅ GET /api/notifications - Get all notifications for current user
+// ✅ FIXED: Return simple array for frontend
 exports.getNotifications = async (req, res) => {
   try {
-    
     const userData = verifyToken(req);
     
     // Get query parameters
@@ -44,40 +42,13 @@ exports.getNotifications = async (req, res) => {
     const notifications = await Notification.find(query)
       .populate('relatedItem', 'title image price')
       .populate('relatedUser', 'name email profilePicture')
-      .populate('user', 'name email') // Populate user info if needed
+      .populate('user', 'name email')
       .sort({ [sortBy]: sortDirection })
       .skip(skip)
       .limit(parseInt(limit));
     
-    // Get total count for pagination
-    const total = await Notification.countDocuments(query);
-    
-    // Get unread count
-    const unreadCount = await Notification.countDocuments({
-      user: userData.id,
-      isRead: false
-    });
-    
-    
-    res.json({
-      success: true,
-      message: 'Notifications fetched successfully',
-      data: {
-        notifications,
-        pagination: {
-          total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(total / parseInt(limit)),
-          hasMore: (parseInt(page) * parseInt(limit)) < total
-        },
-        summary: {
-          total,
-          unread: unreadCount,
-          read: total - unreadCount
-        }
-      }
-    });
+    // ✅ FIXED: Return array directly (simpler for frontend)
+    res.json(notifications);
     
   } catch (err) {
     console.error('❌ Error fetching notifications:', err);
@@ -103,6 +74,7 @@ exports.getNotifications = async (req, res) => {
     });
   }
 };
+
 
 // ✅ PUT /api/notifications/:id/read - Mark single notification as read
 exports.markAsRead = async (req, res) => {

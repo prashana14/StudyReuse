@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL || 'http://localhost:5173'
-    : 'http://localhost:5173',
+    : ['http://localhost:5173', 'http://localhost:8179'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   credentials: true,
@@ -123,17 +123,17 @@ const applyJsonToRoutes = (routes) => {
 // ======================
 // 7. Routes Configuration
 // ======================
-const routesWithJson = [
-  { path: '/api/users', router: userRoutes },
-  { path: '/api/barter', router: barterRoutes },
-  { path: '/api/chat', router: chatRoutes },
-  { path: '/api/reviews', router: reviewRoutes },
-  { path: '/api/notifications', router: notificationRoutes },
-  { path: '/api/admin', router: adminRoutes }
-];
+// Apply JSON middleware first
+app.use(express.json({ limit: '10mb' }));
 
-applyJsonToRoutes(routesWithJson);
-app.use('/api/items', itemRoutes); // No JSON parsing for file uploads
+// Then apply routes
+app.use('/api/users', userRoutes);
+app.use('/api/items', itemRoutes);
+app.use('/api/barter', barterRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ======================
 // 8. Health & Info Routes
@@ -142,7 +142,9 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'UP',
     timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
   });
 });
 
@@ -153,47 +155,101 @@ app.get('/', (req, res) => {
     endpoints: {
       items: '/api/items',
       users: '/api/users',
+      barter: '/api/barter',
+      chat: '/api/chat',
+      reviews: '/api/reviews',
       notifications: '/api/notifications',
+      admin: '/api/admin',
       health: '/health'
     },
-    uploads: `http://${req.get('host')}/uploads/`
+    uploads: `http://${req.get('host')}/uploads/`,
+    status: 'operational'
   });
 });
 
 // ======================
-// 9. Error Handling
+// 9. Enhanced Error Handling Middleware
 // ======================
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
+  console.error('❌ Server Error:');
+  console.error('Message:', err.message);
+  console.error('Name:', err.name);
   
-  // Common errors
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ 
-      message: 'File size must be less than 5MB' 
-    });
-  }
-  
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({ 
-      message: 'Invalid token' 
-    });
-  }
-  
+  // Mongoose Validation Errors
   if (err.name === 'ValidationError') {
-    return res.status(400).json({ 
-      message: 'Validation failed',
-      errors: Object.values(err.errors).map(e => e.message)
+    console.error('🔍 Validation Error Details:');
+    Object.keys(err.errors).forEach(field => {
+      console.error(`  ${field}:`, err.errors[field].message);
+    });
+    
+    return res.status(400).json({
+      success: false,
+      message: 'Validation Error',
+      errors: Object.values(err.errors).map(e => ({
+        field: e.path,
+        message: e.message
+      }))
     });
   }
   
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal server error'
+  // JWT Errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expired'
+    });
+  }
+  
+  // Mongoose CastError (invalid ID)
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid ${err.path}: ${err.value}`
+    });
+  }
+  
+  // File Upload Errors
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      message: 'File size must be less than 5MB'
+    });
+  }
+  
+  // MongoDB Duplicate Key Error
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyPattern)[0];
+    return res.status(409).json({
+      success: false,
+      message: `${field} already exists`
+    });
+  }
+  
+  // Default error
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal server error';
+  
+  res.status(statusCode).json({
+    success: false,
+    message: message,
+    ...(process.env.NODE_ENV === 'development' && { 
+      error: err.message,
+      stack: err.stack 
+    })
   });
 });
 
-// 404 Handler
+// 404 Handler (must be after all routes)
 app.use('*', (req, res) => {
   res.status(404).json({ 
+    success: false,
     message: `Route ${req.originalUrl} not found` 
   });
 });
@@ -203,8 +259,6 @@ app.use('*', (req, res) => {
 // ======================
 const connectDB = async () => {
   try {
-    //console.log('🔗 Connecting to MongoDB...');
-    
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -222,7 +276,7 @@ const connectDB = async () => {
     });
     
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected');
+      console.warn('⚠️ MongoDB disconnected - attempting to reconnect...');
     });
     
   } catch (err) {
@@ -237,9 +291,7 @@ const connectDB = async () => {
 // ======================
 const startServer = async () => {
   try {
-    //console.log('\n' + '='.repeat(50));
     console.log('🚀 StudyReuse Backend Server');
-    //console.log('='.repeat(50));
     
     // Check required env vars
     const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
@@ -251,31 +303,20 @@ const startServer = async () => {
       process.exit(1);
     }
     
-    //console.log('✅ Environment verified');
-    
     // Connect to database
     await connectDB();
     
     const PORT = process.env.PORT || 4000;
     
-    server.listen(PORT, () => {
-      //console.log('\n' + '='.repeat(50));
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log('\n' + '='.repeat(50));
       console.log('Server Started Successfully!');
-      //console.log('='.repeat(50));
+      console.log('='.repeat(50));
       console.log(`📡 Server:  http://localhost:${PORT}`);
       console.log(`🌐 Uploads: http://localhost:${PORT}/uploads/`);
-      //console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-      //console.log('='.repeat(50));
-      // console.log('\n📋 Available Endpoints:');
-      // console.log('   GET    /                    - API Info');
-      // console.log('   GET    /health             - Health Check');
-      // console.log('   GET    /api/items          - List items');
-      // console.log('   POST   /api/items          - Create item');
-      // console.log('   GET    /api/items/:id      - Get item');
-      // console.log('   PUT    /api/items/:id      - Update item');
-      // console.log('   DELETE /api/items/:id      - Delete item');
-      // console.log('   GET    /api/notifications  - Notifications');
-      //console.log('\n🚀 Ready to accept connections!\n');
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('='.repeat(50));
+      console.log('\n🚀 Ready to accept connections!\n');
     });
     
     // Handle server errors
@@ -285,11 +326,11 @@ const startServer = async () => {
         console.error('Try: PORT=4001 npm start');
         process.exit(1);
       }
-      console.error('💥 Server error:', err);
+      console.error('💥 Server error:', err.message);
     });
     
   } catch (err) {
-    console.error('💥 Failed to start server:', err);
+    console.error('💥 Failed to start server:', err.message);
     process.exit(1);
   }
 };
@@ -298,13 +339,15 @@ const startServer = async () => {
 // 12. Graceful Shutdown
 // ======================
 const shutdown = async (signal) => {
-  console.log(`\n${signal} received. Shutting down...`);
+  console.log(`\n${signal} received. Shutting down gracefully...`);
   
   try {
+    // Close HTTP server
     server.close(() => {
       console.log('✅ HTTP server closed');
     });
     
+    // Close MongoDB connection if connected
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close(false);
       console.log('✅ MongoDB connection closed');
@@ -314,28 +357,91 @@ const shutdown = async (signal) => {
     process.exit(0);
     
   } catch (err) {
-    console.error('❌ Error during shutdown:', err);
+    console.error('❌ Error during shutdown:', err.message);
     process.exit(1);
   }
 };
 
-// Handle process events
+// ======================
+// 13. Process Event Handlers
+// ======================
+// Handle graceful shutdown signals
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
+// Handle uncaught exceptions - don't crash for non-critical errors
 process.on('uncaughtException', (err) => {
-  console.error('💥 Uncaught Exception:', err.message);
-  shutdown('UNCAUGHT_EXCEPTION');
+  console.error('\n💥 Uncaught Exception:');
+  console.error('Message:', err.message);
+  console.error('Stack:', err.stack);
+  
+  // Only shutdown for critical errors
+  const criticalErrors = [
+    'EADDRINUSE',
+    'ECONNREFUSED',
+    'MODULE_NOT_FOUND',
+    'ENOENT'
+  ];
+  
+  const isCritical = criticalErrors.some(keyword => 
+    err.message.includes(keyword) || err.code === keyword
+  );
+  
+  if (isCritical) {
+    console.error('💥 Critical error detected - shutting down');
+    shutdown('UNCAUGHT_EXCEPTION');
+  } else {
+    console.error('⚠️ Non-critical error - server will continue running');
+    // Log error but don't shutdown
+  }
 });
 
+// Handle unhandled rejections - don't crash the server
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-  shutdown('UNHANDLED_REJECTION');
+  console.error('\n⚠️ Unhandled Rejection detected:');
+  console.error('Reason:', reason.message || reason);
+  
+  // Log more details for debugging
+  if (reason instanceof Error) {
+    console.error('Error name:', reason.name);
+    console.error('Error stack:', reason.stack);
+    
+    // Check if it's a validation error
+    if (reason.name === 'ValidationError') {
+      console.error('🔍 Validation Error Details:');
+      if (reason.errors) {
+        Object.keys(reason.errors).forEach(field => {
+          console.error(`  ${field}:`, reason.errors[field].message);
+        });
+      }
+      
+      // For notification validation errors
+      if (reason.message.includes('Notification') || reason.message.includes('user')) {
+        console.error('📌 Notification validation error detected');
+        console.error('📌 This is likely from notificationService.js');
+        console.error('📌 Server will continue running...');
+      }
+    }
+  }
+  
+  // Don't shutdown for unhandled rejections
+  console.error('ℹ️ Server will continue running despite unhandled rejection');
+});
+
+// Handle warnings
+process.on('warning', (warning) => {
+  console.warn('\n⚠️ Node.js Warning:');
+  console.warn(warning.name);
+  console.warn(warning.message);
+  console.warn(warning.stack);
 });
 
 // ======================
-// 13. Start the Server
+// 14. Start the Server
 // ======================
-startServer();
+// Delay start to allow console to clear
+setTimeout(() => {
+  startServer();
+}, 100);
 
-module.exports = app;
+module.exports = { app, server };

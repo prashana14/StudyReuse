@@ -5,7 +5,12 @@ import { useNavigate } from "react-router-dom";
 
 const BarterRequests = () => {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext); // ✅ NOW WORKING
+  const { user } = useContext(AuthContext);
+   // ✅ NOW WORKING
+    console.log("🔍 USER CONTEXT DEBUG:");
+  console.log("User object:", user);
+  console.log("User ID:", user?._id);
+  console.log("Is user loaded?", !!user);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -55,35 +60,68 @@ const BarterRequests = () => {
   };
 
   const updateStatus = async (id, status) => {
-    try {
-      await API.put(`/barter/${id}`, { status });
-      
-      // Update local state
-      setRequests(prev => prev.map(req => 
+  console.log(`🔄 Attempting to update barter ${id} to ${status}`);
+  
+  try {
+    console.log(`📤 Making API call: PUT /barter/${id} with status: ${status}`);
+    
+    const response = await API.put(`/barter/${id}`, { status });
+    
+    console.log("✅ API Response:", response.data);
+    
+    if (response.data && response.data.message) {
+      console.log("✅ Server message:", response.data.message);
+    }
+    
+    // Update local state
+    setRequests(prev => {
+      const updated = prev.map(req => 
         req._id === id ? { ...req, status } : req
-      ));
-      
-      // Update stats
-      setStats(prev => ({
+      );
+      console.log("🔄 Updated requests state:", updated);
+      return updated;
+    });
+    
+    // Update stats
+    setStats(prev => {
+      const newStats = {
         ...prev,
         [status]: prev[status] + 1,
         pending: status !== "pending" ? prev.pending - 1 : prev.pending
-      }));
-      
-      // Show success message
-      const statusMessages = {
-        accepted: "✅ Barter request accepted!",
-        rejected: "❌ Barter request rejected.",
-        pending: "🔄 Barter request status updated."
       };
-      alert(statusMessages[status] || "Status updated");
-      
-    } catch (err) {
-      console.error("Error updating barter status:", err);
+      console.log("📊 Updated stats:", newStats);
+      return newStats;
+    });
+    
+    const statusMessages = {
+      accepted: "✅ Barter request accepted!",
+      rejected: "❌ Barter request rejected.",
+      pending: "🔄 Barter request status updated."
+    };
+    
+    alert(statusMessages[status] || "Status updated");
+    
+    // Refresh to be sure
+    setTimeout(() => {
+      fetchBarters();
+    }, 500);
+    
+  } catch (err) {
+    console.error("❌ ERROR updating barter status:");
+    console.error("Error object:", err);
+    console.error("Error response:", err.response);
+    console.error("Error data:", err.response?.data);
+    console.error("Error status:", err.response?.status);
+    
+    if (err.response?.data?.message) {
+      alert(`Error: ${err.response.data.message}`);
+    } else if (err.message) {
+      alert(`Error: ${err.message}`);
+    } else {
       alert("Failed to update status. Please try again.");
     }
-  };
-
+  }
+};
   const filteredRequests = requests.filter(req => {
     if (activeFilter === "all") return true;
     if (activeFilter === "pending") return req.status === "pending";
@@ -98,12 +136,34 @@ const BarterRequests = () => {
   });
 
   const BarterCard = ({ request }) => {
-    const userId = user?._id?.toString();
-    const requesterId = request.requester?._id?.toString() || request.requester?.toString();
-    const ownerId = request.owner?._id?.toString() || request.owner?.toString();
-    
-    const isOwner = ownerId === userId;
-    const isRequester = requesterId === userId;
+  const userId = user?._id?.toString();
+  
+  console.log("🔍 BARTER CARD DEBUG:");
+  console.log("Request ID:", request._id);
+  console.log("Request status:", request.status);
+  console.log("Full request object:", request);
+  
+  // Debug owner field
+  console.log("Request.owner:", request.owner);
+  console.log("Request.owner type:", typeof request.owner);
+  console.log("Request.owner._id:", request.owner?._id);
+  console.log("Request.owner.toString():", request.owner?.toString());
+  
+  const requesterId = request.requester?._id?.toString() || request.requester?.toString();
+  const ownerId = request.owner?._id?.toString() || request.owner?.toString();
+  
+  console.log("Calculated requesterId:", requesterId);
+  console.log("Calculated ownerId:", ownerId);
+  console.log("Current userId:", userId);
+  
+  const isOwner = ownerId === userId;
+  const isRequester = requesterId === userId;
+  
+  console.log("Is owner?", isOwner);
+  console.log("Is requester?", isRequester);
+  console.log("Show accept button?", isOwner && request.status === "pending");
+  
+  // ... rest of the component
     
     return (
       <div className="card hover-lift" style={{ padding: "25px" }}>

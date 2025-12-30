@@ -5,70 +5,130 @@ const Item = require("../models/itemModel");
 const authMiddleware = require("../middleware/authMiddleware");
 const Notification = require("../models/notificationModel");
 
-// Create barter request
+// Create barter request - FIXED
 router.post("/", authMiddleware, async (req, res) => {
-  const { itemId } = req.body;
+  try {
+    const { itemId } = req.body;
 
-  const item = await Item.findById(itemId);
-  if (!item) return res.status(404).json({ message: "Item not found" });
+    const item = await Item.findById(itemId);
+    if (!item) return res.status(404).json({ message: "Item not found" });
 
- // routes/barterRoutes.js - Line 15
-const barter = new Barter({
-  item: item._id,
-  requester: req.user._id,
-  owner: item.owner  // ✅ FIXED (was item.user)
-});
+    // Check if trying to barter with own item
+    if (item.owner.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "Cannot barter with your own item" });
+    }
 
-  await barter.save();
+    // Check for duplicate pending request
+    const existingBarter = await Barter.findOne({
+      item: itemId,
+      requester: req.user._id,
+      status: "pending"
+    });
+    
+    if (existingBarter) {
+      return res.status(400).json({ message: "You already have a pending request for this item" });
+    }
+    
+    const barter = new Barter({
+      item: item._id,
+      requester: req.user._id,
+      owner: item.owner
+    });
 
-  // Move Notification creation inside the async function
-  await Notification.create({
-    user: item.user,
-    message: "You received a new barter request."
-  });
+    await barter.save();
 
-  res.json({ message: "Barter request sent" });
-});
+    // ✅ FIXED: Create COMPLETE notification with all required fields
+    await Notification.create({
+      user: item.owner,  // Who receives the notification
+      type: "barter",    // Required by schema
+      title: "New Barter Request",  // Required by schema
+      message: `${req.user.name} wants to barter for your "${item.title}"`,
+      relatedItem: itemId,  // Link to the item
+      relatedUser: req.user._id,  // Who sent the request
+      isRead: false  // Explicitly set as unread
+    });
 
-// Get my barter requests
-router.get("/my", authMiddleware, async (req, res) => {
-  const requests = await Barter.find({
-    $or: [
-      { requester: req.user._id },
-      { owner: req.user._id }
-    ]
-  }).populate("item requester owner", "title name email");
+    console.log(`✅ Created notification for user ${item.owner} about barter request`);
 
-  // Example: send notification for each request if needed
-  // await Notification.create({
-  //   user: req.user._id,
-  //   message: "Checked your barter requests."
-  // });
-
-  res.json(requests);
-});
-
-// Update barter status
-router.put("/:id", authMiddleware, async (req, res) => {
-  const { status } = req.body;
-
-  const barter = await Barter.findById(req.params.id);
-  if (!barter) return res.status(404).json({ message: "Request not found" });
-
-  if (barter.owner.toString() !== req.user._id.toString()) {
-    return res.status(403).json({ message: "Not authorized" });
+    res.json({ 
+      message: "Barter request sent successfully",
+      barter: await Barter.findById(barter._id)
+        .populate("item", "title")
+        .populate("requester", "name")
+        .populate("owner", "name")
+    });
+  } catch (error) {
+    console.error("Error creating barter:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
+});
 
-  barter.status = status;
-  await barter.save();
+// Update barter status - FIXED
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ["pending", "accepted", "rejected"];
 
-  // Move Notification creation inside async function
-  await Notification.create({
-    user: barter.requester,
-    message: `Your barter request was ${status}.`
-  });
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        message: "Valid status is required", 
+        validStatuses 
+      });
+    }
 
-  res.json({ message: "Barter status updated" });
+    const barter = await Barter.findById(req.params.id);
+    if (!barter) return res.status(404).json({ message: "Request not found" });
+
+    // Check authorization - only owner can update
+    if (barter.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    barter.status = status;
+    await barter.save();
+
+    // ✅ FIXED: Create complete notification for status change
+    await Notification.create({
+      user: barter.requester,
+      type: "barter",
+      title: "Barter Request Updated",
+      message: `Your barter request was ${status} by ${req.user.name}.`,
+      relatedItem: barter.item,
+      relatedUser: req.user._id,
+      isRead: false
+    });
+
+    res.json({ 
+      message: `Barter request ${status}`,
+      barter: await Barter.findById(barter._id)
+        .populate("item", "title")
+        .populate("requester", "name")
+    });
+  } catch (error) {
+    console.error("Error updating barter:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get my barter requests (unchanged)
+router.get("/my", authMiddleware, async (req, res) => {
+  try {
+    const requests = await Barter.find({
+      $or: [
+        { requester: req.user._id },
+        { owner: req.user._id }
+      ]
+    })
+    .populate("item", "title imageURL category condition price")
+    .populate("requester", "name email")
+    .populate("owner", "name email")
+    .sort({ createdAt: -1 });
+
+    res.json(requests);
+  } catch (error) {
+    console.error("Error fetching barters:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 module.exports = router;

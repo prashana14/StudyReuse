@@ -19,6 +19,7 @@ const Dashboard = () => {
   const [allBarters, setAllBarters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [error, setError] = useState("");
 
   // Helper Functions
   const getGreeting = () => {
@@ -26,6 +27,28 @@ const Dashboard = () => {
     if (hour < 12) return "Good Morning";
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
+  };
+
+  // Helper function to extract array from response
+  const extractArray = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    if (data.items && Array.isArray(data.items)) return data.items;
+    if (data.user && Array.isArray(data.user.items)) return data.user.items;
+    
+    // Check all properties for an array
+    if (typeof data === 'object') {
+      const keys = Object.keys(data);
+      for (const key of keys) {
+        if (Array.isArray(data[key])) {
+          return data[key];
+        }
+      }
+    }
+    
+    console.warn('Could not extract array from response:', data);
+    return [];
   };
 
   const StatCard = ({ title, value, icon, color, suffix, onClick }) => (
@@ -77,68 +100,96 @@ const Dashboard = () => {
   );
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch user's items
-        const itemsRes = await API.get("/items/my");
-        const userItems = itemsRes.data || [];
-        setAllItems(userItems);
-        
-        // Fetch barter requests
-        const barterRes = await API.get("/barter/my");
-        const barters = barterRes.data || [];
-        setAllBarters(barters);
-        
-        // Calculate stats
-        const totalValue = userItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-        const activeBarters = barters.filter(b => b.status === "pending").length;
-        
-        // Get user info from localStorage or context
-        const user = JSON.parse(localStorage.getItem("user") || "{}");
-        const pendingRequests = barters.filter(b => {
-        const ownerId = b.owner?._id?.toString() || b.owner?.toString();
-        const userId = user?._id?.toString();
-        return b.status === "pending" && ownerId === userId;
+   const fetchDashboardData = async () => {
+  try {
+    setLoading(true);
+    setError("");
+    
+    // Fetch user's items
+    const itemsRes = await API.get("/items/my");
+    console.log("Dashboard Items API Response:", itemsRes.data);
+    
+    // Extract items - using the same pattern as Home.jsx
+    const userItems = itemsRes.data?.data?.items || [];
+    console.log("Extracted userItems:", userItems);
+    setAllItems(userItems);
+    
+    // Fetch barter requests
+    const barterRes = await API.get("/barter/my");
+    console.log("Barter API Response:", barterRes.data);
+    
+    // Extract barters (returns empty array currently)
+    const barters = Array.isArray(barterRes.data) ? barterRes.data : [];
+    console.log("Extracted barters:", barters);
+    setAllBarters(barters);
+    
+    // Calculate stats safely
+    let totalValue = 0;
+    let activeBarters = 0;
+    let pendingRequests = 0;
+    let itemsThisMonth = 0;
+    let totalViews = 0;
+    
+    if (userItems.length > 0) {
+      totalValue = userItems.reduce((sum, item) => {
+        const price = parseFloat(item?.price) || 0;
+        return sum + price;
+      }, 0);
+      
+      totalViews = userItems.reduce((sum, item) => sum + (item?.views || 0), 0);
+      
+      // Get current month items
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      itemsThisMonth = userItems.filter(item => {
+        if (!item?.createdAt) return false;
+        const itemDate = new Date(item.createdAt);
+        return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
       }).length;
-        
-        // Get current month items
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
-        const itemsThisMonth = userItems.filter(item => {
-          const itemDate = new Date(item.createdAt);
-          return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
-        }).length;
-        
-        // Calculate total views
-        const totalViews = userItems.reduce((sum, item) => sum + (item.views || 0), 0);
-        
-        setStats({
-          totalItems: userItems.length,
-          totalValue: totalValue,
-          activeBarters: activeBarters,
-          pendingRequests: pendingRequests,
-          itemsThisMonth: itemsThisMonth,
-          totalViews: totalViews
-        });
-        
-        // Set recent items (last 3)
-        setRecentItems(userItems.slice(0, 3));
-        
-        // Set recent barters (last 3)
-        setRecentBarters(barters.slice(0, 3));
-        
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    }
+    
+    if (barters.length > 0) {
+      activeBarters = barters.filter(b => b?.status === "pending").length;
+      
+      // Get user info from localStorage
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      pendingRequests = barters.filter(b => {
+        const ownerId = b?.owner?._id?.toString() || b?.owner?.toString();
+        const userId = user?._id?.toString();
+        return b?.status === "pending" && ownerId === userId;
+      }).length;
+    }
+    
+    setStats({
+      totalItems: userItems.length,
+      totalValue: totalValue,
+      activeBarters: activeBarters,
+      pendingRequests: pendingRequests,
+      itemsThisMonth: itemsThisMonth,
+      totalViews: totalViews
+    });
+    
+    // Set recent items (last 3)
+    setRecentItems(userItems.slice(0, 3));
+    
+    // Set recent barters (last 3)
+    setRecentBarters(barters.slice(0, 3));
+    
+  } catch (err) {
+    console.error("Error fetching dashboard data:", err);
+    setError("Failed to load dashboard data. Please try again.");
+    setAllItems([]);
+    setAllBarters([]);
+    setRecentItems([]);
+    setRecentBarters([]);
+  } finally {
+    setLoading(false);
+  }
+};
     fetchDashboardData();
   }, []);
 
+  // Render loading state
   if (loading) {
     return (
       <div className="container" style={{ maxWidth: "1400px", margin: "40px auto" }}>
@@ -165,6 +216,51 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  // Render error state
+  if (error) {
+    return (
+      <div className="container" style={{ maxWidth: "1400px", margin: "40px auto" }}>
+        <div style={{ 
+          textAlign: "center", 
+          padding: "60px", 
+          background: "#ffebee", 
+          borderRadius: "12px",
+          marginTop: "40px"
+        }}>
+          <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}>⚠️</div>
+          <h2 style={{ marginBottom: "15px", color: "#d32f2f" }}>Unable to Load Dashboard</h2>
+          <p style={{ color: "#6c757d", marginBottom: "30px", maxWidth: "500px", margin: "0 auto" }}>
+            {error}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="btn btn-primary"
+            style={{ 
+              padding: "12px 32px", 
+              fontSize: "16px",
+              background: "linear-gradient(135deg, #4361ee, #7209b7)",
+              border: "none",
+              borderRadius: "6px",
+              color: "white",
+              fontWeight: "500",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
+          >
+            Reload Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Safe map function for rendering
+  const safeMap = (array, renderFunction) => {
+    if (!Array.isArray(array)) return null;
+    return array.map(renderFunction);
+  };
 
   return (
     <div className="container" style={{ maxWidth: "1400px", margin: "40px auto" }}>
@@ -266,7 +362,7 @@ const Dashboard = () => {
               value={stats.totalItems}
               icon="📚"
               color={{ start: "#4361ee", end: "#7209b7" }}
-              onClick={() => navigate("/my-items")}
+              onClick={() => setActiveTab("items")}
             />
             
             <StatCard 
@@ -282,7 +378,7 @@ const Dashboard = () => {
               value={stats.activeBarters}
               icon="🔄"
               color={{ start: "#ff9e00", end: "#e68900" }}
-              onClick={() => navigate("/barter")}
+              onClick={() => setActiveTab("barters")}
             />
             
             <StatCard 
@@ -290,7 +386,7 @@ const Dashboard = () => {
               value={stats.pendingRequests}
               icon="⏳"
               color={{ start: "#f72585", end: "#b5179e" }}
-              onClick={() => navigate("/barter")}
+              onClick={() => setActiveTab("barters")}
             />
           </div>
 
@@ -305,17 +401,23 @@ const Dashboard = () => {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
                 <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>Recent Items</h2>
-                <Link to="/my-items" style={{ 
-                  color: "#4361ee", 
-                  textDecoration: "none", 
-                  fontWeight: "600", 
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px"
-                }}>
+                <button 
+                  onClick={() => setActiveTab("items")}
+                  style={{ 
+                    color: "#4361ee", 
+                    textDecoration: "none", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer"
+                  }}
+                >
                   View All →
-                </Link>
+                </button>
               </div>
               
               {recentItems.length === 0 ? (
@@ -336,7 +438,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                  {recentItems.map((item) => (
+                  {safeMap(recentItems, (item) => (
                     <div key={item._id} style={{
                       display: "flex",
                       alignItems: "center",
@@ -352,7 +454,7 @@ const Dashboard = () => {
                       {item.imageURL ? (
                         <img
                           src={item.imageURL}
-                          alt={item.title}
+                          alt={item.title || "Item"}
                           style={{
                             width: "80px",
                             height: "80px",
@@ -379,7 +481,9 @@ const Dashboard = () => {
                       )}
                       
                       <div style={{ flex: 1 }}>
-                        <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>{item.title}</h4>
+                        <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
+                          {item.title || "Untitled Item"}
+                        </h4>
                         <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
                           <span style={{ 
                             fontSize: "18px", 
@@ -495,7 +599,7 @@ const Dashboard = () => {
                   </button>
                   
                   <button 
-                    onClick={() => navigate("/barter")}
+                    onClick={() => setActiveTab("barters")}
                     className="btn btn-outline"
                     style={{ 
                       textAlign: "left", 
@@ -522,83 +626,6 @@ const Dashboard = () => {
                   >
                     <span style={{ fontSize: "20px" }}>🔄</span> Manage Barters
                   </button>
-                  
-                  <button 
-                    onClick={() => navigate("/notifications")}
-                    className="btn btn-outline"
-                    style={{ 
-                      textAlign: "left", 
-                      padding: "16px 20px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      fontSize: "15px",
-                      border: "1px solid #4361ee",
-                      background: "transparent",
-                      borderRadius: "8px",
-                      color: "#4361ee",
-                      fontWeight: "500",
-                      transition: "all 0.3s",
-                      justifyContent: "space-between"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#4361ee";
-                      e.currentTarget.style.color = "white";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "#4361ee";
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span style={{ fontSize: "20px" }}>🔔</span> Notifications
-                    </div>
-                    {stats.pendingRequests > 0 && (
-                      <span style={{
-                        background: "#e63946",
-                        color: "white",
-                        borderRadius: "50%",
-                        width: "24px",
-                        height: "24px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: "bold"
-                      }}>
-                        {stats.pendingRequests}
-                      </span>
-                    )}
-                  </button>
-                  
-                  <button 
-                    onClick={() => navigate("/profile")}
-                    className="btn btn-outline"
-                    style={{ 
-                      textAlign: "left", 
-                      padding: "16px 20px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      fontSize: "15px",
-                      border: "1px solid #4361ee",
-                      background: "transparent",
-                      borderRadius: "8px",
-                      color: "#4361ee",
-                      fontWeight: "500",
-                      transition: "all 0.3s"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#4361ee";
-                      e.currentTarget.style.color = "white";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "#4361ee";
-                    }}
-                  >
-                    <span style={{ fontSize: "20px" }}>👤</span> My Profile
-                  </button>
                 </div>
               </div>
             </div>
@@ -615,21 +642,27 @@ const Dashboard = () => {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
                 <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>Recent Barter Requests</h2>
-                <Link to="/barter" style={{ 
-                  color: "#4361ee", 
-                  textDecoration: "none", 
-                  fontWeight: "600", 
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px"
-                }}>
+                <button 
+                  onClick={() => setActiveTab("barters")}
+                  style={{ 
+                    color: "#4361ee", 
+                    textDecoration: "none", 
+                    fontWeight: "600", 
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer"
+                  }}
+                >
                   View All →
-                </Link>
+                </button>
               </div>
               
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px" }}>
-                {recentBarters.map((barter) => (
+                {safeMap(recentBarters, (barter) => (
                   <div key={barter._id} style={{
                     padding: "20px",
                     border: "1px solid #e0e0e0",
@@ -658,14 +691,16 @@ const Dashboard = () => {
                         fontWeight: "600",
                         textTransform: "uppercase"
                       }}>
-                        {barter.status}
+                        {barter.status || "unknown"}
                       </span>
                       <span style={{ fontSize: "12px", color: "#6c757d" }}>
-                        {new Date(barter.createdAt).toLocaleDateString()}
+                        {barter.createdAt ? new Date(barter.createdAt).toLocaleDateString() : "Unknown date"}
                       </span>
                     </div>
                     
-                    <h4 style={{ marginBottom: "10px", fontSize: "16px", fontWeight: "600" }}>{barter.item?.title || "Item"}</h4>
+                    <h4 style={{ marginBottom: "10px", fontSize: "16px", fontWeight: "600" }}>
+                      {barter.item?.title || "Item"}
+                    </h4>
                     
                     <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "15px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -732,7 +767,9 @@ const Dashboard = () => {
           boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
-            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>Your Items ({allItems.length})</h2>
+            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>
+              Your Items ({Array.isArray(allItems) ? allItems.length : 0})
+            </h2>
             <button 
               onClick={() => navigate("/add-item")}
               className="btn btn-primary"
@@ -753,7 +790,7 @@ const Dashboard = () => {
             </button>
           </div>
           
-          {allItems.length === 0 ? (
+          {!Array.isArray(allItems) || allItems.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px" }}>
               <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}>📚</div>
               <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px", fontWeight: "600" }}>No items yet</h3>
@@ -781,7 +818,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
-              {allItems.map((item) => (
+              {safeMap(allItems, (item) => (
                 <div key={item._id} className="card" style={{ 
                   padding: "20px",
                   border: "1px solid #e0e0e0",
@@ -801,7 +838,7 @@ const Dashboard = () => {
                   {item.imageURL ? (
                     <img
                       src={item.imageURL}
-                      alt={item.title}
+                      alt={item.title || "Item"}
                       style={{
                         width: "100%",
                         height: "180px",
@@ -827,7 +864,9 @@ const Dashboard = () => {
                     </div>
                   )}
                   
-                  <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>{item.title}</h4>
+                  <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
+                    {item.title || "Untitled Item"}
+                  </h4>
                   
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
                     <span style={{ 
@@ -920,30 +959,12 @@ const Dashboard = () => {
           boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
-            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>Your Barters ({allBarters.length})</h2>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button 
-                onClick={() => navigate("/add-item")}
-                className="btn btn-primary"
-                style={{ 
-                  padding: "10px 20px", 
-                  fontSize: "14px",
-                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
-                  border: "none",
-                  borderRadius: "6px",
-                  color: "white",
-                  fontWeight: "500",
-                  transition: "all 0.3s"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                + New Barter
-              </button>
-            </div>
+            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>
+              Your Barters ({Array.isArray(allBarters) ? allBarters.length : 0})
+            </h2>
           </div>
           
-          {allBarters.length === 0 ? (
+          {!Array.isArray(allBarters) || allBarters.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px" }}>
               <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}>🔄</div>
               <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px", fontWeight: "600" }}>No barters yet</h3>
@@ -971,7 +992,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              {allBarters.map((barter) => (
+              {safeMap(allBarters, (barter) => (
                 <div key={barter._id} style={{
                   padding: "24px",
                   border: "1px solid #e0e0e0",
@@ -1008,7 +1029,7 @@ const Dashboard = () => {
                         fontWeight: "600",
                         textTransform: "uppercase"
                       }}>
-                        {barter.status}
+                        {barter.status || "unknown"}
                       </span>
                     </div>
                     
@@ -1034,7 +1055,7 @@ const Dashboard = () => {
                       </div>
                       
                       <span style={{ fontSize: "14px", color: "#6c757d" }}>
-                        {new Date(barter.createdAt).toLocaleDateString()}
+                        {barter.createdAt ? new Date(barter.createdAt).toLocaleDateString() : "Unknown date"}
                       </span>
                     </div>
                     

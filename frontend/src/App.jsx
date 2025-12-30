@@ -4,6 +4,7 @@ import { AuthContext } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Import all pages
 import Home from "./pages/Home";
@@ -24,9 +25,8 @@ import UserManagement from './pages/admin/UserManagement';
 import ItemManagement from './pages/admin/ItemManagement';
 import SendNotification from './pages/admin/SendNotification';
 import EditItem from "./pages/EditItem"; // ✅ ADD THIS
+import SearchResults from './pages/SearchResults';
 
-// ✅ TEMPORARILY COMMENT OUT EditItem until we create it
-// import EditItem from './pages/EditItem'; // You'll add this later
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -77,11 +77,12 @@ function App() {
             path="/register" 
             element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
           />
-          
+          {/* Search routes (public - anyone can search) */}
+              <Route path="/search" element={<SearchResults />} />
+              <Route path="/item/:id" element={<ItemDetails />} />
           {/* User protected routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-          <Route path="/chat/:itemId" element={<ProtectedRoute><ChatBox /></ProtectedRoute>} />
           <Route path="/barter" element={<ProtectedRoute><BarterRequests /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
@@ -92,6 +93,16 @@ function App() {
               <EditItem />
             </ProtectedRoute>
           } />
+          <Route 
+              path="/chat/:itemId" 
+              element={
+                <ProtectedRoute>
+                  <ErrorBoundary>
+                    <ChatBox />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              } 
+            />
 
           
           {/* Admin Routes */}

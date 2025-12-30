@@ -1,22 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";  // 🔥 ADD useRef
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 const AddItem = () => {
   const navigate = useNavigate();
+  const formSubmitted = useRef(false);  // 🔥 TRACK IF FORM ALREADY SUBMITTED
 
   const [formData, setFormData] = useState({
     title: "",
     price: "",
     description: "",
     category: "",
-    condition: "good" // Add condition field
+    condition: ""  // 🔥 CHANGED FROM "good" TO EMPTY STRING
   });
   
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(""); // Add success state
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   
   const [categories] = useState([
@@ -31,12 +32,29 @@ const AddItem = () => {
   ]);
 
   const [conditions] = useState([
-    { value: "new", label: "New - Never used" },
-    { value: "like-new", label: "Like New - Minimal signs of use" },
-    { value: "good", label: "Good - Some wear but fully functional" },
-    { value: "fair", label: "Fair - Visible wear, still usable" },
-    { value: "poor", label: "Poor - Significant wear, may need repair" }
+    { value: "", label: "Select item condition" },
+    { value: "new", label: "New" },
+    { value: "like-new", label: "Like New" },
+    { value: "good", label: "Good" },
+    { value: "fair", label: "Fair" },
+    { value: "poor", label: "Poor" }
   ]);
+
+  // 🔥 FIX: Clean up object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  // 🔥 RESET formSubmitted flag when component mounts/unmounts
+  useEffect(() => {
+    return () => {
+      formSubmitted.current = false;
+    };
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -48,28 +66,75 @@ const AddItem = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image size must be less than 5MB");
-        return;
-      }
-      
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-      if (!validTypes.includes(file.type)) {
-        setError("Only JPEG, JPG, PNG, and GIF images are allowed");
-        return;
-      }
-      
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
-      setError(""); // Clear any previous errors
+    
+    if (!file) {
+      e.target.value = '';
+      return;
+    }
+    
+    // 🔥 PREVENT SAME FILE UPLOAD
+    if (image && 
+        image.name === file.name && 
+        image.size === file.size &&
+        image.lastModified === file.lastModified) {
+      console.log("⚠️ Same file selected again, ignoring...");
+      e.target.value = '';
+      return;
+    }
+    
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image size must be less than 5MB");
+      e.target.value = '';
+      return;
+    }
+    
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setError("Only JPEG, JPG, PNG, GIF, and WEBP images are allowed");
+      e.target.value = '';
+      return;
+    }
+    
+    // Clean up previous image preview
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    
+    setImage(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError("");
+    
+    // Clear the file input to prevent duplicate uploads
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImage(null);
+    setImagePreview(null);
+    
+    // Clear the file input
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // 🔥 CRITICAL FIX: Prevent multiple submissions
+    if (loading || formSubmitted.current) {
+      console.log("🚫 Already submitting or submitted, please wait...");
+      return;
+    }
+    
+    // Mark as submitting
+    formSubmitted.current = true;
     setError("");
     setSuccess("");
     setLoading(true);
@@ -80,37 +145,49 @@ const AddItem = () => {
     if (!formData.title.trim()) {
       setError("Please enter a title for the item");
       setLoading(false);
+      formSubmitted.current = false;
       return;
     }
 
     if (!formData.price || parseFloat(formData.price) <= 0) {
       setError("Please enter a valid price greater than 0");
       setLoading(false);
+      formSubmitted.current = false;
       return;
     }
 
     if (!formData.category) {
       setError("Please select a category");
       setLoading(false);
+      formSubmitted.current = false;
+      return;
+    }
+    
+    if (!formData.condition) {
+      setError("Please select an item condition");
+      setLoading(false);
+      formSubmitted.current = false;
       return;
     }
 
     if (!formData.description.trim() || formData.description.trim().length < 10) {
       setError("Please enter a description (minimum 10 characters)");
       setLoading(false);
+      formSubmitted.current = false;
       return;
     }
 
     if (!image) {
       setError("Please upload an image of the item");
       setLoading(false);
+      formSubmitted.current = false;
       return;
     }
 
     try {
       const formDataToSend = new FormData();
       formDataToSend.append("title", formData.title.trim());
-      formDataToSend.append("price", parseFloat(formData.price));
+      formDataToSend.append("price", formData.price);
       formDataToSend.append("description", formData.description.trim());
       formDataToSend.append("category", formData.category);
       formDataToSend.append("condition", formData.condition);
@@ -126,18 +203,23 @@ const AddItem = () => {
       const token = localStorage.getItem("token");
       console.log("🔑 Token available:", token ? "Yes" : "No");
 
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
       const response = await API.post("/items", formDataToSend, {
         headers: {
           "Content-Type": "multipart/form-data",
-          "Authorization": `Bearer ${token}` // Explicitly add token
-        }
+          "Authorization": `Bearer ${token}`
+        },
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
       console.log("✅ Response from server:", response.data);
 
-    // pages/AddItem.jsx - Line 86
-      if (response.data.message) {  // ✅ CHANGE FROM response.data.success
-          setSuccess(response.data.message || "✅ Item added successfully!");
+      if (response.data.message || response.data.success) {
+        setSuccess(response.data.message || "✅ Item added successfully!");
         
         // Reset form after delay
         setTimeout(() => {
@@ -146,35 +228,63 @@ const AddItem = () => {
             price: "",
             description: "",
             category: "",
-            condition: "good"
+            condition: ""
           });
+          
+          // Clean up image preview
+          if (imagePreview) {
+            URL.revokeObjectURL(imagePreview);
+          }
           setImage(null);
           setImagePreview(null);
+          
+          // Clear the file input
+          const fileInput = document.getElementById('fileInput');
+          if (fileInput) {
+            fileInput.value = '';
+          }
+          
+          // Reset submission flag
+          formSubmitted.current = false;
           
           // Navigate to dashboard after 2 seconds
           setTimeout(() => navigate("/dashboard"), 2000);
         }, 1500);
       } else {
         setError(response.data.message || "Failed to add item");
+        formSubmitted.current = false;
       }
       
     } catch (err) {
       console.error("❌ Error adding item:", err);
-      console.error("Error details:", {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
       
-      if (err.response?.status === 401) {
+      // 🔥 Reset submission flag on error
+      formSubmitted.current = false;
+      
+      if (err.name === 'AbortError') {
+        setError("Request timed out. Please try again.");
+      } else if (err.response?.status === 401) {
         setError("Session expired. Please login again.");
         setTimeout(() => navigate("/login"), 2000);
+      } else if (err.response?.status === 400) {
+        const errorData = err.response?.data;
+        
+        if (errorData?.errors && Array.isArray(errorData.errors)) {
+          const errorMessages = errorData.errors.map(err => 
+            typeof err === 'object' ? JSON.stringify(err) : err
+          ).join(", ");
+          setError(`Validation Error: ${errorMessages}`);
+        } else if (errorData?.message) {
+          setError(`Error: ${errorData.message}`);
+        } else {
+          setError("Bad Request. Please check all fields.");
+        }
       } else if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else if (err.response?.data?.errors) {
         setError(err.response.data.errors.join(", "));
       } else if (err.message === "Network Error") {
-        setError("Cannot connect to server. Please check if backend is running on port 4000.");
+        setError("Cannot connect to server. Please check if backend is running.");
       } else {
         setError("Failed to add item. Please try again.");
       }
@@ -219,7 +329,17 @@ const AddItem = () => {
           <span style={{ flex: 1 }}>{error}</span>
           <button 
             onClick={() => setError("")}
-            style={{ background: "none", border: "none", color: "white", cursor: "pointer" }}
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: "white", 
+              cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              transition: "background 0.3s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
           >
             ✕
           </button>
@@ -251,7 +371,7 @@ const AddItem = () => {
         border: "none",
         borderRadius: "12px"
       }}>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "30px" }}>
             {/* Left Column */}
             <div>
@@ -265,17 +385,18 @@ const AddItem = () => {
                   placeholder="e.g., Calculus Textbook 2023 Edition"
                   value={formData.title}
                   onChange={handleInputChange}
-                  required
+                  disabled={loading}
                   style={{ 
                     width: "100%",
                     padding: "14px 16px",
                     border: "1px solid #e0e0e0",
                     borderRadius: "8px",
                     fontSize: "16px",
-                    transition: "all 0.3s"
+                    transition: "all 0.3s",
+                    background: loading ? "#f8f9fa" : "white"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = "#e0e0e0")}
                 />
               </div>
 
@@ -299,19 +420,20 @@ const AddItem = () => {
                     placeholder="0.00"
                     value={formData.price}
                     onChange={handleInputChange}
-                    required
                     min="0"
                     step="0.01"
+                    disabled={loading}
                     style={{ 
                       width: "100%",
                       padding: "14px 14px 14px 50px",
                       border: "1px solid #e0e0e0",
                       borderRadius: "8px",
                       fontSize: "16px",
-                      transition: "all 0.3s"
+                      transition: "all 0.3s",
+                      background: loading ? "#f8f9fa" : "white"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-                    onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                    onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                    onBlur={(e) => !loading && (e.target.style.borderColor = "#e0e0e0")}
                   />
                 </div>
               </div>
@@ -324,23 +446,24 @@ const AddItem = () => {
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  required
+                  disabled={loading}
                   style={{ 
                     width: "100%",
                     padding: "14px 40px 14px 16px",
-                    border: "1px solid #e0e0e0",
+                    border: formData.category ? "1px solid #e0e0e0" : "1px solid #ff6b6b",
                     borderRadius: "8px",
                     fontSize: "16px",
-                    backgroundColor: "white",
+                    backgroundColor: loading ? "#f8f9fa" : "white",
                     appearance: "none",
                     backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "right 16px center",
                     backgroundSize: "16px",
-                    transition: "all 0.3s"
+                    transition: "all 0.3s",
+                    cursor: loading ? "not-allowed" : "pointer"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = formData.category ? "#e0e0e0" : "#ff6b6b")}
                 >
                   <option value="">Select a category</option>
                   {categories.map(cat => (
@@ -357,23 +480,24 @@ const AddItem = () => {
                   name="condition"
                   value={formData.condition}
                   onChange={handleInputChange}
-                  required
+                  disabled={loading}
                   style={{ 
                     width: "100%",
                     padding: "14px 40px 14px 16px",
-                    border: "1px solid #e0e0e0",
+                    border: formData.condition ? "1px solid #e0e0e0" : "1px solid #ff6b6b",
                     borderRadius: "8px",
                     fontSize: "16px",
-                    backgroundColor: "white",
+                    backgroundColor: loading ? "#f8f9fa" : "white",
                     appearance: "none",
                     backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "right 16px center",
                     backgroundSize: "16px",
-                    transition: "all 0.3s"
+                    transition: "all 0.3s",
+                    cursor: loading ? "not-allowed" : "pointer"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = formData.condition ? "#e0e0e0" : "#ff6b6b")}
                 >
                   {conditions.map(cond => (
                     <option key={cond.value} value={cond.value}>
@@ -392,33 +516,44 @@ const AddItem = () => {
                 </label>
                 <div
                   style={{
-                    border: "2px dashed #e0e0e0",
+                    border: !image ? "2px dashed #ff6b6b" : "2px dashed #e0e0e0",
                     borderRadius: "12px",
                     padding: "30px",
                     textAlign: "center",
                     transition: "all 0.3s",
-                    cursor: "pointer",
-                    background: imagePreview ? `url(${imagePreview}) center/cover no-repeat` : "#f8f9fa",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    background: imagePreview ? `url(${imagePreview}) center/cover no-repeat, #f8f9fa` : "#f8f9fa",
                     height: "250px",
                     position: "relative",
-                    overflow: "hidden"
+                    overflow: "hidden",
+                    opacity: loading ? 0.7 : 1
                   }}
-                  onClick={() => document.getElementById('fileInput').click()}
+                  onClick={() => !loading && document.getElementById('fileInput').click()}
                   onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.style.borderColor = "#4361ee";
-                    e.currentTarget.style.background = "#eef2ff";
+                    if (!loading) {
+                      e.preventDefault();
+                      e.currentTarget.style.borderColor = "#4361ee";
+                      e.currentTarget.style.background = "#eef2ff";
+                    }
                   }}
                   onDragLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#e0e0e0";
-                    e.currentTarget.style.background = imagePreview ? `url(${imagePreview}) center/cover no-repeat` : "#f8f9fa";
+                    if (!loading) {
+                      e.currentTarget.style.borderColor = !image ? "#ff6b6b" : "#e0e0e0";
+                      e.currentTarget.style.background = imagePreview ? 
+                        `url(${imagePreview}) center/cover no-repeat, #f8f9fa` : "#f8f9fa";
+                    }
                   }}
                   onDrop={(e) => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files[0];
-                    if (file && file.type.startsWith('image/')) {
-                      setImage(file);
-                      setImagePreview(URL.createObjectURL(file));
+                    if (!loading) {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files[0];
+                      if (file && file.type.startsWith('image/')) {
+                        const input = document.getElementById('fileInput');
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        input.files = dataTransfer.files;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
                     }
                   }}
                 >
@@ -428,48 +563,103 @@ const AddItem = () => {
                     accept="image/*"
                     onChange={handleImageChange}
                     style={{ display: "none" }}
-                    required
+                    disabled={loading}
                   />
                   
                   {!imagePreview ? (
                     <>
-                      <div style={{ fontSize: "48px", marginBottom: "16px", color: "#4361ee" }}>
+                      <div style={{ fontSize: "48px", marginBottom: "16px", color: loading ? "#ccc" : "#4361ee" }}>
                         📁
                       </div>
-                      <p style={{ color: "#4361ee", fontWeight: "600", marginBottom: "8px" }}>
-                        Click to upload or drag & drop
+                      <p style={{ color: loading ? "#ccc" : "#4361ee", fontWeight: "600", marginBottom: "8px" }}>
+                        {loading ? "Upload in progress..." : "Click to upload or drag & drop"}
                       </p>
-                      <p style={{ color: "#6c757d", fontSize: "14px" }}>
-                        PNG, JPG, JPEG up to 5MB
+                      <p style={{ color: loading ? "#ccc" : "#6c757d", fontSize: "14px" }}>
+                        PNG, JPG, JPEG, GIF, WEBP up to 5MB
                       </p>
                     </>
                   ) : (
                     <div style={{
                       position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      background: "rgba(0, 0, 0, 0.7)",
-                      color: "white",
-                      padding: "8px 16px",
-                      borderRadius: "20px",
-                      fontSize: "14px"
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: "rgba(0, 0, 0, 0.5)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: loading ? 0.7 : 1
                     }}>
-                      Click to change image
+                      <div style={{
+                        background: "rgba(0, 0, 0, 0.8)",
+                        color: "white",
+                        padding: "12px 24px",
+                        borderRadius: "20px",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                      }}>
+                        {loading ? "⏳ Uploading..." : "Click to change image"}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
               
               {imagePreview && (
-                <div style={{ textAlign: "center", marginTop: "10px" }}>
-                  <span style={{ color: "#38b000", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <div style={{ 
+                  textAlign: "center", 
+                  marginTop: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px"
+                }}>
+                  <span style={{ 
+                    color: "#38b000", 
+                    fontSize: "14px", 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: "6px" 
+                  }}>
                     <span>✅</span> Image selected: {image.name}
                   </span>
-                  <p style={{ fontSize: "12px", color: "#6c757d", marginTop: "4px" }}>
-                    Size: {(image.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
+                  {!loading && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      style={{
+                        background: "#ff6b6b",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        transition: "all 0.3s"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = "0.8"}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
+              )}
+              
+              {imagePreview && (
+                <p style={{ 
+                  fontSize: "12px", 
+                  color: "#6c757d", 
+                  textAlign: "center",
+                  marginTop: "4px" 
+                }}>
+                  Size: {(image.size / 1024 / 1024).toFixed(2)} MB • 
+                  Type: {image.type.split('/')[1].toUpperCase()}
+                </p>
               )}
             </div>
           </div>
@@ -484,23 +674,30 @@ const AddItem = () => {
               placeholder="Describe your item in detail. Include condition, edition, author, and any other relevant information..."
               value={formData.description}
               onChange={handleInputChange}
-              required
+              disabled={loading}
               rows="5"
               style={{ 
                 width: "100%",
                 padding: "14px",
-                border: "1px solid #e0e0e0",
+                border: formData.description.length >= 10 ? "1px solid #e0e0e0" : "1px solid #ff6b6b",
                 borderRadius: "8px",
                 fontSize: "16px",
                 resize: "vertical",
                 minHeight: "120px",
-                transition: "all 0.3s"
+                transition: "all 0.3s",
+                background: loading ? "#f8f9fa" : "white"
               }}
-              onFocus={(e) => e.target.style.borderColor = "#4361ee"}
-              onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+              onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+              onBlur={(e) => !loading && (e.target.style.borderColor = formData.description.length >= 10 ? "#e0e0e0" : "#ff6b6b")}
             />
-            <p style={{ fontSize: "12px", color: "#6c757d", marginTop: "8px" }}>
-              {formData.description.length} characters • Minimum 50 characters recommended
+            <p style={{ 
+              fontSize: "12px", 
+              color: formData.description.length >= 10 ? "#38b000" : "#ff6b6b", 
+              marginTop: "8px",
+              fontWeight: formData.description.length < 10 ? "600" : "normal"
+            }}>
+              {formData.description.length} characters • Minimum 10 characters required
+              {formData.description.length < 10 && " ⚠️"}
             </p>
           </div>
 
@@ -514,6 +711,7 @@ const AddItem = () => {
             <button
               type="button"
               onClick={() => navigate(-1)}
+              disabled={loading}
               style={{ 
                 flex: 1, 
                 padding: "16px",
@@ -522,17 +720,22 @@ const AddItem = () => {
                 borderRadius: "8px",
                 color: "#495057",
                 fontWeight: "600",
-                cursor: "pointer",
+                cursor: loading ? "not-allowed" : "pointer",
                 transition: "all 0.3s",
-                fontSize: "16px"
+                fontSize: "16px",
+                opacity: loading ? 0.7 : 1
               }}
               onMouseEnter={(e) => {
-                e.target.style.borderColor = "#4361ee";
-                e.target.style.color = "#4361ee";
+                if (!loading) {
+                  e.target.style.borderColor = "#4361ee";
+                  e.target.style.color = "#4361ee";
+                }
               }}
               onMouseLeave={(e) => {
-                e.target.style.borderColor = "#e0e0e0";
-                e.target.style.color = "#495057";
+                if (!loading) {
+                  e.target.style.borderColor = "#e0e0e0";
+                  e.target.style.color = "#495057";
+                }
               }}
             >
               Cancel
@@ -558,7 +761,9 @@ const AddItem = () => {
                 gap: "10px",
                 fontSize: "16px",
                 transition: "all 0.3s",
-                opacity: loading ? 0.7 : 1
+                opacity: loading ? 0.7 : 1,
+                position: "relative",
+                zIndex: 10
               }}
               onMouseEnter={(e) => {
                 if (!loading) {
