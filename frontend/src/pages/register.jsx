@@ -20,10 +20,37 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Function to validate RIA email domain
+  const validateRIADomain = (email) => {
+    // Check if email ends with @ria.edu.np or .ria.edu.np
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+    return domainRegex.test(email);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // ✅ NEW: Validate RIA domain before submission
+    if (!validateRIADomain(formData.email)) {
+      setError("Only RIA students are allowed");
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Basic validation
+    if (!formData.name || !formData.email || !formData.password) {
+      setError("All fields are required");
+      setLoading(false);
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setLoading(false);
+      return;
+    }
 
     console.log("Registration attempt with:", formData);
 
@@ -131,7 +158,7 @@ const Register = () => {
           <h2 style={{ 
             textAlign: "center", 
             marginBottom: "30px", 
-            color: "#333",
+            color: "#215eecff",
             fontSize: "24px",
             fontWeight: "600"
           }}>
@@ -193,7 +220,7 @@ const Register = () => {
                 color: "#555",
                 fontSize: "14px"
               }}>
-                Email Address
+              Email Address
               </label>
               <input
                 name="email"
@@ -215,6 +242,14 @@ const Register = () => {
                 onFocus={(e) => e.target.style.borderColor = "#667eea"}
                 onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
               />
+              <div style={{ 
+                fontSize: "12px", 
+                color: "#666", 
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center"
+              }}>
+              </div>
             </div>
             
             <div style={{ marginBottom: "30px" }}>
@@ -327,7 +362,11 @@ const Register = () => {
                 transition: "all 0.3s",
                 letterSpacing: "0.5px",
                 marginBottom: "25px",
-                boxShadow: "0 4px 15px rgba(106, 17, 203, 0.3)"
+                boxShadow: "0 4px 15px rgba(106, 17, 203, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px"
               }}
               onMouseEnter={(e) => {
                 if (!loading) {
@@ -342,7 +381,23 @@ const Register = () => {
                 }
               }}
             >
-              {loading ? "Creating Account..." : "Create Account"}
+              {loading ? (
+                <>
+                  <span style={{
+                    width: "16px",
+                    height: "16px",
+                    border: "2px solid white",
+                    borderTop: "2px solid transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite"
+                  }}></span>
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                Create Account
+                </>
+              )}
             </button>
             
             <div style={{ 
@@ -351,7 +406,7 @@ const Register = () => {
               borderTop: "1px solid #eee"
             }}>
               <p style={{ color: "#666", marginBottom: "8px" }}>
-                Already have an account?
+                Already have a RIA account?
               </p>
               <Link 
                 to="/login" 
@@ -405,6 +460,13 @@ const Register = () => {
           </p>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

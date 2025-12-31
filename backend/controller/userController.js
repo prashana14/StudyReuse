@@ -49,6 +49,17 @@ exports.registerUser = async (req, res) => {
 exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+    // In your backend auth controller
+const validateRIADomain = (email) => {
+  return email.endsWith('@ria.edu.np') || email.endsWith('.ria.edu.np');
+};
+
+// In login/register controller
+if (!validateRIADomain(email)) {
+  return res.status(400).json({ 
+    message: 'Only ria students are allowed' 
+  });
+}
 
     // Find user
     const user = await User.findOne({ email });

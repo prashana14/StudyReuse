@@ -26,6 +26,7 @@ import ItemManagement from './pages/admin/ItemManagement';
 import SendNotification from './pages/admin/SendNotification';
 import EditItem from "./pages/EditItem"; // ✅ ADD THIS
 import SearchResults from './pages/SearchResults';
+import Items from "./pages/Items"; // Add this import
 
 
 function App() {
@@ -88,6 +89,7 @@ function App() {
           <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/my-items" element={<ProtectedRoute><MyItems /></ProtectedRoute>} />  
+          <Route path="/items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
           <Route path="/edit-item/:id" element={
             <ProtectedRoute>
               <EditItem />

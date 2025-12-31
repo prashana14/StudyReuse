@@ -13,33 +13,52 @@ const Login = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+  // Function to validate RIA email domain
+  const validateRIADomain = (email) => {
+    // Check if email ends with @ria.edu.np or .ria.edu.np
+    // Examples allowed:
+    // - prashanashrestha12.ria.edu.np
+    // - john.doe@ria.edu.np
+    // - student.ria.edu.np
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+    return domainRegex.test(email);
+  };
 
-  // ✅ ADD CLIENT-SIDE VALIDATION
-  if (!email || !password) {
-    setError("Email and password are required");
-    setLoading(false);
-    return;
-  }
-  
-  if (!/\S+@\S+\.\S+/.test(email)) {
-    setError("Please enter a valid email address");
-    setLoading(false);
-    return;
-  }
-  
-  if (password.length < 6) {
-    setError("Password must be at least 6 characters");
-    setLoading(false);
-    return;
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // ✅ Client-side validation
+    if (!email || !password) {
+      setError("Email and password are required");
+      setLoading(false);
+      return;
+    }
+    
+    // ✅ Validate email format
+    if (!/\S+@\S+\.\S+/.test(email) && !email.includes(".ria.edu.np")) {
+      setError("Please enter a valid email address");
+      setLoading(false);
+      return;
+    }
+    
+    // ✅ Validate RIA domain - THIS IS THE NEW VALIDATION
+    if (!validateRIADomain(email)) {
+      setError("Only @ria.edu.np or .ria.edu.np email addresses are allowed");
+      setLoading(false);
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setLoading(false);
+      return;
+    }
+
     console.log("Login attempt with:", { email, password });
 
     try {
-      // IMPORTANT: Make sure this is the correct endpoint
       console.log("Calling API endpoint: /users/login");
       
       const res = await API.post("/users/login", { email, password });
@@ -94,20 +113,8 @@ const Login = () => {
       borderRadius: "10px",
       boxShadow: "0 4px 12px rgba(26, 26, 27, 0)"
     }}>
-      <h2 style={{ textAlign: "center", marginBottom: "30px" }}>Login</h2>
+      <h2 style={{ textAlign: "center", marginBottom: "30px" }}>Login to StudyReuse</h2>
       
-      {error && (
-        <div style={{
-          color: "#d32f2f",
-          backgroundColor: "#ffebee",
-          padding: "12px",
-          borderRadius: "6px",
-          marginBottom: "20px",
-          border: "1px solid #ffcdd2"
-        }}>
-          {error}
-        </div>
-      )}
       <div style={{ textAlign: "center", marginBottom: "30px" }}>
         <img 
           src="/logo.png" 
@@ -120,10 +127,11 @@ const Login = () => {
           }}
         />
       </div>
+      
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>
-            Email Address
+          Email Address
           </label>
           <input
             type="email"
@@ -137,9 +145,26 @@ const Login = () => {
               border: "1px solid #ccc",
               borderRadius: "6px",
               fontSize: "16px",
-              boxSizing: "border-box"
+              boxSizing: "border-box",
+              transition: "all 0.3s"
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#1890ff";
+              e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = "#ccc";
+              e.target.style.boxShadow = "none";
             }}
           />
+          <div style={{ 
+            fontSize: "12px", 
+            color: "#666", 
+            marginTop: "4px",
+            display: "flex",
+            alignItems: "center"
+          }}>
+          </div>
         </div>
         
         <div style={{ marginBottom: "25px" }}>
@@ -159,59 +184,65 @@ const Login = () => {
                 border: "1px solid #ccc",
                 borderRadius: "6px",
                 fontSize: "16px",
-                boxSizing: "border-box"
+                boxSizing: "border-box",
+                transition: "all 0.3s"
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#1890ff";
+                e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#ccc";
+                e.target.style.boxShadow = "none";
               }}
             />
             <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            style={{
-              position: "absolute",
-              right: "16px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "0",
-              color: "#666",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "24px",
-              height: "24px",
-              borderRadius: "50%",
-              transition: "all 0.3s"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-          >
-            {/* Eye icon from your photo - simplified design */}
-            <svg 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: "absolute",
+                right: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px",
+                color: "#666",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "30px",
+                height: "30px",
+                borderRadius: "50%",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
             >
-              {showPassword ? (
-                /* When password is visible - show eye closed or crossed */
-                <>
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </>
-              ) : (
-                /* When password is hidden - show simple eye */
-                <>
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </>
-              )}
-            </svg>
-          </button>
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {showPassword ? (
+                  <>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </>
+                ) : (
+                  <>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </>
+                )}
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -221,17 +252,43 @@ const Login = () => {
           style={{
             width: "100%",
             padding: "14px",
-            backgroundColor: loading ? "#ccc" : "#2563eb",
+            backgroundColor: loading ? "#ccc" : "#1890ff",
             color: "white",
             border: "none",
             borderRadius: "6px",
             fontSize: "16px",
             fontWeight: "600",
             cursor: loading ? "not-allowed" : "pointer",
-            transition: "background-color 0.3s"
+            transition: "all 0.3s",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px"
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) e.target.style.backgroundColor = "#096dd9";
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) e.target.style.backgroundColor = "#1890ff";
           }}
         >
-          {loading ? "Logging in..." : "Login"}
+          {loading ? (
+            <>
+              <span style={{
+                width: "16px",
+                height: "16px",
+                border: "2px solid white",
+                borderTop: "2px solid transparent",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }}></span>
+              Logging in...
+            </>
+          ) : (
+            <>
+            Login
+            </>
+          )}
         </button>
         
         <div style={{ textAlign: "center", marginTop: "20px" }}>
@@ -239,13 +296,22 @@ const Login = () => {
             Don't have an account?{" "}
             <a 
               href="/register" 
-              style={{ color: "#2563eb", textDecoration: "none", fontWeight: "500" }}
+              style={{ color: "#1890ff", textDecoration: "none", fontWeight: "500" }}
+              onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+              onMouseLeave={(e) => e.target.style.textDecoration = "none"}
             >
               Register here
             </a>
           </p>
         </div>
       </form>
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

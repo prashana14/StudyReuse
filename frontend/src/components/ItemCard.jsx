@@ -1,69 +1,145 @@
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react"; // Add this import
+import { useState, useEffect } from "react";
 
 const ItemCard = ({ item }) => {
   const [imageSrc, setImageSrc] = useState('');
   const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Function to get correct image URL
- // components/ItemCard.jsx - Simplify getImageUrl function
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
-  
-  // If it's already a full URL
-  if (imagePath.startsWith('http')) return imagePath;
-  
-  // If it starts with /uploads
-  if (imagePath.startsWith('/uploads')) {
-    return `http://localhost:4000${imagePath}`;
-  }
-  
-  // If it's just a filename
-  if (imagePath.includes('.')) {
-    return `http://localhost:4000/uploads/${imagePath}`;
-  }
-  
-  return null;
-};
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    
+    // If it's already a full URL
+    if (imagePath.startsWith('http')) return imagePath;
+    
+    // If it starts with /uploads
+    if (imagePath.startsWith('/uploads')) {
+      return `http://localhost:4000${imagePath}`;
+    }
+    
+    // If it's just a filename
+    if (imagePath.includes('.')) {
+      return `http://localhost:4000/uploads/${imagePath}`;
+    }
+    
+    return null;
+  };
 
-  // Get the correct image URL
   const imageUrl = item.imageURL || getImageUrl(item.image);
 
   useEffect(() => {
     if (imageUrl) {
-      console.log('📤 Setting image source:', imageUrl);
-      setImageSrc(imageUrl);
+      setIsLoading(true);
       setHasError(false);
       
-      // Pre-test the image URL
-      const img = new Image();
-      img.onload = () => console.log('✅ Image pre-load successful:', imageUrl);
-      img.onerror = () => {
-        console.error('❌ Image pre-load failed:', imageUrl);
-        setHasError(true);
+      // Create a test image to check if it exists
+      const testImage = new Image();
+      
+      testImage.onload = () => {
+        console.log('✅ Image exists:', imageUrl);
+        setImageSrc(imageUrl);
+        setHasError(false);
+        setIsLoading(false);
       };
-      img.src = imageUrl;
+      
+      testImage.onerror = () => {
+        console.warn('⚠️ Image not found, using fallback:', imageUrl);
+        // Use a generic placeholder based on category
+        setImageSrc(''); // Clear the URL to show fallback
+        setHasError(true);
+        setIsLoading(false);
+      };
+      
+      testImage.src = imageUrl;
+      
+      // Set a timeout to prevent hanging if server doesn't respond
+      const timeoutId = setTimeout(() => {
+        if (!testImage.complete) {
+          console.warn('⏰ Image load timeout:', imageUrl);
+          setImageSrc('');
+          setHasError(true);
+          setIsLoading(false);
+        }
+      }, 3000); // 3 second timeout
+      
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    } else {
+      // No image URL provided
+      setImageSrc('');
+      setHasError(true);
+      setIsLoading(false);
     }
   }, [imageUrl]);
 
-  console.log('🖼️ ItemCard Debug:', {
-    id: item._id,
-    title: item.title,
-    imageField: item.image,
-    imageURLField: item.imageURL,
-    finalImageUrl: imageUrl,
-    imageSrc: imageSrc,
-    hasError: hasError
-  });
+  // Get category-specific placeholder
+  const getPlaceholderIcon = () => {
+    const category = (item.category || '').toLowerCase();
+    
+    if (category.includes('book') || category.includes('text')) return '📚';
+    if (category.includes('electron') || category.includes('laptop')) return '💻';
+    if (category.includes('furniture') || category.includes('chair')) return '🪑';
+    if (category.includes('cloth') || category.includes('wear')) return '👕';
+    if (category.includes('stationery') || category.includes('pen')) return '✏️';
+    if (category.includes('sports') || category.includes('game')) return '⚽';
+    if (category.includes('kitchen') || category.includes('cook')) return '🍳';
+    
+    return '📦'; // Default
+  };
+
+  // Get gradient based on category
+  const getPlaceholderGradient = () => {
+    const category = (item.category || '').toLowerCase();
+    
+    if (category.includes('book') || category.includes('text')) 
+      return 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    if (category.includes('electron') || category.includes('laptop')) 
+      return 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+    if (category.includes('furniture') || category.includes('chair')) 
+      return 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)';
+    if (category.includes('cloth') || category.includes('wear')) 
+      return 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+    if (category.includes('stationery') || category.includes('pen')) 
+      return 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)';
+    
+    return 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)';
+  };
+
+  // Format price with Indian Rupees
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return "Free";
+    
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice)) return "Free";
+    
+    if (numPrice === 0) return "Free";
+    
+    // Format with commas for Indian numbering system
+    return `₹${numPrice.toLocaleString('en-IN')}`;
+  };
+
+  // Truncate title if too long
+  const truncateTitle = (title, maxLength = 50) => {
+    if (!title) return "Untitled Item";
+    if (title.length <= maxLength) return title;
+    return title.substring(0, maxLength) + '...';
+  };
 
   return (
     <div 
       className="card m-2 shadow-sm" 
       style={{ 
-        width: "18rem", 
+        width: "100%",
+        maxWidth: "300px",
+        minWidth: "280px",
         transition: "transform 0.3s, box-shadow 0.3s",
         borderRadius: "12px",
-        overflow: "hidden"
+        overflow: "hidden",
+        backgroundColor: "white",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%"
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-5px)";
@@ -74,91 +150,141 @@ const getImageUrl = (imagePath) => {
         e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
       }}
     >
-      {imageSrc && !hasError ? (
-        <img
-          src={imageSrc}
-          alt={item.title}
-          className="card-img-top"
-          style={{ 
-            height: "200px", 
-            objectFit: "cover",
-            transition: "transform 0.5s",
-            backgroundColor: "#f8f9fa" // Background color while loading
-          }}
-          onError={(e) => {
-            console.error(`❌ Image onError event: ${imageSrc}`);
-            console.error('Error details:', {
-              currentSrc: e.target.currentSrc,
-              src: e.target.src
-            });
-            setHasError(true);
-          }}
-          onLoad={() => console.log(`✅ Image onLoad event: ${imageSrc}`)}
-          loading="lazy" // Lazy loading for better performance
-        />
-      ) : (
-        <div
-          className="card-img-top d-flex align-items-center justify-content-center"
-          style={{ 
-            height: "200px", 
-            background: hasError 
-              ? "linear-gradient(135deg, #ff6b6b, #e63946)" 
-              : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            color: "#fff",
-            fontSize: "48px"
-          }}
-        >
-          {hasError ? "❌" : "📚"}
-        </div>
-      )}
+      {/* Image Container */}
+      <div style={{ 
+        height: "200px", 
+        width: "100%",
+        overflow: "hidden",
+        position: "relative",
+        backgroundColor: "#f8f9fa"
+      }}>
+        {/* Loading State */}
+        {isLoading && (
+          <div style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#f8f9fa"
+          }}>
+            <div style={{
+              width: "40px",
+              height: "40px",
+              border: "3px solid #e0e0e0",
+              borderTop: "3px solid #4361ee",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }}></div>
+          </div>
+        )}
+        
+        {/* Actual Image */}
+        {!isLoading && imageSrc && !hasError && (
+          <img
+            src={imageSrc}
+            alt={item.title}
+            style={{ 
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transition: "transform 0.5s"
+            }}
+            onError={(e) => {
+              console.error(`❌ Image failed to display: ${imageSrc}`);
+              e.target.style.display = 'none';
+              setHasError(true);
+            }}
+            loading="lazy"
+          />
+        )}
+        
+        {/* Fallback/Placeholder */}
+        {!isLoading && (!imageSrc || hasError) && (
+          <div
+            style={{ 
+              width: "100%",
+              height: "100%",
+              background: getPlaceholderGradient(),
+              color: "white",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            <div style={{ 
+              fontSize: "48px",
+              marginBottom: "10px",
+              opacity: 0.9
+            }}>
+              {getPlaceholderIcon()}
+            </div>
+            <div style={{ 
+              fontSize: "12px",
+              opacity: 0.8,
+              textAlign: "center",
+              padding: "0 10px"
+            }}>
+              {item.category || "Item Image"}
+            </div>
+          </div>
+        )}
+        
+        {/* Category Badge */}
+        {item.category && (
+          <div style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            background: "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(4px)",
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "600",
+            color: "#4361ee",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+          }}>
+            {item.category}
+          </div>
+        )}
+      </div>
 
-      <div className="card-body" style={{ padding: "20px" }}>
+      {/* Card Content */}
+      <div style={{ 
+        padding: "20px",
+        flex: 1,
+        display: "flex",
+        flexDirection: "column"
+      }}>
+        {/* Title */}
         <h5 
-          className="card-title" 
           style={{ 
             fontSize: "18px", 
             fontWeight: "600",
             marginBottom: "10px",
             color: "#212529",
-            height: "48px",
-            overflow: "hidden",
-            display: "-webkit-box",
-            WebkitLineClamp: "2",
-            WebkitBoxOrient: "vertical"
+            lineHeight: "1.4",
+            flex: 1
           }}
         >
-          {item.title}
+          {truncateTitle(item.title)}
         </h5>
         
-        {item.category && (
-          <span 
-            className="badge mb-2" 
-            style={{ 
-              background: "#eef2ff", 
-              color: "#4361ee",
-              fontWeight: "500",
-              padding: "5px 12px",
-              borderRadius: "20px",
-              fontSize: "12px"
-            }}
-          >
-            {item.category}
-          </span>
-        )}
-        
-        <div style={{ marginTop: "15px" }}>
+        {/* Price */}
+        <div style={{ marginTop: "auto" }}>
           <p 
-            className="card-text mb-1" 
             style={{ 
               fontSize: "12px", 
               color: "#6c757d",
-              fontWeight: "500"
+              fontWeight: "500",
+              marginBottom: "4px"
             }}
           >
             Price
           </p>
           <p 
-            className="card-text" 
             style={{ 
               fontSize: "24px", 
               fontWeight: "700", 
@@ -166,46 +292,65 @@ const getImageUrl = (imagePath) => {
               marginBottom: "20px"
             }}
           >
-            Rs. {item.price}
+            {formatPrice(item.price)}
           </p>
         </div>
         
+        {/* Condition (if available) */}
+        {item.condition && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            marginBottom: "15px",
+            fontSize: "13px",
+            color: "#6c757d"
+          }}>
+            <span>Condition:</span>
+            <span style={{
+              fontWeight: "600",
+              color: "#4361ee",
+              background: "#eef2ff",
+              padding: "2px 8px",
+              borderRadius: "12px",
+              fontSize: "12px"
+            }}>
+              {item.condition}
+            </span>
+          </div>
+        )}
+        
+        {/* View Details Button */}
         <Link 
           to={`/item/${item._id}`} 
-          className="btn btn-primary"
           style={{ 
             width: "100%",
             background: "linear-gradient(135deg, #4361ee, #7209b7)",
             border: "none",
             borderRadius: "8px",
-            padding: "10px",
+            padding: "12px",
             fontWeight: "600",
-            transition: "all 0.3s"
+            transition: "all 0.3s",
+            color: "white",
+            textDecoration: "none",
+            textAlign: "center",
+            display: "block",
+            fontSize: "14px"
           }}
-          onMouseEnter={(e) => e.target.style.transform = "scale(1.05)"}
+          onMouseEnter={(e) => e.target.style.transform = "scale(1.03)"}
           onMouseLeave={(e) => e.target.style.transform = "scale(1)"}
         >
           View Details
         </Link>
       </div>
       
-      {/* Debug info (visible in development only) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div style={{ 
-          fontSize: "10px", 
-          color: "#666", 
-          padding: "8px",
-          background: "#f8f9fa",
-          borderTop: "1px solid #e0e0e0"
-        }}>
-          <div><strong>Debug Info:</strong></div>
-          <div>ID: {item._id}</div>
-          <div>Image field: {item.image || 'null'}</div>
-          <div>ImageURL field: {item.imageURL || 'null'}</div>
-          <div>Calculated URL: {imageUrl || 'null'}</div>
-          <div>Status: {hasError ? '❌ Error' : imageSrc ? '✅ Loaded' : '⏳ Loading'}</div>
-        </div>
-      )}
+      {/* Add CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

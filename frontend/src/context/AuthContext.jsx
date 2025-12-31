@@ -2,7 +2,6 @@ import { createContext, useState, useEffect, useContext } from "react";
 
 export const AuthContext = createContext();
 
-// ✅ ADD THIS CUSTOM HOOK
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -13,68 +12,113 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null); // ✅ Add token to state
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Get user ID consistently
+  const getUserId = (userObj) => {
+    if (!userObj) return null;
+    return userObj.id || userObj._id || userObj.userId;
+  };
 
   // Check localStorage on initial load
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
-    
-    console.log("AuthProvider initializing...");
-    console.log("Stored user:", storedUser);
-    console.log("Stored token:", storedToken ? "Yes" : "No");
-    
-    if (storedUser && storedToken) {
+    const initializeAuth = () => {
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setToken(storedToken); // ✅ Store token in state
-        console.log("User loaded from localStorage:", parsedUser);
+        const storedToken = localStorage.getItem("token");
+        const storedUser = localStorage.getItem("user");
+        
+        if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setToken(storedToken);
+          console.log('✅ Auth initialized from localStorage:', {
+            userId: getUserId(parsedUser),
+            email: parsedUser.email
+          });
+        } else {
+          console.log('ℹ️ No stored auth data found');
+        }
       } catch (err) {
-        console.error("Error parsing stored user:", err);
-        localStorage.removeItem("user");
+        console.error('❌ Error initializing auth:', err);
         localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  const login = (data) => {
-    console.log("AuthContext login called with:", data);
-    
-    // Save to localStorage
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    
-    // Update state
-    setUser(data.user);
-    setToken(data.token); // ✅ Store token in state
-    
-    console.log("User logged in and saved:", data.user);
+  const login = (authData) => {
+    try {
+      console.log('🔐 Login called with:', authData);
+      
+      if (!authData.token || !authData.user) {
+        throw new Error('Invalid login data');
+      }
+      
+      const userId = getUserId(authData.user);
+      console.log('🆔 Extracted user ID:', userId);
+      
+      // Save to localStorage
+      localStorage.setItem("token", authData.token);
+      localStorage.setItem("user", JSON.stringify(authData.user));
+      
+      // Update state
+      setUser(authData.user);
+      setToken(authData.token);
+      
+      console.log('✅ Login successful:', {
+        userId: userId,
+        email: authData.user.email,
+        role: authData.user.role
+      });
+      
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      throw err;
+    }
   };
 
   const logout = () => {
-    console.log("AuthContext logout called");
+    console.log('🚪 Logout called');
     
-    // Remove from localStorage
+    // Clear localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     
-    // Update state
+    // Clear state
     setUser(null);
-    setToken(null); // ✅ Clear token from state
+    setToken(null);
     
-    console.log("User logged out");
+    console.log('✅ Logout complete');
+  };
+
+  const refreshUser = () => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        console.log('🔄 User refreshed:', getUserId(parsedUser));
+      }
+    } catch (err) {
+      console.error('❌ Error refreshing user:', err);
+    }
   };
 
   const value = {
     user,
-    token, // ✅ Make token available
+    token, // ✅ FIXED: Added token to context
     login,
     logout,
     loading,
-    isAuthenticated: !!token // ✅ Add helper property
+    refreshUser,
+    getUserId: () => getUserId(user),
+    isAuthenticated: !!token,
+    isAdmin: user?.role === 'admin'
   };
 
   return (

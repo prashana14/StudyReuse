@@ -11,14 +11,9 @@ const Navbar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   
   const dropdownRef = useRef(null);
-  const searchRef = useRef(null);
   const notificationsRef = useRef(null);
 
   // Fetch notifications for badge
@@ -52,57 +47,11 @@ const Navbar = () => {
     }
   };
 
-  // Search items function
-  const searchItems = async (query) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
-    
-    setIsSearching(true);
-    try {
-      const res = await API.get(`/items/search?q=${encodeURIComponent(query)}`);
-      
-      if (res.data && Array.isArray(res.data)) {
-        setSearchResults(res.data.slice(0, 6));
-        setShowSearchResults(true);
-      } else if (res.data && Array.isArray(res.data.items)) {
-        setSearchResults(res.data.items.slice(0, 6));
-        setShowSearchResults(true);
-      } else {
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error("Error searching items:", err);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // Handle search input change with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
-        searchItems(searchQuery);
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
-      }
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowSearchResults(false);
       }
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setNotificationsOpen(false);
@@ -125,21 +74,6 @@ const Navbar = () => {
   const handleLogout = () => {
     logout();
     navigate("/");
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-      setShowSearchResults(false);
-      setSearchQuery("");
-    }
-  };
-
-  const handleSearchItemClick = (itemId) => {
-    navigate(`/item/${itemId}`);
-    setShowSearchResults(false);
-    setSearchQuery("");
   };
 
   const getNotificationIcon = (type) => {
@@ -185,7 +119,7 @@ const Navbar = () => {
 
   // STYLES
   const navStyle = {
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
     backdropFilter: "blur(10px)",
     boxShadow: "0 2px 20px rgba(0, 0, 0, 0.08)",
     padding: "12px 0",
@@ -202,7 +136,7 @@ const Navbar = () => {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "0 20px",
-    gap: "20px"
+    gap: "15px"
   };
 
   const brandStyle = {
@@ -214,9 +148,9 @@ const Navbar = () => {
   };
 
   const logoStyle = {
-    height: "70px",
+    height: "50px",
     marginRight: "12px",
-    borderRadius: "12px",
+    borderRadius: "10px",
     boxShadow: "0 4px 12px rgba(67, 97, 238, 0.15)"
   };
 
@@ -233,8 +167,7 @@ const Navbar = () => {
   const navLinksStyle = {
     display: "flex",
     alignItems: "center",
-    gap: "20px",
-    flex: 1,
+    gap: "25px",
     justifyContent: "flex-end"
   };
 
@@ -242,7 +175,7 @@ const Navbar = () => {
     textDecoration: "none",
     color: "#495057",
     fontWeight: "500",
-    padding: "10px 0",
+    padding: "8px 0",
     position: "relative",
     transition: "all 0.3s ease",
     display: "flex",
@@ -266,123 +199,6 @@ const Navbar = () => {
     height: "3px",
     background: "linear-gradient(90deg, #4361ee, #7209b7)",
     borderRadius: "3px 3px 0 0"
-  };
-
-  // Search Bar Styles
-  const searchContainerStyle = {
-    position: "relative",
-    flex: 1,
-    maxWidth: "500px",
-    margin: "0 20px"
-  };
-
-  const searchFormStyle = {
-    position: "relative",
-    width: "100%"
-  };
-
-  const searchInputStyle = {
-    width: "100%",
-    padding: "12px 48px 12px 20px",
-    borderRadius: "25px",
-    border: "2px solid #e0e0e0",
-    fontSize: "15px",
-    background: "#f8f9fa",
-    transition: "all 0.3s ease",
-    outline: "none",
-    boxSizing: "border-box"
-  };
-
-  const searchButtonStyle = {
-    position: "absolute",
-    right: "12px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    background: "none",
-    border: "none",
-    color: "#4361ee",
-    cursor: "pointer",
-    fontSize: "18px",
-    padding: "0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center"
-  };
-
-  const searchResultsStyle = {
-    position: "absolute",
-    top: "100%",
-    left: "0",
-    right: "0",
-    background: "white",
-    borderRadius: "12px",
-    boxShadow: "0 15px 50px rgba(0, 0, 0, 0.15)",
-    marginTop: "8px",
-    maxHeight: "400px",
-    overflowY: "auto",
-    zIndex: 1001,
-    border: "1px solid rgba(0, 0, 0, 0.05)"
-  };
-
-  const searchResultItemStyle = {
-    padding: "12px 16px",
-    borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px"
-  };
-
-  const noResultsStyle = {
-    padding: "20px",
-    textAlign: "center",
-    color: "#6c757d"
-  };
-
-  const searchLoadingStyle = {
-    padding: "20px",
-    textAlign: "center"
-  };
-
-  const itemImageStyle = {
-    width: "40px",
-    height: "40px",
-    borderRadius: "8px",
-    objectFit: "cover",
-    background: "#f8f9fa"
-  };
-
-  const itemInfoStyle = {
-    flex: 1
-  };
-
-  const itemTitleStyle = {
-    margin: "0 0 4px 0",
-    fontSize: "14px",
-    fontWeight: "500",
-    color: "#212529"
-  };
-
-  const itemPriceStyle = {
-    margin: "0",
-    fontSize: "13px",
-    color: "#4361ee",
-    fontWeight: "600"
-  };
-
-  const viewAllResultsStyle = {
-    padding: "12px 16px",
-    textAlign: "center",
-    borderTop: "1px solid rgba(0, 0, 0, 0.05)",
-    background: "#f8f9fa"
-  };
-
-  const viewAllLinkStyle = {
-    color: "#4361ee",
-    textDecoration: "none",
-    fontSize: "14px",
-    fontWeight: "500"
   };
 
   // Notifications Dropdown Styles
@@ -512,7 +328,6 @@ const Navbar = () => {
     border: "2px solid white"
   };
 
-  // Existing styles
   const registerButtonStyle = {
     textDecoration: "none",
     padding: "10px 24px",
@@ -587,6 +402,13 @@ const Navbar = () => {
     gap: "12px"
   };
 
+  const viewAllLinkStyle = {
+    color: "#4361ee",
+    textDecoration: "none",
+    fontSize: "14px",
+    fontWeight: "500"
+  };
+
   return (
     <>
       <nav style={navStyle}>
@@ -616,90 +438,24 @@ const Navbar = () => {
             </span>
           </Link>
 
-          {/* Search Bar - Center Position */}
-          <div style={searchContainerStyle} ref={searchRef}>
-            <form onSubmit={handleSearchSubmit} style={searchFormStyle}>
-              <input
-                type="text"
-                placeholder="Search books, electronics, furniture..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
-                style={searchInputStyle}
-                onMouseEnter={(e) => e.target.style.borderColor = "#4361ee"}
-                onMouseLeave={(e) => e.target.style.borderColor = "#e0e0e0"}
-              />
-              <button type="submit" style={searchButtonStyle}>
-                🔍
-              </button>
-            </form>
-
-            {/* Search Results Dropdown */}
-            {showSearchResults && searchQuery.trim() && (
-              <div style={searchResultsStyle}>
-                {isSearching ? (
-                  <div style={searchLoadingStyle}>
-                    <div style={{
-                      width: "24px",
-                      height: "24px",
-                      border: "3px solid #f3f3f3",
-                      borderTop: "3px solid #4361ee",
-                      borderRadius: "50%",
-                      animation: "spin 1s linear infinite",
-                      margin: "0 auto"
-                    }}></div>
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <>
-                    {searchResults.map((item) => (
-                      <div
-                        key={item._id}
-                        style={searchResultItemStyle}
-                        onClick={() => handleSearchItemClick(item._id)}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#f8f9fa"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "white"}
-                      >
-                        <img 
-                          src={item.imageURL || "/placeholder-item.jpg"} 
-                          alt={item.title}
-                          style={itemImageStyle}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = "/placeholder-item.jpg";
-                          }}
-                        />
-                        <div style={itemInfoStyle}>
-                          <h4 style={itemTitleStyle}>{item.title}</h4>
-                          <p style={itemPriceStyle}>₹{item.price || "Free"}</p>
-                        </div>
-                      </div>
-                    ))}
-                    <div style={viewAllResultsStyle}>
-                      <Link 
-                        to={`/search?q=${encodeURIComponent(searchQuery)}`}
-                        style={viewAllLinkStyle}
-                        onClick={() => {
-                          setShowSearchResults(false);
-                          setSearchQuery("");
-                        }}
-                      >
-                        View all results →
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <div style={noResultsStyle}>
-                    <p>No items found for "{searchQuery}"</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Navigation Links */}
+          {/* Navigation Links - Moved to center */}
           <div style={navLinksStyle}>
             {user ? (
               <>
+                {/* Home Link */}
+                <Link 
+                  to="/" 
+                  style={{
+                    ...navLinkBaseStyle,
+                    ...(isActive('/') ? activeNavLinkStyle : {})
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = isActive('/') ? "#4361ee" : "#495057"}
+                >
+                  Home
+                  {isActive('/') && <span style={activeIndicatorStyle} />}
+                </Link>
+
                 {/* Dashboard Link */}
                 <Link 
                   to="/dashboard" 
@@ -712,6 +468,20 @@ const Navbar = () => {
                 >
                   Dashboard
                   {isActive('/dashboard') && <span style={activeIndicatorStyle} />}
+                </Link>
+
+                {/* Items Link */}
+                <Link 
+                  to="/items" 
+                  style={{
+                    ...navLinkBaseStyle,
+                    ...(isActive('/items') ? activeNavLinkStyle : {})
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = isActive('/items') ? "#4361ee" : "#495057"}
+                >
+                  Browse Items
+                  {isActive('/items') && <span style={activeIndicatorStyle} />}
                 </Link>
 
                 {/* Add Item Link */}
@@ -741,7 +511,43 @@ const Navbar = () => {
                   Barter
                   {isActive('/barter') && <span style={activeIndicatorStyle} />}
                 </Link>
+              </>
+            ) : (
+              <>
+                {/* Guest Navigation */}
+                <Link 
+                  to="/" 
+                  style={{
+                    ...navLinkBaseStyle,
+                    ...(isActive('/') ? activeNavLinkStyle : {})
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = isActive('/') ? "#4361ee" : "#495057"}
+                >
+                   Home
+                  {isActive('/') && <span style={activeIndicatorStyle} />}
+                </Link>
 
+                <Link 
+                  to="/items" 
+                  style={{
+                    ...navLinkBaseStyle,
+                    ...(isActive('/items') ? activeNavLinkStyle : {})
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = isActive('/items') ? "#4361ee" : "#495057"}
+                >
+                  Browse Items
+                  {isActive('/items') && <span style={activeIndicatorStyle} />}
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Right Side Actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+            {user ? (
+              <>
                 {/* Notifications Dropdown */}
                 <div ref={notificationsRef} style={{ position: "relative" }}>
                   <button
@@ -752,12 +558,20 @@ const Navbar = () => {
                       background: "none",
                       border: "none",
                       cursor: "pointer",
-                      padding: "10px 0"
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      transition: "all 0.3s ease"
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
-                    onMouseLeave={(e) => e.currentTarget.style.color = isActive('/notifications') ? "#4361ee" : "#495057"}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#4361ee";
+                      e.currentTarget.style.background = "rgba(67, 97, 238, 0.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = isActive('/notifications') ? "#4361ee" : "#495057";
+                      e.currentTarget.style.background = "transparent";
+                    }}
                   >
-                    🔔 Notifications
+                    🔔 Notification
                     {isActive('/notifications') && <span style={activeIndicatorStyle} />}
                   </button>
                   
@@ -980,25 +794,14 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                {/* Guest Navigation */}
-                <Link 
-                  to="/" 
-                  style={{
-                    ...navLinkBaseStyle,
-                    ...(isActive('/') ? activeNavLinkStyle : {})
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
-                  onMouseLeave={(e) => e.currentTarget.style.color = isActive('/') ? "#4361ee" : "#495057"}
-                >
-                  Home
-                  {isActive('/') && <span style={activeIndicatorStyle} />}
-                </Link>
-
                 <Link 
                   to="/login" 
                   style={{
                     ...navLinkBaseStyle,
-                    ...(isActive('/login') ? activeNavLinkStyle : {})
+                    ...(isActive('/login') ? activeNavLinkStyle : {}),
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid #e0e0e0"
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.color = "#4361ee"}
                   onMouseLeave={(e) => e.currentTarget.style.color = isActive('/login') ? "#4361ee" : "#495057"}
@@ -1051,33 +854,36 @@ const Navbar = () => {
             gap: 15px;
           }
           
-          .search-container {
-            order: 3;
-            max-width: 100%;
-            margin: 10px 0 0 0;
-          }
-          
           .nav-links {
             order: 2;
+            width: 100%;
+            justify-content: center;
+            margin-top: 10px;
           }
           
           .brand {
             order: 1;
+          }
+          
+          .right-actions {
+            order: 3;
           }
         }
         
         @media (max-width: 768px) {
           .nav-links {
             gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 5px;
           }
           
           .nav-link {
             font-size: 14px;
+            padding: 6px 8px;
           }
           
-          .search-input {
-            font-size: 14px;
-            padding: 10px 40px 10px 15px;
+          .brand-text {
+            font-size: 1.5rem;
           }
           
           .notifications-dropdown {
@@ -1092,11 +898,17 @@ const Navbar = () => {
             right: -100%;
           }
           
-          .search-results {
-            position: fixed;
-            top: 70px;
-            left: 10px;
-            right: 10px;
+          .nav-links {
+            gap: 8px;
+            font-size: 13px;
+          }
+          
+          .user-button span {
+            display: none;
+          }
+          
+          .user-button {
+            padding: 6px;
           }
         }
       `}</style>
