@@ -16,10 +16,6 @@ const Login = () => {
   // Function to validate RIA email domain
   const validateRIADomain = (email) => {
     // Check if email ends with @ria.edu.np or .ria.edu.np
-    // Examples allowed:
-    // - prashanashrestha12.ria.edu.np
-    // - john.doe@ria.edu.np
-    // - student.ria.edu.np
     const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
     return domainRegex.test(email);
   };
@@ -43,9 +39,9 @@ const Login = () => {
       return;
     }
     
-    // ✅ Validate RIA domain - THIS IS THE NEW VALIDATION
+    // ✅ Validate RIA domain
     if (!validateRIADomain(email)) {
-      setError("Only @ria.edu.np or .ria.edu.np email addresses are allowed");
+      setError("Only RIA email addresses are allowed");
       setLoading(false);
       return;
     }
@@ -111,7 +107,7 @@ const Login = () => {
       padding: "30px",
       backgroundColor: "white",
       borderRadius: "10px",
-      boxShadow: "0 4px 12px rgba(26, 26, 27, 0)"
+      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)"
     }}>
       <h2 style={{ textAlign: "center", marginBottom: "30px" }}>Login to StudyReuse</h2>
       
@@ -127,11 +123,45 @@ const Login = () => {
           }}
         />
       </div>
+
+      {/* ERROR MESSAGE DISPLAY - ADD THIS SECTION */}
+      {error && (
+        <div style={{
+          marginBottom: "20px",
+          padding: "12px",
+          backgroundColor: "#ffebee",
+          borderLeft: "4px solid #d32f2f",
+          borderRadius: "4px",
+          color: "#d32f2f",
+          fontSize: "14px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          animation: "fadeIn 0.3s ease"
+        }}>
+          <span style={{ fontSize: "16px" }}></span>
+          <span>{error}</span>
+          <button
+            onClick={() => setError("")}
+            style={{
+              marginLeft: "auto",
+              background: "none",
+              border: "none",
+              color: "#d32f2f",
+              cursor: "pointer",
+              padding: "0",
+              fontSize: "18px"
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>
-          Email Address
+            Email Address
           </label>
           <input
             type="email"
@@ -142,7 +172,7 @@ const Login = () => {
             style={{
               width: "100%",
               padding: "12px",
-              border: "1px solid #ccc",
+              border: error.includes("email") ? "1px solid #d32f2f" : "1px solid #ccc",
               borderRadius: "6px",
               fontSize: "16px",
               boxSizing: "border-box",
@@ -153,7 +183,7 @@ const Login = () => {
               e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = "#ccc";
+              e.target.style.borderColor = error.includes("email") ? "#d32f2f" : "#ccc";
               e.target.style.boxShadow = "none";
             }}
           />
@@ -162,7 +192,8 @@ const Login = () => {
             color: "#666", 
             marginTop: "4px",
             display: "flex",
-            alignItems: "center"
+            alignItems: "center",
+            gap: "4px"
           }}>
           </div>
         </div>
@@ -181,7 +212,7 @@ const Login = () => {
               style={{
                 width: "100%",
                 padding: "12px 45px 12px 12px",
-                border: "1px solid #ccc",
+                border: error.includes("password") ? "1px solid #d32f2f" : "1px solid #ccc",
                 borderRadius: "6px",
                 fontSize: "16px",
                 boxSizing: "border-box",
@@ -192,7 +223,7 @@ const Login = () => {
                 e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = "#ccc";
+                e.target.style.borderColor = error.includes("password") ? "#d32f2f" : "#ccc";
                 e.target.style.boxShadow = "none";
               }}
             />
@@ -244,6 +275,16 @@ const Login = () => {
               </svg>
             </button>
           </div>
+          <div style={{ 
+            fontSize: "12px", 
+            color: "#666", 
+            marginTop: "4px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px"
+          }}>
+            <span>Password must be at least 6 characters</span>
+          </div>
         </div>
 
         <button 
@@ -285,9 +326,7 @@ const Login = () => {
               Logging in...
             </>
           ) : (
-            <>
-            Login
-            </>
+            "Login"
           )}
         </button>
         
@@ -310,6 +349,10 @@ const Login = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
