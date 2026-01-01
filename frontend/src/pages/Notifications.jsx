@@ -290,16 +290,16 @@ const Notifications = () => {
           const createdAt = notification?.createdAt || new Date().toISOString();
           
           // Get icon based on type
-          const getIcon = () => {
-            switch(type) {
-              case 'barter': return '🔄';
-              case 'message': return '✉️';
-              case 'item_approved': return '✅';
-              case 'item_rejected': return '❌';
-              case 'system': return '📢';
-              default: return '🔔';
-            }
-          };
+          // const getIcon = () => {
+          //   switch(type) {
+          //     case 'barter': return '🔄';
+          //     case 'message': return '✉️';
+          //     case 'item_approved': return '✅';
+          //     case 'item_rejected': return '❌';
+          //     case 'system': return '📢';
+          //     default: return '🔔';
+          //   }
+          // };
           
           return (
             <div 

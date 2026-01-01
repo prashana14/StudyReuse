@@ -400,7 +400,6 @@ const EditItem = () => {
                   alignItems: "center",
                   gap: "8px"
                 }}>
-                  <span>✏️</span>
                   Change Image
                 </div>
               )}
@@ -448,7 +447,7 @@ const EditItem = () => {
                   e.target.style.background = "#e63946";
                 }}
               >
-                🗑️ Remove Image
+              Remove Image
               </button>
             )}
             
@@ -682,11 +681,11 @@ const EditItem = () => {
                       style={{ display: "none" }}
                     />
                     <div style={{ fontSize: "24px", marginBottom: "8px" }}>
-                      {cond.value === "new" && "🆕"}
-                      {cond.value === "like_new" && "✨"}
-                      {cond.value === "good" && "👍"}
-                      {cond.value === "fair" && "👌"}
-                      {cond.value === "needs_repair" && "🔧"}
+                      {cond.value === "new"}
+                      {cond.value === "like_new"}
+                      {cond.value === "good"}
+                      {cond.value === "fair"}
+                      {cond.value === "needs_repair"}
                     </div>
                     <span style={{
                       fontSize: "14px",
@@ -766,7 +765,7 @@ const EditItem = () => {
                 e.target.style.background = "#6c757d";
               }}
             >
-              👁️ Preview
+            Preview
             </button>
             
             <button
@@ -816,7 +815,7 @@ const EditItem = () => {
                 </>
               ) : (
                 <>
-                  💾 Update Item
+                Update Item
                 </>
               )}
             </button>
@@ -839,7 +838,6 @@ const EditItem = () => {
           marginBottom: "15px",
           color: "#212529"
         }}>
-          <span>💡</span>
           Tips for Better Listings
         </h4>
         <ul style={{

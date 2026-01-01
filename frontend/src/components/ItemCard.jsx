@@ -99,15 +99,16 @@ const ItemCard = ({ item }) => {
   const getPlaceholderIcon = () => {
     const category = (item.category || '').toLowerCase();
     
-    if (category.includes('book') || category.includes('text')) return '📚';
-    if (category.includes('electron') || category.includes('laptop')) return '💻';
-    if (category.includes('furniture') || category.includes('chair')) return '🪑';
-    if (category.includes('cloth') || category.includes('wear')) return '👕';
-    if (category.includes('stationery') || category.includes('pen')) return '✏️';
-    if (category.includes('sports') || category.includes('game')) return '⚽';
-    if (category.includes('kitchen') || category.includes('cook')) return '🍳';
+    if (category.includes('book'));
+    if (category.includes('notes'));
+    if (category.includes('electron'));
+    if (category.includes('lab equipment'));
+    if (category.includes('study guides'));
+    if (category.includes('stationery'));
+    if (category.includes('reference book'));
+    if (category.includes('others'));
     
-    return '📦'; // Default
+    return '.'; // Default
   };
 
   // Get gradient based on category
@@ -213,7 +214,7 @@ const ItemCard = ({ item }) => {
               transition: "transform 0.5s"
             }}
             onError={(e) => {
-              console.error(`❌ Image failed to display: ${imageSrc}`);
+              console.error(`Image failed to display: ${imageSrc}`);
               e.target.style.display = 'none';
               setHasError(true);
             }}

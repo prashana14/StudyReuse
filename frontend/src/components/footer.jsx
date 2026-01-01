@@ -30,8 +30,8 @@ const Footer = () => {
           
           <div className="footer-section">
             <h3>Contact</h3>
-            <p>📧 studyreuse@gmail.com</p>
-            <p>📞 01-4151615</p>
+            <p> studyreuse@gmail.com</p>
+            <p> 01-4151615</p>
           </div>
         </div>
         

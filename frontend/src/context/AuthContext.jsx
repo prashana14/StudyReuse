@@ -32,15 +32,15 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
           setToken(storedToken);
-          console.log('✅ Auth initialized from localStorage:', {
+          console.log('Auth initialized from localStorage:', {
             userId: getUserId(parsedUser),
             email: parsedUser.email
           });
         } else {
-          console.log('ℹ️ No stored auth data found');
+          console.log('No stored auth data found');
         }
       } catch (err) {
-        console.error('❌ Error initializing auth:', err);
+        console.error('Error initializing auth:', err);
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       } finally {
@@ -53,14 +53,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = (authData) => {
     try {
-      console.log('🔐 Login called with:', authData);
+      console.log('Login called with:', authData);
       
       if (!authData.token || !authData.user) {
         throw new Error('Invalid login data');
       }
       
       const userId = getUserId(authData.user);
-      console.log('🆔 Extracted user ID:', userId);
+      console.log('Extracted user ID:', userId);
       
       // Save to localStorage
       localStorage.setItem("token", authData.token);
@@ -70,20 +70,20 @@ export const AuthProvider = ({ children }) => {
       setUser(authData.user);
       setToken(authData.token);
       
-      console.log('✅ Login successful:', {
+      console.log('Login successful:', {
         userId: userId,
         email: authData.user.email,
         role: authData.user.role
       });
       
     } catch (err) {
-      console.error('❌ Login error:', err);
+      console.error('Login error:', err);
       throw err;
     }
   };
 
   const logout = () => {
-    console.log('🚪 Logout called');
+    console.log('Logout called');
     
     // Clear localStorage
     localStorage.removeItem("token");
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setToken(null);
     
-    console.log('✅ Logout complete');
+    console.log('Logout complete');
   };
 
   const refreshUser = () => {
@@ -102,10 +102,10 @@ export const AuthProvider = ({ children }) => {
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
-        console.log('🔄 User refreshed:', getUserId(parsedUser));
+        console.log('User refreshed:', getUserId(parsedUser));
       }
     } catch (err) {
-      console.error('❌ Error refreshing user:', err);
+      console.error('Error refreshing user:', err);
     }
   };
 

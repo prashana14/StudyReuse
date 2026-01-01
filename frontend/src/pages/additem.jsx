@@ -86,7 +86,7 @@ const AddItem = () => {
         image.name === file.name && 
         image.size === file.size &&
         image.lastModified === file.lastModified) {
-      console.log("⚠️ Same file selected again, ignoring...");
+      console.log("Same file selected again, ignoring...");
       e.target.value = '';
       return;
     }
@@ -138,7 +138,7 @@ const AddItem = () => {
     
     // 🔥 CRITICAL FIX: Prevent multiple submissions
     if (loading || formSubmitted.current) {
-      console.log("🚫 Already submitting or submitted, please wait...");
+      console.log("Already submitting or submitted, please wait...");
       return;
     }
     
@@ -155,13 +155,13 @@ const AddItem = () => {
     // If page was loaded more than 1 minute ago, ignore old timestamps
     if (timeSincePageLoad > 60000) {
       localStorage.removeItem('lastItemSubmitTime');
-      console.log("🕒 Cleared old cooldown (page loaded > 1 min ago)");
+      console.log("Cleared old cooldown (page loaded > 1 min ago)");
     }
     
     // Only show cooldown message if it's been less than 5 seconds AND it's not a fresh session
     if (timeSinceLastSubmit < 5000 && timeSincePageLoad <= 60000) {
       const secondsLeft = Math.ceil((5000 - timeSinceLastSubmit) / 1000);
-      setError(`⚠️ Please wait ${secondsLeft} seconds before submitting again`);
+      setError(`Please wait ${secondsLeft} seconds before submitting again`);
       return;
     }
     
@@ -171,7 +171,7 @@ const AddItem = () => {
     setSuccess("");
     setLoading(true);
 
-    console.log("📝 Starting item submission...");
+    console.log("Starting item submission...");
 
     // Validation
     const validationErrors = [];
@@ -216,7 +216,7 @@ const AddItem = () => {
       formDataToSend.append("condition", formData.condition);
       formDataToSend.append("image", image);
 
-      console.log("📤 Sending FormData with fields:");
+      console.log("Sending FormData with fields:");
       for (let [key, value] of formDataToSend.entries()) {
         console.log(`${key}:`, value instanceof File ? 
           `${value.name} (${value.type}, ${value.size} bytes)` : value);
@@ -224,7 +224,7 @@ const AddItem = () => {
 
       // Get token from localStorage
       const token = localStorage.getItem("token");
-      console.log("🔑 Token available:", token ? "Yes" : "No");
+      console.log("Token available:", token ? "Yes" : "No");
 
       // Add timeout to prevent hanging requests
       const controller = new AbortController();
@@ -239,12 +239,12 @@ const AddItem = () => {
       });
 
       clearTimeout(timeoutId);
-      console.log("✅ Response from server:", response.data);
+      console.log("Response from server:", response.data);
 
       if (response.data.message || response.data.success) {
         // 🔥 FIX 4: Set cooldown only on success
         localStorage.setItem('lastItemSubmitTime', now.toString());
-        setSuccess(response.data.message || "✅ Item added successfully!");
+        setSuccess(response.data.message || "Item added successfully!");
         
         // Reset form after delay
         setTimeout(() => {
@@ -281,7 +281,7 @@ const AddItem = () => {
       }
       
     } catch (err) {
-      console.error("❌ Error adding item:", err);
+      console.error("Error adding item:", err);
       
       // 🔥 FIX 5: Clear cooldown on error
       localStorage.removeItem('lastItemSubmitTime');
@@ -389,7 +389,7 @@ const AddItem = () => {
           gap: "12px",
           animation: "fadeIn 0.3s ease"
         }}>
-          <span style={{ fontSize: "20px" }}>✅</span>
+          <span style={{ fontSize: "20px" }}></span>
           <span style={{ flex: 1 }}>{success}</span>
         </div>
       )}
@@ -599,7 +599,6 @@ const AddItem = () => {
                   {!imagePreview ? (
                     <>
                       <div style={{ fontSize: "48px", marginBottom: "16px", color: loading ? "#ccc" : "#4361ee" }}>
-                        📁
                       </div>
                       <p style={{ color: loading ? "#ccc" : "#4361ee", fontWeight: "600", marginBottom: "8px" }}>
                         {loading ? "Upload in progress..." : "Click to upload or drag & drop"}
@@ -632,7 +631,7 @@ const AddItem = () => {
                         alignItems: "center",
                         gap: "8px"
                       }}>
-                        {loading ? "⏳ Uploading..." : "Click to change image"}
+                        {loading ? "Uploading..." : "Click to change image"}
                       </div>
                     </div>
                   )}
@@ -727,7 +726,7 @@ const AddItem = () => {
               fontWeight: formData.description.length < 10 ? "600" : "normal"
             }}>
               {formData.description.length} characters • Minimum 10 characters required
-              {formData.description.length < 10 && " ⚠️"}
+              {formData.description.length < 10 }
             </p>
           </div>
 
@@ -825,8 +824,7 @@ const AddItem = () => {
                   Adding Item...
                 </>
               ) : (
-                <>
-                  <span>📦</span> 
+                <> 
                   Add Item to Marketplace
                 </>
               )}
@@ -851,7 +849,7 @@ const AddItem = () => {
           gap: "10px",
           fontSize: "20px"
         }}>
-          <span style={{ fontSize: "24px" }}>💡</span> Tips for a Successful Listing
+          <span style={{ fontSize: "24px" }}></span> Tips for a Successful Listing
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
           <div style={{ background: "white", padding: "20px", borderRadius: "8px" }}>

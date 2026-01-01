@@ -111,7 +111,7 @@ const Home = () => {
 
             {error && (
               <div className="card" style={{ background: "#ffebee", borderColor: "#ffcdd2", textAlign: "center", padding: "30px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "15px" }}>⚠️</div>
+                <div style={{ fontSize: "48px", marginBottom: "15px" }}></div>
                 <p style={{ color: "#d32f2f", margin: 0 }}>{error}</p>
               </div>
             )}
@@ -245,25 +245,25 @@ const Home = () => {
             
             <div className="actions-grid">
               <Link to="/add-item" className="action-card">
-                <div className="action-icon">📝</div>
+                <div className="action-icon"></div>
                 <h3>List New Item</h3>
                 <p>Share your study materials with the community</p>
               </Link>
               
               <Link to="/items" className="action-card">
-                <div className="action-icon">🔍</div>
+                <div className="action-icon"></div>
                 <h3>Browse Items</h3>
                 <p>Find study materials you need</p>
               </Link>
               
               <Link to="/dashboard" className="action-card">
-                <div className="action-icon">📊</div>
+                <div className="action-icon"></div>
                 <h3>Your Dashboard</h3>
                 <p>View your listings and messages</p>
               </Link>
               
               <Link to="/profile" className="action-card">
-                <div className="action-icon">👤</div>
+                <div className="action-icon"></div>
                 <h3>Update Profile</h3>
                 <p>Manage your account settings</p>
               </Link>
@@ -373,7 +373,7 @@ const Home = () => {
         /* How It Works Section */
         .how-it-works {
           padding: 100px 0;
-          background: #f5f7ff;
+          background: #cae9eaff;
         }
         
         .steps-grid {
@@ -437,7 +437,7 @@ const Home = () => {
         .action-card {
           text-align: center;
           padding: 40px 30px;
-          background: white;
+          background: #a4c1ddc5 ;
           border-radius: var(--radius);
           box-shadow: var(--shadow);
           transition: var(--transition);

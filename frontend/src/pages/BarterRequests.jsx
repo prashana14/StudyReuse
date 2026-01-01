@@ -7,7 +7,7 @@ const BarterRequests = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
    // ✅ NOW WORKING
-    console.log("🔍 USER CONTEXT DEBUG:");
+    console.log("USER CONTEXT DEBUG:");
   console.log("User object:", user);
   console.log("User ID:", user?.id);
   console.log("Is user loaded?", !!user);
@@ -60,17 +60,17 @@ const BarterRequests = () => {
   };
 
   const updateStatus = async (id, status) => {
-  console.log(`🔄 Attempting to update barter ${id} to ${status}`);
+  console.log(`Attempting to update barter ${id} to ${status}`);
   
   try {
-    console.log(`📤 Making API call: PUT /barter/${id} with status: ${status}`);
+    console.log(`Making API call: PUT /barter/${id} with status: ${status}`);
     
     const response = await API.put(`/barter/${id}`, { status });
     
-    console.log("✅ API Response:", response.data);
+    console.log("API Response:", response.data);
     
     if (response.data && response.data.message) {
-      console.log("✅ Server message:", response.data.message);
+      console.log("Server message:", response.data.message);
     }
     
     // Update local state
@@ -78,7 +78,7 @@ const BarterRequests = () => {
       const updated = prev.map(req => 
         req._id === id ? { ...req, status } : req
       );
-      console.log("🔄 Updated requests state:", updated);
+      console.log("Updated requests state:", updated);
       return updated;
     });
     
@@ -89,14 +89,14 @@ const BarterRequests = () => {
         [status]: prev[status] + 1,
         pending: status !== "pending" ? prev.pending - 1 : prev.pending
       };
-      console.log("📊 Updated stats:", newStats);
+      console.log("Updated stats:", newStats);
       return newStats;
     });
     
     const statusMessages = {
-      accepted: "✅ Barter request accepted!",
-      rejected: "❌ Barter request rejected.",
-      pending: "🔄 Barter request status updated."
+      accepted: "Barter request accepted!",
+      rejected: "Barter request rejected.",
+      pending: "Barter request status updated."
     };
     
     alert(statusMessages[status] || "Status updated");
@@ -107,7 +107,7 @@ const BarterRequests = () => {
     }, 500);
     
   } catch (err) {
-    console.error("❌ ERROR updating barter status:");
+    console.error("ERROR updating barter status:");
     console.error("Error object:", err);
     console.error("Error response:", err.response);
     console.error("Error data:", err.response?.data);
@@ -273,7 +273,7 @@ const BarterRequests = () => {
             className="btn btn-outline"
             style={{ flex: 1, padding: "12px", fontSize: "14px" }}
           >
-            👁️ View Item
+          View Item
           </button>
           
           {isOwner && request.status === "pending" && (
@@ -290,7 +290,7 @@ const BarterRequests = () => {
                   border: "none"
                 }}
               >
-                ✅ Accept
+              Accept
               </button>
               
               <button 
@@ -305,7 +305,7 @@ const BarterRequests = () => {
                   border: "none"
                 }}
               >
-                ❌ Reject
+              Reject
               </button>
             </>
           )}
@@ -326,7 +326,7 @@ const BarterRequests = () => {
                 color: "#e63946"
               }}
             >
-              ↩️ Withdraw
+            Withdraw
             </button>
           )}
         </div>
@@ -361,31 +361,26 @@ const BarterRequests = () => {
         marginBottom: "40px" 
       }}>
         <div className="card" style={{ textAlign: "center", padding: "25px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "15px" }}>🔄</div>
           <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Pending</p>
           <p style={{ fontSize: "32px", fontWeight: "700", color: "#ff9e00" }}>{stats.pending}</p>
         </div>
         
         <div className="card" style={{ textAlign: "center", padding: "25px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "15px" }}>✅</div>
           <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Accepted</p>
           <p style={{ fontSize: "32px", fontWeight: "700", color: "#38b000" }}>{stats.accepted}</p>
         </div>
         
         <div className="card" style={{ textAlign: "center", padding: "25px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "15px" }}>❌</div>
           <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Rejected</p>
           <p style={{ fontSize: "32px", fontWeight: "700", color: "#e63946" }}>{stats.rejected}</p>
         </div>
         
         <div className="card" style={{ textAlign: "center", padding: "25px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "15px" }}>📤</div>
           <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Sent</p>
           <p style={{ fontSize: "32px", fontWeight: "700", color: "#4361ee" }}>{stats.sent}</p>
         </div>
         
         <div className="card" style={{ textAlign: "center", padding: "25px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "15px" }}>📥</div>
           <p style={{ fontSize: "14px", color: "#6c757d", marginBottom: "8px" }}>Received</p>
           <p style={{ fontSize: "32px", fontWeight: "700", color: "#7209b7" }}>{stats.received}</p>
         </div>
@@ -395,12 +390,12 @@ const BarterRequests = () => {
       <div className="card" style={{ padding: "20px", marginBottom: "30px" }}>
         <div style={{ display: "flex", gap: "15px", flexWrap: "wrap" }}>
           {[
-            { key: "all", label: "All Requests", icon: "📋" },
-            { key: "pending", label: "Pending", icon: "⏳" },
-            { key: "sent", label: "Sent", icon: "📤" },
-            { key: "received", label: "Received", icon: "📥" },
-            { key: "accepted", label: "Accepted", icon: "✅" },
-            { key: "rejected", label: "Rejected", icon: "❌" }
+            { key: "all", label: "All Requests" },
+            { key: "pending", label: "Pending"},
+            { key: "sent", label: "Sent"},
+            { key: "received", label: "Received"},
+            { key: "accepted", label: "Accepted"},
+            { key: "rejected", label: "Rejected"}
           ].map(filter => (
             <button
               key={filter.key}
@@ -456,7 +451,7 @@ const BarterRequests = () => {
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "80px 20px" }}>
-            <div style={{ fontSize: "80px", marginBottom: "30px", opacity: 0.2 }}>🔄</div>
+            <div style={{ fontSize: "80px", marginBottom: "30px", opacity: 0.2 }}></div>
             <h3 style={{ marginBottom: "16px", color: "#212529" }}>
               No {activeFilter !== "all" ? activeFilter : ""} barter requests
             </h3>
@@ -495,7 +490,7 @@ const BarterRequests = () => {
                 className="btn btn-outline"
                 style={{ padding: "10px 20px", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}
               >
-                🔄 Refresh
+              Refresh
               </button>
             </div>
             
@@ -509,7 +504,7 @@ const BarterRequests = () => {
       {/* How to Barter Guide */}
       <div className="card" style={{ marginTop: "50px", padding: "30px" }}>
         <h3 style={{ marginBottom: "25px", fontSize: "20px", display: "flex", alignItems: "center", gap: "12px" }}>
-          <span>💡</span> How to Barter Successfully
+        How to Barter Successfully
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "25px" }}>
           <div>

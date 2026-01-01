@@ -220,11 +220,11 @@ const UserManagement = () => {
                         <td>
                           {user.isBlocked ? (
                             <span className="badge badge-blocked">
-                              <span>🚫</span> Blocked
+                            Blocked
                             </span>
                           ) : (
                             <span className="badge badge-active">
-                              <span>✅</span> Active
+                             Active
                             </span>
                           )}
                           {user.role === "admin" && (

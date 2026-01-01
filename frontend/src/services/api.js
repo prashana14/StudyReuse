@@ -13,7 +13,7 @@ const API = axios.create({
 // Request interceptor - Add token
 API.interceptors.request.use(
   (config) => {
-    console.log('🚀 API Request:', config.method?.toUpperCase(), config.url);
+    console.log('API Request:', config.method?.toUpperCase(), config.url);
     
     const token = localStorage.getItem('token');
     if (token) {
@@ -23,7 +23,7 @@ API.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('❌ Request setup error:', error);
+    console.error('Request setup error:', error);
     return Promise.reject(error);
   }
 );
@@ -31,11 +31,11 @@ API.interceptors.request.use(
 // Response interceptor - Handle errors
 API.interceptors.response.use(
   (response) => {
-    console.log('✅ API Response:', response.status, response.config.url);
+    console.log('API Response:', response.status, response.config.url);
     return response;
   },
   (error) => {
-    console.error('❌ API Error:', {
+    console.error('API Error:', {
       url: error.config?.url,
       status: error.response?.status,
       data: error.response?.data,

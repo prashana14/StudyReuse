@@ -96,14 +96,14 @@ const SendNotification = () => {
       {/* Messages */}
       {error && (
         <div className="error-message">
-          <span style={{ marginRight: "8px" }}>❌</span>
+          <span style={{ marginRight: "8px" }}></span>
           {error}
         </div>
       )}
       
       {success && (
         <div className="success-message">
-          <span style={{ marginRight: "8px" }}>✅</span>
+          <span style={{ marginRight: "8px" }}></span>
           {success}
         </div>
       )}
@@ -246,12 +246,12 @@ const SendNotification = () => {
           >
             {loading ? (
               <>
-                <span style={{ marginRight: "8px" }}>⏳</span>
+                <span style={{ marginRight: "8px" }}></span>
                 Sending Notification...
               </>
             ) : (
               <>
-                <span style={{ marginRight: "8px" }}>📨</span>
+                <span style={{ marginRight: "8px" }}></span>
                 {sendToAll ? "Send to All Users" : "Send to Selected User"}
               </>
             )}
@@ -267,7 +267,7 @@ const SendNotification = () => {
             border: "1px dashed #cbd5e1"
           }}>
             <div style={{ fontSize: "14px", color: "#475569", marginBottom: "8px" }}>
-              <span style={{ marginRight: "8px" }}>💡</span>
+              <span style={{ marginRight: "8px" }}></span>
               <strong>Notification Tips</strong>
             </div>
             <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.5" }}>

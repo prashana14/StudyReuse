@@ -228,7 +228,7 @@ const Dashboard = () => {
           borderRadius: "12px",
           marginTop: "40px"
         }}>
-          <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}>⚠️</div>
+          <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}></div>
           <h2 style={{ marginBottom: "15px", color: "#d32f2f" }}>Unable to Load Dashboard</h2>
           <p style={{ color: "#6c757d", marginBottom: "30px", maxWidth: "500px", margin: "0 auto" }}>
             {error}
@@ -360,7 +360,6 @@ const Dashboard = () => {
             <StatCard 
               title="TOTAL ITEMS"
               value={stats.totalItems}
-              icon="📚"
               color={{ start: "#4361ee", end: "#7209b7" }}
               onClick={() => setActiveTab("items")}
             />
@@ -368,7 +367,6 @@ const Dashboard = () => {
             <StatCard 
               title="TOTAL VALUE"
               value={stats.totalValue.toLocaleString()}
-              icon="💰"
               color={{ start: "#38b000", end: "#2d9100" }}
               suffix=" Rs."
             />
@@ -376,7 +374,6 @@ const Dashboard = () => {
             <StatCard 
               title="ACTIVE BARTERS"
               value={stats.activeBarters}
-              icon="🔄"
               color={{ start: "#ff9e00", end: "#e68900" }}
               onClick={() => setActiveTab("barters")}
             />
@@ -384,7 +381,6 @@ const Dashboard = () => {
             <StatCard 
               title="PENDING REQUESTS"
               value={stats.pendingRequests}
-              icon="⏳"
               color={{ start: "#f72585", end: "#b5179e" }}
               onClick={() => setActiveTab("barters")}
             />
@@ -476,7 +472,6 @@ const Dashboard = () => {
                           color: "white",
                           fontSize: "24px"
                         }}>
-                          📚
                         </div>
                       )}
                       
@@ -860,7 +855,6 @@ const Dashboard = () => {
                       color: "white",
                       fontSize: "36px"
                     }}>
-                      📚
                     </div>
                   )}
                   
@@ -1125,7 +1119,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>📊</div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Analytics Coming Soon</h3>
               <p style={{ color: "#6c757d" }}>
                 Detailed analytics and insights are under development.
@@ -1148,7 +1142,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>📈</div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Activity Trends</h3>
               <p style={{ color: "#6c757d" }}>
                 View your monthly performance and engagement metrics.
@@ -1171,7 +1165,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>🏆</div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Leaderboard</h3>
               <p style={{ color: "#6c757d" }}>
                 See how you rank among other users in the community.

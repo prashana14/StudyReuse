@@ -76,16 +76,16 @@ const Navbar = () => {
     navigate("/");
   };
 
-  const getNotificationIcon = (type) => {
-    switch(type) {
-      case 'barter': return '🔄';
-      case 'message': return '✉️';
-      case 'item_approved': return '✅';
-      case 'item_rejected': return '❌';
-      case 'system': return '📢';
-      default: return '🔔';
-    }
-  };
+  // const getNotificationIcon = (type) => {
+  //   switch(type) {
+  //     case 'barter': return '🔄';
+  //     case 'message': return '✉️';
+  //     case 'item_approved': return '✅';
+  //     case 'item_rejected': return '❌';
+  //     case 'system': return '📢';
+  //     default: return '🔔';
+  //   }
+  // };
 
   const markAsRead = async (notificationId, e) => {
     if (e) e.stopPropagation();
@@ -571,7 +571,7 @@ const Navbar = () => {
                       e.currentTarget.style.background = "transparent";
                     }}
                   >
-                    🔔 Notification
+                  Notification
                     {isActive('/notifications') && <span style={activeIndicatorStyle} />}
                   </button>
                   
@@ -726,7 +726,7 @@ const Navbar = () => {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                         onClick={() => setDropdownOpen(false)}
                       >
-                        <span style={{ fontSize: "16px" }}>👤</span> My Profile
+                      My Profile
                       </Link>
                       
                       <Link 
@@ -736,7 +736,7 @@ const Navbar = () => {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                         onClick={() => setDropdownOpen(false)}
                       >
-                        <span style={{ fontSize: "16px" }}>📦</span> My Items
+                      My Items
                       </Link>
                       
                       {user.role === "admin" && (
@@ -747,7 +747,7 @@ const Navbar = () => {
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                           onClick={() => setDropdownOpen(false)}
                         >
-                          <span style={{ fontSize: "16px" }}>⚙️</span> Admin Panel
+                        Admin Panel
                         </Link>
                       )}
                       
@@ -785,7 +785,7 @@ const Navbar = () => {
                             e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          <span style={{ fontSize: "16px" }}>🚪</span> Logout
+                        Logout
                         </button>
                       </div>
                     </div>

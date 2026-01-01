@@ -14,58 +14,58 @@ const MyItems = () => {
         setLoading(true);
         setError("");
         
-        console.log("🔍 Fetching my items...");
+        console.log(" Fetching my items...");
         const res = await API.get("/items/my");
-        console.log("📦 API Response:", res);
-        console.log("📦 Response data:", res.data);
+        console.log(" API Response:", res);
+        console.log(" Response data:", res.data);
         
         // DEBUG: Log the complete structure
-        console.log("📦 Full response structure:");
+        console.log(" Full response structure:");
         console.log("  - res.data exists:", !!res.data);
         console.log("  - res.data.data exists:", !!res.data?.data);
         console.log("  - res.data.data.items exists:", !!res.data?.data?.items);
         console.log("  - res.data.data.items is array:", Array.isArray(res.data?.data?.items));
         
         if (res.data?.data?.items) {
-          console.log(`📦 Found ${res.data.data.items.length} items in res.data.data.items`);
+          console.log(` Found ${res.data.data.items.length} items in res.data.data.items`);
         }
         
         // EXTRACT ITEMS FROM RESPONSE - FIXED FOR YOUR CONTROLLER
         let itemsArray = [];
         
         if (!res.data) {
-          console.warn("⚠️ No data in response");
+          console.warn(" No data in response");
         } 
         // Check your controller's format FIRST: { data: { items: [...] } }
         else if (res.data.data && res.data.data.items && Array.isArray(res.data.data.items)) {
           // Format from your controller: { data: { items: [...] } }
-          console.log("✅ Got items from: res.data.data.items");
+          console.log(" Got items from: res.data.data.items");
           itemsArray = res.data.data.items;
         }
         else if (Array.isArray(res.data)) {
           // Format 1: Direct array
-          console.log("✅ Got direct array");
+          console.log(" Got direct array");
           itemsArray = res.data;
         }
         else if (res.data.items && Array.isArray(res.data.items)) {
           // Format 2: { items: [...] }
-          console.log("✅ Got items from: res.data.items");
+          console.log(" Got items from: res.data.items");
           itemsArray = res.data.items;
         }
         else if (res.data.data && Array.isArray(res.data.data)) {
           // Format 3: { data: [...] }
-          console.log("✅ Got items from: res.data.data");
+          console.log(" Got items from: res.data.data");
           itemsArray = res.data.data;
         }
         else if (typeof res.data === 'object') {
           // Format 4: Try to find any array in the object
-          console.log("✅ Searching for array in object...");
+          console.log(" Searching for array in object...");
           
           // Look for any array property
           const findArrayInObject = (obj) => {
             for (const key in obj) {
               if (Array.isArray(obj[key])) {
-                console.log(`✅ Found array in key: ${key}`);
+                console.log(` Found array in key: ${key}`);
                 return obj[key];
               }
               if (typeof obj[key] === 'object' && obj[key] !== null) {
@@ -80,19 +80,19 @@ const MyItems = () => {
           
           // If still empty, convert object values to array
           if (itemsArray.length === 0) {
-            console.log("🔄 Converting object values to array");
+            console.log(" Converting object values to array");
             itemsArray = Object.values(res.data).filter(item => 
               item && typeof item === 'object' && item._id
             );
           }
         }
         
-        console.log(`✅ Final items array length: ${itemsArray.length}`);
+        console.log(` Final items array length: ${itemsArray.length}`);
         
         if (itemsArray.length === 0) {
-          console.log("ℹ️ No items found or empty response");
+          console.log(" No items found or empty response");
         } else {
-          console.log("📋 First item sample:", {
+          console.log(" First item sample:", {
             id: itemsArray[0]._id,
             title: itemsArray[0].title,
             price: itemsArray[0].price
@@ -102,8 +102,8 @@ const MyItems = () => {
         setItems(itemsArray);
         
       } catch (err) {
-        console.error("❌ Error fetching items:", err);
-        console.error("❌ Error response:", err.response?.data);
+        console.error("Error fetching items:", err);
+        console.error("Error response:", err.response?.data);
         setError("Failed to load your items");
         setItems([]);
       } finally {
@@ -120,7 +120,7 @@ const MyItems = () => {
       // Show loading for this specific item
       setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
       
-      console.log(`🔄 Updating item ${itemId} status to: ${newStatus}`);
+      console.log(` Updating item ${itemId} status to: ${newStatus}`);
       
       const res = await API.patch(`/items/${itemId}/status`, { 
         status: newStatus 
@@ -135,10 +135,10 @@ const MyItems = () => {
         )
       );
       
-      console.log(`✅ Status updated: ${newStatus}`);
+      console.log(`Status updated: ${newStatus}`);
       
     } catch (err) {
-      console.error("❌ Error updating status:", err);
+      console.error("Error updating status:", err);
       alert(err.response?.data?.message || "Failed to update status");
     } finally {
       // Remove loading for this item
@@ -158,15 +158,15 @@ const MyItems = () => {
   };
 
   // Get status icon
-  const getStatusIcon = (status) => {
-    switch(status) {
-      case 'Available': return '✅';
-      case 'Sold': return '💰';
-      case 'Under Negotiation': return '🤝';
-      case 'Unavailable': return '⏸️';
-      default: return '📦';
-    }
-  };
+  // const getStatusIcon = (status) => {
+  //   switch(status) {
+  //     case 'Available': return 'availabe';
+  //     case 'Sold': return 'Sold';
+  //     case 'Under Negotiation': return 'Under Negotiation';
+  //     case 'Unavailable': return 'Unavailable';
+  //     default: return '*';
+  //   }
+  // };
 
   // Render loading
   if (loading) {
@@ -372,7 +372,7 @@ const MyItems = () => {
                     fontSize: "11px",
                     fontWeight: "600"
                   }}>
-                    ✅ Approved
+                  Approved
                   </div>
                 )}
                 

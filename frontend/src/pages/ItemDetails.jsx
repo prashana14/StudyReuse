@@ -49,7 +49,7 @@ const ItemDetails = () => {
           itemData = response;
         }
         
-        console.log('✅ Item data received:', {
+        console.log(' Item data received:', {
           title: itemData?.title,
           isApproved: itemData?.isApproved,
           hasImage: !!(itemData?.imageURL || itemData?.image)
@@ -77,7 +77,7 @@ const ItemDetails = () => {
         }
         
       } catch (err) {
-        console.error("❌ Error fetching item:", err);
+        console.error(" Error fetching item:", err);
         
         const errorMessage = err.response?.data?.message || err.message || "Failed to load item";
         
@@ -107,7 +107,7 @@ const ItemDetails = () => {
     }
 
     if (isOwnItem) {
-      setBarterError("❌ You cannot barter with your own item");
+      setBarterError(" You cannot barter with your own item");
       setTimeout(() => setBarterError(""), 3000);
       return;
     }
@@ -122,7 +122,7 @@ const ItemDetails = () => {
         message: `I'm interested in bartering for your ${item.title}`
       });
 
-      setBarterSuccess("✅ Barter request sent!");
+      setBarterSuccess(" Barter request sent!");
       
       setTimeout(() => {
         setBarterSuccess("");
@@ -332,7 +332,7 @@ const ItemDetails = () => {
                   gap: "8px"
                 }}
               >
-                ✏️ Edit Item
+              Edit Item
               </button>
             )}
             
@@ -365,7 +365,7 @@ const ItemDetails = () => {
                 </>
               ) : (
                 <>
-                  🗑️ Delete Item
+                Delete Item
                 </>
               )}
             </button>
@@ -430,7 +430,7 @@ const ItemDetails = () => {
                 fontWeight: "600"
               }}
             >
-              💬 Chat About Item
+            Chat About Item
             </Link>
             
             <Link 
@@ -446,7 +446,7 @@ const ItemDetails = () => {
                 fontSize: "16px",
                 fontWeight: "600"
               }}>
-              ⭐ View Reviews
+            View Reviews
             </Link>
           </div>
         </div>
@@ -467,7 +467,7 @@ const ItemDetails = () => {
                   fontWeight: "600",
                   border: "1px solid #ffeaa7"
                 }}>
-                  ⏳ Pending Approval
+                Pending Approval
                 </span>
               ) : flagged ? (
                 <span style={{
@@ -480,7 +480,7 @@ const ItemDetails = () => {
                   fontWeight: "600",
                   border: "1px solid #f5c6cb"
                 }}>
-                  ⚠️ Flagged
+                Flagged
                 </span>
               ) : (
                 <span style={{
@@ -493,7 +493,7 @@ const ItemDetails = () => {
                   fontWeight: "600",
                   border: "1px solid #badbcc"
                 }}>
-                  ✅ Approved
+                 Approved
                 </span>
               )}
             </div>
@@ -644,7 +644,7 @@ const ItemDetails = () => {
                   </>
                 ) : (
                   <>
-                    🔄 Request Barter
+                  Request Barter
                   </>
                 )}
               </button>
@@ -666,7 +666,6 @@ const ItemDetails = () => {
               className="btn btn-outline"
               style={{ padding: "16px 24px", fontSize: "20px" }}
             >
-              📤
             </button>
           </div>
         </div>

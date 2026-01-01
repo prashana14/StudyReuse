@@ -13,10 +13,10 @@ const AdminLayout = () => {
   }
   
   const navItems = [
-    { path: "/admin", label: "Dashboard", icon: "📊" },
-    { path: "/admin/users", label: "Users", icon: "👥" },
-    { path: "/admin/items", label: "Items", icon: "📦" },
-    { path: "/admin/notifications", label: "Send Notification", icon: "🔔" },
+    { path: "/admin", label: "Dashboard"},
+    { path: "/admin/users", label: "Users"},
+    { path: "/admin/items", label: "Items" },
+    { path: "/admin/notifications", label: "Send Notification"},
   ];
   
   return (
@@ -25,7 +25,7 @@ const AdminLayout = () => {
       <div className="admin-sidebar">
         <div className="sidebar-header">
           <h2>
-            <span className="sidebar-icon">👑</span>
+            <span className="sidebar-icon"></span>
             Admin Panel
           </h2>
           <p className="admin-user-info">

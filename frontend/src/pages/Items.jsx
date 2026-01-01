@@ -320,7 +320,6 @@ console.log('Available conditions for filter:', conditionOptions);
               fontSize: "18px",
               color: "#4361ee"
             }}>
-              🔍
             </span>
           </div>
           
@@ -352,7 +351,7 @@ console.log('Available conditions for filter:', conditionOptions);
               e.target.style.borderColor = "#e0e0e0";
             }}
           >
-            <span>🔄</span> Reset All Filters
+          Reset All Filters
           </button>
         </div>
 
@@ -654,7 +653,6 @@ console.log('Available conditions for filter:', conditionOptions);
             marginBottom: "20px", 
             color: "#e63946"
           }}>
-            ⚠️
           </div>
           <h2 style={{ 
             marginBottom: "15px", 
@@ -717,7 +715,6 @@ console.log('Available conditions for filter:', conditionOptions);
             color: "#4361ee",
             opacity: 0.7
           }}>
-            📭
           </div>
           <h3 style={{ 
             marginBottom: "16px", 
@@ -764,7 +761,7 @@ console.log('Available conditions for filter:', conditionOptions);
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              <span>🔄</span> Reset Filters
+            Reset Filters
             </button>
             <Link 
               to="/add-item"

@@ -47,35 +47,30 @@ const AdminDashboard = () => {
     { 
       title: "Total Users", 
       value: stats?.totalUsers || 0, 
-      icon: "👥", 
       color: "#3b82f6",
       description: "Registered users"
     },
     { 
       title: "Blocked Users", 
       value: stats?.blockedUsers || 0, 
-      icon: "🚫", 
       color: "#ef4444",
       description: "Currently blocked"
     },
     { 
       title: "Total Items", 
-      value: stats?.totalItems || 0, 
-      icon: "📦", 
+      value: stats?.totalItems || 0,  
       color: "#8b5cf6",
       description: "All items posted"
     },
     { 
       title: "Pending Items", 
-      value: stats?.pendingItems || 0, 
-      icon: "⏳", 
+      value: stats?.pendingItems || 0,  
       color: "#f59e0b",
       description: "Awaiting approval"
     },
     { 
       title: "Flagged Items", 
       value: stats?.flaggedItems || 0, 
-      icon: "🚩", 
       color: "#ec4899",
       description: "Reported items"
     },
@@ -188,7 +183,7 @@ const AdminDashboard = () => {
           <div className="card-content">
             {recentItems.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">📦</div>
+                <div className="empty-state-icon"></div>
                 <h3>No Items</h3>
                 <p>No items posted yet</p>
               </div>

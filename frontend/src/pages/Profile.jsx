@@ -201,7 +201,7 @@ const Profile = () => {
                   className="btn btn-outline"
                   style={{ padding: "10px 20px" }}
                 >
-                  ✏️ Edit Profile
+                Edit Profile
                 </button>
               ) : (
                 <div style={{ display: "flex", gap: "10px" }}>
@@ -223,7 +223,7 @@ const Profile = () => {
                     className="btn btn-primary"
                     style={{ padding: "10px 20px" }}
                   >
-                    💾 Save Changes
+                  Save Changes
                   </button>
                 </div>
               )}
@@ -355,7 +355,7 @@ const Profile = () => {
                   padding: "12px 24px"
                 }}
               >
-                🗑️ Delete Account
+              Delete Account
               </button>
               <button 
                 onClick={() => {
@@ -369,7 +369,7 @@ const Profile = () => {
                   padding: "12px 24px"
                 }}
               >
-                🚪 Logout
+              Logout
               </button>
             </div>
           </div>

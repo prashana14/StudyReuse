@@ -55,7 +55,6 @@ class ErrorBoundary extends Component {
               marginBottom: '20px',
               color: '#ff6b6b'
             }}>
-              ⚠️
             </div>
             
             <h2 style={{ 

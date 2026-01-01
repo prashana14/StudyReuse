@@ -97,7 +97,7 @@ if (process.env.NODE_ENV === 'production') {
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('📁 Uploads directory created:', uploadsDir);
+  console.log(' Uploads directory created:', uploadsDir);
 }
 
 // ======================
@@ -190,7 +190,7 @@ app.use((req, res, next) => {
                    statusCode >= 400 ? '⚠️' : 
                    duration > 1000 ? '🐌' : '✅';
       
-      console.log(`${emoji} ${req.method} ${req.url} - ${statusCode} (${duration}ms)`);
+      //console.log(`${emoji} ${req.method} ${req.url} - ${statusCode} (${duration}ms)`);
     }
   });
   
@@ -236,7 +236,7 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🚀 StudyReuse Backend API',
+    message: 'StudyReuse Backend API',
     version: '1.0.0',
     endpoints: {
       items: '/api/items',
@@ -258,7 +258,7 @@ app.get('/', (req, res) => {
 // 9. Error Handling Middleware
 // ======================
 app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', {
+  console.error('Server Error:', {
     message: err.message,
     name: err.name,
     stack: err.stack,
@@ -360,11 +360,11 @@ app.use('*', (req, res) => {
 // ======================
 const connectDB = async () => {
   try {
-    console.log('🔌 Attempting to connect to MongoDB...');
+    console.log('Attempting to connect to MongoDB...');
     
     // Check if MONGO_URI is set
     if (!process.env.MONGO_URI) {
-      console.error('❌ MONGO_URI is not set in .env file');
+      console.error('MONGO_URI is not set in .env file');
       process.exit(1);
     }
     
@@ -380,27 +380,27 @@ const connectDB = async () => {
     
     await mongoose.connect(process.env.MONGO_URI, options);
     
-    console.log('✅ MongoDB Connected Successfully!');
+    console.log('MongoDB Connected Successfully!');
     
     mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err.message);
+      console.error('MongoDB connection error:', err.message);
     });
     
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected - attempting to reconnect...');
+      console.warn('MongoDB disconnected - attempting to reconnect...');
     });
     
     mongoose.connection.on('reconnected', () => {
-      console.log('✅ MongoDB reconnected');
+      console.log('MongoDB reconnected');
     });
     
   } catch (err) {
-    console.error('❌ MongoDB Connection Failed:', err.message);
-    console.error('💡 Check your MONGO_URI in .env file');
+    console.error('MongoDB Connection Failed:', err.message);
+    console.error('Check your MONGO_URI in .env file');
     console.error('Current URI format:', process.env.MONGO_URI ? 'Present (check if correct)' : 'MISSING');
     
     // Exit the process if DB connection fails
-    console.error('💥 Application cannot start without database connection. Exiting...');
+    console.error('Application cannot start without database connection. Exiting...');
     process.exit(1);
   }
 };
@@ -410,16 +410,16 @@ const connectDB = async () => {
 // ======================
 const startServer = async () => {
   try {
-    console.log('🚀 StudyReuse Backend Server Starting...');
-    console.log('='.repeat(50));
+    console.log('StudyReuse Backend Server Starting...');
+    //console.log('='.repeat(50));
     
     // Check required env vars
     const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'PORT'];
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
     
     if (missingEnvVars.length > 0) {
-      console.error('❌ Missing environment variables:', missingEnvVars.join(', '));
-      console.error('💡 Create a .env file with these variables');
+      console.error('Missing environment variables:', missingEnvVars.join(', '));
+      console.error('Create a .env file with these variables');
       process.exit(1);
     }
     
@@ -429,26 +429,26 @@ const startServer = async () => {
     const PORT = process.env.PORT || 4000;
     
     server.listen(PORT, '0.0.0.0', () => {
-      console.log('🚀 Server Started Successfully!');
-      console.log(`📡 Server:  http://localhost:${PORT}`);
-      console.log(`📡 Network: http://${require('os').networkInterfaces().eth0?.[0]?.address || 'localhost'}:${PORT}`);
-      console.log(`🌐 Uploads: http://localhost:${PORT}/uploads/`);
-      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log('\n🚀 Ready to accept connections!\n');
+      console.log('Server Started Successfully');
+      console.log(`Server:  http://localhost:${PORT}`);
+      console.log(`Network: http://${require('os').networkInterfaces().eth0?.[0]?.address || 'localhost'}:${PORT}`);
+      console.log(`Uploads: http://localhost:${PORT}/uploads/`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('\n Ready to accept connections\n');
     });
     
     // Handle server errors
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} is already in use.`);
+        console.error(`Port ${PORT} is already in use.`);
         console.error('Try: PORT=4001 npm start');
         process.exit(1);
       }
-      console.error('💥 Server error:', err.message);
+      console.error('Server error:', err.message);
     });
     
   } catch (err) {
-    console.error('💥 Failed to start server:', err.message);
+    console.error('Failed to start server:', err.message);
     process.exit(1);
   }
 };
@@ -462,20 +462,20 @@ const shutdown = async (signal) => {
   try {
     // Close HTTP server
     server.close(() => {
-      console.log('✅ HTTP server closed');
+      console.log('HTTP server closed');
     });
     
     // Close MongoDB connection if connected
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close(false);
-      console.log('✅ MongoDB connection closed');
+      console.log('MongoDB connection closed');
     }
     
-    console.log('👋 Shutdown complete');
+    console.log('Shutdown complete');
     process.exit(0);
     
   } catch (err) {
-    console.error('❌ Error during shutdown:', err.message);
+    console.error('Error during shutdown:', err.message);
     process.exit(1);
   }
 };
@@ -487,7 +487,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 process.on('uncaughtException', (err) => {
-  console.error('\n💥 Uncaught Exception:');
+  console.error('\n Uncaught Exception:');
   console.error('Message:', err.message);
   console.error('Stack:', err.stack);
   
@@ -503,22 +503,22 @@ process.on('uncaughtException', (err) => {
   );
   
   if (isCritical) {
-    console.error('💥 Critical error detected - shutting down');
+    console.error('Critical error detected - shutting down');
     shutdown('UNCAUGHT_EXCEPTION');
   } else {
-    console.error('⚠️ Non-critical error - server will continue running');
+    console.error('Non-critical error - server will continue running');
   }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('\n⚠️ Unhandled Rejection detected:');
+  console.error('\n Unhandled Rejection detected:');
   console.error('Reason:', reason.message || reason);
   
   if (reason instanceof Error) {
     console.error('Error name:', reason.name);
     
     if (reason.name === 'ValidationError') {
-      console.error('🔍 Validation Error Details:');
+      console.error('Validation Error Details:');
       if (reason.errors) {
         Object.keys(reason.errors).forEach(field => {
           console.error(`  ${field}:`, reason.errors[field].message);
@@ -527,7 +527,7 @@ process.on('unhandledRejection', (reason, promise) => {
     }
   }
   
-  console.error('ℹ️ Server will continue running despite unhandled rejection');
+  console.error('Server will continue running despite unhandled rejection');
 });
 
 // ======================

@@ -29,12 +29,12 @@ const ChatBox = () => {
     if (!itemId) return;
 
     try {
-      console.log(`📦 Fetching item: ${itemId}`);
+      console.log(` Fetching item: ${itemId}`);
       
       const response = await API.get(`/items/${itemId}`);
       
       if (response?.data) {
-        console.log("✅ Item loaded:", response.data);
+        console.log(" Item loaded:", response.data);
         setItemDetails(response.data.data);
         
         // Set other user from item owner
@@ -45,16 +45,16 @@ const ChatBox = () => {
           const currentUserId = currentUser.id || currentUser.id;
           
           if (ownerId.toString() !== currentUserId?.toString()) {
-            console.log("👤 Setting other user from item owner:", owner);
+            console.log(" Setting other user from item owner:", owner);
             setOtherUser(typeof owner === 'object' ? owner : { _id: owner });
           } else {
-            console.log("⚠️ You are the owner of this item");
+            console.log(" You are the owner of this item");
             setError("You cannot chat with yourself about your own item");
           }
         }
       }
     } catch (err) {
-      console.error("❌ Error fetching item:", err);
+      console.error(" Error fetching item:", err);
       setError("Failed to load item details");
     }
   }, [itemId, getCurrentUser]);
@@ -70,10 +70,10 @@ const ChatBox = () => {
         return;
       }
 
-      console.log(`💬 Fetching messages for item: ${itemId}`);
+      console.log(`Fetching messages for item: ${itemId}`);
       
       const response = await API.get(`/chat/item/${itemId}`);
-      console.log("📨 Messages response:", response.data);
+      console.log("Messages response:", response.data);
       
       if (response.data?.success) {
         const messagesData = response.data.data[0].messages || [];
@@ -91,11 +91,11 @@ const ChatBox = () => {
           }
         }
         
-        console.log(`📊 Loaded ${messagesData.length} messages`);
+        console.log(`Loaded ${messagesData.length} messages`);
       }
       
     } catch (err) {
-      console.error("❌ Error fetching messages:", err);
+      console.error("Error fetching messages:", err);
     } finally {
       setLoading(false);
     }
@@ -138,7 +138,7 @@ const ChatBox = () => {
     setSending(true);
     
     try {
-      console.log("🚀 Sending first message to create chat...");
+      console.log("Sending first message to create chat...");
       
       const response = await API.post("/chat", {
         itemId: itemId,
@@ -146,7 +146,7 @@ const ChatBox = () => {
         message: messageText
       });
 
-      console.log("✅ Chat created:", response.data);
+      console.log("Chat created:", response.data);
       
       // Set the text input to the sent message
       setText(messageText);
@@ -157,7 +157,7 @@ const ChatBox = () => {
       alert("Chat started! You can now continue the conversation.");
       
     } catch (err) {
-      console.error("❌ Error creating chat:", err);
+      console.error("Error creating chat:", err);
       alert(err.response?.data?.message || "Failed to start chat");
     } finally {
       setSending(false);
@@ -170,7 +170,7 @@ const ChatBox = () => {
     
     const messageText = text.trim();
     if (!messageText) {
-      console.warn("⚠️ Cannot send empty message");
+      console.warn("Cannot send empty message");
       return;
     }
 
@@ -228,7 +228,7 @@ const ChatBox = () => {
     setSending(true);
 
     try {
-      console.log("🚀 Sending message...");
+      console.log("Sending message...");
       
       const response = await API.post("/chat", {
         itemId: itemId,
@@ -236,7 +236,7 @@ const ChatBox = () => {
         message: messageText
       });
 
-      console.log("✅ Message sent:", response.data);
+      console.log("Message sent:", response.data);
       
       // Replace temporary message with real one
       setMessages(prev => prev.map(msg => 
@@ -254,7 +254,7 @@ const ChatBox = () => {
       setTimeout(fetchMessages, 500);
 
     } catch (err) {
-      console.error("❌ Error sending message:", err);
+      console.error("Error sending message:", err);
       
       // Remove temporary message
       setMessages(prev => prev.filter(msg => msg._id !== tempId));

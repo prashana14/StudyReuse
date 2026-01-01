@@ -104,7 +104,7 @@ const Reviews = () => {
       // Refresh reviews
       await fetchReviews();
       
-      alert("✅ Review submitted successfully!");
+      alert(" Review submitted successfully!");
       
     } catch (err) {
       console.error("Error submitting review:", err.response?.data || err.message);
@@ -270,7 +270,6 @@ const Reviews = () => {
               fontSize: "48px",
               boxShadow: "0 4px 12px rgba(67, 97, 238, 0.3)"
             }}>
-              📚
             </div>
           )}
           
@@ -474,7 +473,7 @@ const Reviews = () => {
                   </>
                 ) : (
                   <>
-                    <span>📝</span> Submit Review
+                  Submit Review
                   </>
                 )}
               </button>
@@ -521,7 +520,7 @@ const Reviews = () => {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
                 borderRadius: "16px"
               }}>
-                <div style={{ fontSize: "64px", marginBottom: "20px", opacity: 0.3 }}>📝</div>
+                <div style={{ fontSize: "64px", marginBottom: "20px", opacity: 0.3 }}></div>
                 <h3 style={{ marginBottom: "12px", color: "#212529" }}>No reviews yet</h3>
                 <p style={{ color: "#6c757d", marginBottom: "30px" }}>
                   Be the first to review this item
@@ -732,7 +731,7 @@ const Reviews = () => {
               gap: "10px",
               color: "#212529"
             }}>
-              <span>📝</span> Review Guidelines
+            Review Guidelines
             </h3>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>

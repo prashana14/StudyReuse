@@ -209,7 +209,7 @@ const ItemManagement = () => {
         <div className="card-content">
           {items.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">📦</div>
+              <div className="empty-state-icon"></div>
               <h3>No Items Found</h3>
               <p>{search ? "Try a different search term" : "No items posted yet"}</p>
             </div>
