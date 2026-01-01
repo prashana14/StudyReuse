@@ -14,7 +14,7 @@ const Items = () => {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [conditionFilter, setConditionFilter] = useState("");
-  const [sortBy, setSortBy] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
@@ -76,8 +76,62 @@ const Items = () => {
   // Get unique categories
   const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
   
-  // Get unique conditions
-  const conditions = [...new Set(items.map(item => item.condition).filter(Boolean))];
+  // Get unique conditions - FIXED VERSION WITH ERROR HANDLING
+// ===== REPLACE ALL CONDITIONS CODE WITH THIS =====
+
+// Get condition options for filter dropdown
+const conditionOptions = (() => {
+  // Try to extract conditions from items data
+  const conditionsFromData = items
+    .map(item => item.condition)
+    .filter(condition => condition && typeof condition === 'string' && condition.trim() !== '')
+    .map(condition => {
+      const normalized = condition.trim().toLowerCase();
+      
+      // Standardize common variations
+      const conditionMap = {
+        'new': 'New',
+        'like-new': 'Like New',
+        'like new': 'Like New',
+        'like_new': 'Like New',
+        'good': 'Good',
+        'fair': 'Fair',
+        'poor': 'Poor',
+        'excellent': 'Excellent',
+        'very good': 'Very Good',
+        'very_good': 'Very Good',
+        'mint': 'Mint',
+        'used': 'Used',
+        'refurbished': 'Refurbished'
+      };
+      
+      return conditionMap[normalized] || 
+             (normalized.charAt(0).toUpperCase() + normalized.slice(1));
+    });
+  
+  // Get unique values
+  const uniqueConditions = [...new Set(conditionsFromData)];
+  
+  // If no conditions found in data, return defaults
+  if (uniqueConditions.length === 0) {
+    return ['New', 'Like New', 'Good', 'Fair', 'Poor'];
+  }
+  
+  // Sort in logical order
+  const sortOrder = ['New', 'Like New', 'Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Used', 'Refurbished'];
+  
+  return uniqueConditions.sort((a, b) => {
+    const indexA = sortOrder.indexOf(a);
+    const indexB = sortOrder.indexOf(b);
+    
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+})();
+
+console.log('Available conditions for filter:', conditionOptions);
 
   // Apply filters
   useEffect(() => {
@@ -353,7 +407,6 @@ const Items = () => {
               ))}
             </select>
           </div>
-
           {/* Condition Filter */}
           <div>
             <label style={{ 
@@ -384,19 +437,11 @@ const Items = () => {
                 cursor: "pointer",
                 outline: "none"
               }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#4361ee";
-                e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "#e0e0e0";
-                e.target.style.boxShadow = "none";
-              }}
             >
               <option value="">All Conditions</option>
-              {conditions.map(condition => (
+              {conditionOptions.map(condition => (
                 <option key={condition} value={condition}>
-                  {condition.charAt(0).toUpperCase() + condition.slice(1)}
+                  {condition}
                 </option>
               ))}
             </select>
@@ -514,7 +559,7 @@ const Items = () => {
                 e.target.style.boxShadow = "none";
               }}
             >
-              <option value="Sort By">Newest First</option>  
+              {/* ✅ CORRECT - No duplicates */}
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="price-low">Price: Low to High</option>

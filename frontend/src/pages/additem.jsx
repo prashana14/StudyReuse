@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef } from "react";  // 🔥 ADD useRef
+import { useState, useEffect, useRef } from "react";  
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 const AddItem = () => {
   const navigate = useNavigate();
-  const formSubmitted = useRef(false);  // 🔥 TRACK IF FORM ALREADY SUBMITTED
+  const formSubmitted = useRef(false);  
 
   const [formData, setFormData] = useState({
     title: "",
     price: "",
     description: "",
     category: "",
-    condition: ""  // 🔥 CHANGED FROM "good" TO EMPTY STRING
+    condition: ""  
   });
   
   const [image, setImage] = useState(null);
@@ -40,16 +40,22 @@ const AddItem = () => {
     { value: "poor", label: "Poor" }
   ]);
 
-  // 🔥 FIX: Clean up object URLs to prevent memory leaks
+  // 🔥 FIX 1: Clean up localStorage when component mounts
   useEffect(() => {
+    // Clear any previous cooldown when user comes to add item page
+    localStorage.removeItem('lastItemSubmitTime');
+    console.log("🔄 Cleared localStorage cooldown on page load");
+    
     return () => {
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
       }
+      // Also clear on unmount
+      localStorage.removeItem('lastItemSubmitTime');
     };
-  }, [imagePreview]);
+  }, []);
 
-  // 🔥 RESET formSubmitted flag when component mounts/unmounts
+  // 🔥 FIX 2: Reset formSubmitted flag
   useEffect(() => {
     return () => {
       formSubmitted.current = false;
@@ -62,6 +68,9 @@ const AddItem = () => {
       ...prev,
       [name]: value
     }));
+    
+    // Clear error when user starts typing
+    if (error) setError("");
   };
 
   const handleImageChange = (e) => {
@@ -133,6 +142,29 @@ const AddItem = () => {
       return;
     }
     
+    // 🔥 FIX 3: SMARTER COOLDOWN CHECK
+    // Only check cooldown if there was a recent SUCCESSFUL submission
+    const now = Date.now();
+    const lastSubmitTime = localStorage.getItem('lastItemSubmitTime');
+    const timeSinceLastSubmit = lastSubmitTime ? now - parseInt(lastSubmitTime) : 0;
+    
+    // Check if it's a fresh page load (clear old timestamps)
+    const pageLoadTime = localStorage.getItem('pageLoadTime');
+    const timeSincePageLoad = pageLoadTime ? now - parseInt(pageLoadTime) : Infinity;
+    
+    // If page was loaded more than 1 minute ago, ignore old timestamps
+    if (timeSincePageLoad > 60000) {
+      localStorage.removeItem('lastItemSubmitTime');
+      console.log("🕒 Cleared old cooldown (page loaded > 1 min ago)");
+    }
+    
+    // Only show cooldown message if it's been less than 5 seconds AND it's not a fresh session
+    if (timeSinceLastSubmit < 5000 && timeSincePageLoad <= 60000) {
+      const secondsLeft = Math.ceil((5000 - timeSinceLastSubmit) / 1000);
+      setError(`⚠️ Please wait ${secondsLeft} seconds before submitting again`);
+      return;
+    }
+    
     // Mark as submitting
     formSubmitted.current = true;
     setError("");
@@ -142,43 +174,34 @@ const AddItem = () => {
     console.log("📝 Starting item submission...");
 
     // Validation
+    const validationErrors = [];
+    
     if (!formData.title.trim()) {
-      setError("Please enter a title for the item");
-      setLoading(false);
-      formSubmitted.current = false;
-      return;
+      validationErrors.push("Please enter a title for the item");
     }
 
     if (!formData.price || parseFloat(formData.price) <= 0) {
-      setError("Please enter a valid price greater than 0");
-      setLoading(false);
-      formSubmitted.current = false;
-      return;
+      validationErrors.push("Please enter a valid price greater than 0");
     }
 
     if (!formData.category) {
-      setError("Please select a category");
-      setLoading(false);
-      formSubmitted.current = false;
-      return;
+      validationErrors.push("Please select a category");
     }
     
     if (!formData.condition) {
-      setError("Please select an item condition");
-      setLoading(false);
-      formSubmitted.current = false;
-      return;
+      validationErrors.push("Please select an item condition");
     }
 
     if (!formData.description.trim() || formData.description.trim().length < 10) {
-      setError("Please enter a description (minimum 10 characters)");
-      setLoading(false);
-      formSubmitted.current = false;
-      return;
+      validationErrors.push("Please enter a description (minimum 10 characters)");
     }
 
     if (!image) {
-      setError("Please upload an image of the item");
+      validationErrors.push("Please upload an image of the item");
+    }
+    
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]); // Show first error
       setLoading(false);
       formSubmitted.current = false;
       return;
@@ -219,6 +242,8 @@ const AddItem = () => {
       console.log("✅ Response from server:", response.data);
 
       if (response.data.message || response.data.success) {
+        // 🔥 FIX 4: Set cooldown only on success
+        localStorage.setItem('lastItemSubmitTime', now.toString());
         setSuccess(response.data.message || "✅ Item added successfully!");
         
         // Reset form after delay
@@ -258,7 +283,8 @@ const AddItem = () => {
     } catch (err) {
       console.error("❌ Error adding item:", err);
       
-      // 🔥 Reset submission flag on error
+      // 🔥 FIX 5: Clear cooldown on error
+      localStorage.removeItem('lastItemSubmitTime');
       formSubmitted.current = false;
       
       if (err.name === 'AbortError') {
@@ -315,7 +341,9 @@ const AddItem = () => {
       {/* Error Message */}
       {error && (
         <div style={{
-          background: "linear-gradient(135deg, #ff6b6b, #e63946)",
+          background: error.includes("wait") 
+            ? "linear-gradient(135deg, #f39c12, #e67e22)" // Orange for cooldown
+            : "linear-gradient(135deg, #ff6b6b, #e63946)", // Red for errors
           color: "white",
           padding: "16px 20px",
           borderRadius: "10px",
@@ -325,7 +353,9 @@ const AddItem = () => {
           gap: "12px",
           animation: "fadeIn 0.3s ease"
         }}>
-          <span style={{ fontSize: "20px" }}>⚠️</span>
+          <span style={{ fontSize: "20px" }}>
+            {error.includes("wait") ? "⏳" : "⚠️"}
+          </span>
           <span style={{ flex: 1 }}>{error}</span>
           <button 
             onClick={() => setError("")}
@@ -710,7 +740,11 @@ const AddItem = () => {
           }}>
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                // Clear localStorage before navigating away
+                localStorage.removeItem('lastItemSubmitTime');
+                navigate(-1);
+              }}
               disabled={loading}
               style={{ 
                 flex: 1, 

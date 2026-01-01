@@ -26,19 +26,9 @@ const server = http.createServer(app);
 // ======================
 // 1. Security Middleware
 // ======================
-app.use(helmet());
-app.use(helmet.contentSecurityPolicy({
-  directives: {
-    defaultSrc: ["'self'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    scriptSrc: ["'self'"],
-    imgSrc: ["'self'", "data:", "https:"],
-    connectSrc: ["'self'"],
-    fontSrc: ["'self'"],
-    objectSrc: ["'none'"],
-    mediaSrc: ["'self'"],
-    frameSrc: ["'none'"],
-  },
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now to fix CORS issues
+  crossOriginResourcePolicy: { policy: "cross-origin" } // 🔥 ADD THIS
 }));
 
 // Rate limiting
@@ -61,6 +51,7 @@ const corsOptions = {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:8179',
+      'http://localhost:4000', // 🔥 ADD YOUR OWN SERVER
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
@@ -71,7 +62,7 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Range'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204,
@@ -110,16 +101,73 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // ======================
-// 5. Static Files
+// 5. 🔥 FIXED: Static Files Configuration
 // ======================
+// Add CORS headers for static files BEFORE serving them
+app.use('/uploads', (req, res, next) => {
+  // Set CORS headers for static files
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
+
+// Now serve static files with proper MIME types
 app.use('/uploads', express.static(uploadsDir, {
   maxAge: '7d',
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg') || filePath.endsWith('.png')) {
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+    // Set proper MIME types
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json'
+    };
+    
+    if (mimeTypes[ext]) {
+      res.setHeader('Content-Type', mimeTypes[ext]);
+    }
+    
+    // Cache control
+    if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days for images
     }
   }
 }));
+
+// Test route for uploaded files
+app.get('/test-upload/:filename', (req, res) => {
+  const filePath = path.join(uploadsDir, req.params.filename);
+  
+  if (fs.existsSync(filePath)) {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp'
+    };
+    
+    if (mimeTypes[ext]) {
+      res.setHeader('Content-Type', mimeTypes[ext]);
+    }
+    
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
 
 // ======================
 // 6. Request Logging Middleware
@@ -127,11 +175,9 @@ app.use('/uploads', express.static(uploadsDir, {
 app.use((req, res, next) => {
   const start = Date.now();
   
-  if (req.url === '/favicon.ico' || req.url.startsWith('/uploads/')) {
-    return next();
-  }
-  
-  if (req.url === '/health' || req.url === '/') {
+  // Skip logging for static files and health checks
+  if (req.url === '/favicon.ico' || req.url.startsWith('/uploads/') || 
+      req.url === '/health' || req.url === '/') {
     return next();
   }
   
@@ -152,7 +198,7 @@ app.use((req, res, next) => {
 });
 
 // ======================
-// 7. Routes - ✅ FIXED: COMPLETE ROUTE MOUNTING
+// 7. Routes
 // ======================
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
@@ -377,38 +423,17 @@ const startServer = async () => {
       process.exit(1);
     }
     
-    // console.log('📋 Environment Check:');
-    // console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-    // console.log(`   - PORT: ${process.env.PORT}`);
-    // console.log(`   - MONGO_URI: ${process.env.MONGO_URI ? 'Present' : 'MISSING'}`);
-    // console.log(`   - JWT_SECRET: ${process.env.JWT_SECRET ? 'Present' : 'MISSING'}`);
-    // console.log('='.repeat(50));
-    
     // Connect to database
     await connectDB();
     
     const PORT = process.env.PORT || 4000;
     
     server.listen(PORT, '0.0.0.0', () => {
-      //console.log('\n' + '='.repeat(50));
       console.log('🚀 Server Started Successfully!');
-      //console.log('='.repeat(50));
       console.log(`📡 Server:  http://localhost:${PORT}`);
       console.log(`📡 Network: http://${require('os').networkInterfaces().eth0?.[0]?.address || 'localhost'}:${PORT}`);
       console.log(`🌐 Uploads: http://localhost:${PORT}/uploads/`);
       console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-      // console.log('='.repeat(50));
-      // console.log('\n📋 Available Routes:');
-      // console.log('   GET  /health          - Health check');
-      // console.log('   GET  /                - API info');
-      // console.log('   POST /api/users/login - User login');
-      // console.log('   POST /api/users/register - User registration');
-      // console.log('   GET  /api/items       - Get all items');
-      // console.log('   GET  /api/items/my    - Get user items');
-      // console.log('   POST /api/items       - Create item');
-      // console.log('   GET  /api/barter/my   - Get barter requests');
-      // console.log('   GET  /api/notifications - Get notifications');
-      // console.log('='.repeat(50));
       console.log('\n🚀 Ready to accept connections!\n');
     });
     
