@@ -6,6 +6,28 @@ const ItemCard = ({ item }) => {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Get status color
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'Available': return '#10b981';
+      case 'Sold': return '#ef4444';
+      case 'Under Negotiation': return '#f59e0b';
+      case 'Unavailable': return '#6b7280';
+      default: return '#6b7280';
+    }
+  };
+
+  // Get status icon
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'Available': return '✅';
+      case 'Sold': return '💰';
+      case 'Under Negotiation': return '🤝';
+      case 'Unavailable': return '⏸️';
+      default: return '📦';
+    }
+  };
+
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
     
@@ -231,7 +253,29 @@ const ItemCard = ({ item }) => {
           </div>
         )}
         
-        {/* Category Badge */}
+        {/* Status Badge - TOP LEFT */}
+        {item.status && (
+          <div style={{
+            position: "absolute",
+            top: "12px",
+            left: "12px",
+            background: getStatusColor(item.status),
+            color: "white",
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "600",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            zIndex: 10
+          }}>
+            <span>{getStatusIcon(item.status)}</span>
+            <span>{item.status}</span>
+          </div>
+        )}
+        
+        {/* Category Badge - TOP RIGHT */}
         {item.category && (
           <div style={{
             position: "absolute",

@@ -640,6 +640,98 @@ exports.updateItem = async (req, res) => {
 };
 
 /**
+ * Update item status (Available/Sold/Under Negotiation/Unavailable)
+ */
+exports.updateItemStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    console.log(`📋 PATCH /items/${id}/status - Updating status to: ${status}`);
+    
+    const userData = verifyToken(req);
+    
+    // Find item
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Item not found' 
+      });
+    }
+    
+    // Check authorization - only owner or admin can update status
+    const isOwner = item.owner.toString() === userData.id;
+    const isAdmin = userData.role === 'admin';
+    
+    if (!isOwner && !isAdmin) {
+      console.log(`⛔ User ${userData.id} not authorized to update status of item ${id}`);
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to update status of this item' 
+      });
+    }
+    
+    console.log(`👤 User ${userData.id} authorized (owner: ${isOwner}, admin: ${isAdmin})`);
+    
+    // Validate status
+    const validStatuses = ['Available', 'Sold', 'Under Negotiation', 'Unavailable'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid status value',
+        validStatuses: validStatuses
+      });
+    }
+    
+    // Update status
+    item.status = status;
+    
+    // If item is marked as sold and was approved, auto-unapprove it
+    if (status === 'Sold' && item.isApproved) {
+      item.isApproved = false;
+      item.approvedAt = null;
+      console.log(`📝 Item ${id} marked as sold - auto-unapproved`);
+    }
+    
+    // If item becomes available again and is not flagged, keep approval status
+    // (admin might need to re-approve if it was sold before)
+    if (status === 'Available' && !item.isFlagged) {
+      // Keep current approval status
+    }
+    
+    await item.save();
+    
+    // Populate owner info for response
+    const updatedItem = await Item.findById(id).populate('owner', 'name email');
+    
+    console.log(`✅ Item ${id} status updated to: ${status}`);
+    
+    res.json({
+      success: true,
+      message: `Item status updated to ${status}`,
+      data: updatedItem
+    });
+    
+  } catch (err) {
+    console.error(`❌ Error updating item status ${req.params.id}:`, err);
+    
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid item ID' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating item status', 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+/**
  * Delete item
  */
 exports.deleteItem = async (req, res) => {

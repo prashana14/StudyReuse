@@ -6,6 +6,7 @@ const MyItems = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState({}); // Track which items are updating
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -112,6 +113,60 @@ const MyItems = () => {
 
     fetchItems();
   }, []);
+
+  // Function to update item status
+  const updateStatus = async (itemId, newStatus) => {
+    try {
+      // Show loading for this specific item
+      setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
+      
+      console.log(`🔄 Updating item ${itemId} status to: ${newStatus}`);
+      
+      const res = await API.patch(`/items/${itemId}/status`, { 
+        status: newStatus 
+      });
+      
+      // Update the item in local state
+      setItems(prevItems => 
+        prevItems.map(item => 
+          item._id === itemId 
+            ? { ...item, status: newStatus, ...res.data.data }
+            : item
+        )
+      );
+      
+      console.log(`✅ Status updated: ${newStatus}`);
+      
+    } catch (err) {
+      console.error("❌ Error updating status:", err);
+      alert(err.response?.data?.message || "Failed to update status");
+    } finally {
+      // Remove loading for this item
+      setUpdatingStatus(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  // Get status badge color
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'Available': return '#10b981'; // Green
+      case 'Sold': return '#ef4444'; // Red
+      case 'Under Negotiation': return '#f59e0b'; // Amber
+      case 'Unavailable': return '#6b7280'; // Gray
+      default: return '#6b7280';
+    }
+  };
+
+  // Get status icon
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'Available': return '✅';
+      case 'Sold': return '💰';
+      case 'Under Negotiation': return '🤝';
+      case 'Unavailable': return '⏸️';
+      default: return '📦';
+    }
+  };
 
   // Render loading
   if (loading) {
@@ -266,13 +321,14 @@ const MyItems = () => {
           }}>
             {itemsToRender.map((item) => (
               <div 
-                key={item._id || Math.random()} 
+                key={item._id} 
                 style={{ 
                   background: "white",
                   borderRadius: "12px",
                   padding: "20px",
                   boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                  transition: "transform 0.2s, box-shadow 0.2s"
+                  transition: "transform 0.2s, box-shadow 0.2s",
+                  position: "relative"
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-5px)";
@@ -283,6 +339,44 @@ const MyItems = () => {
                   e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
                 }}
               >
+                {/* Status Badge */}
+                <div style={{
+                  position: "absolute",
+                  top: "15px",
+                  left: "15px",
+                  background: getStatusColor(item.status || 'Available'),
+                  color: "white",
+                  padding: "4px 12px",
+                  borderRadius: "20px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  zIndex: 10
+                }}>
+                  <span>{getStatusIcon(item.status || 'Available')}</span>
+                  <span>{item.status || 'Available'}</span>
+                </div>
+                
+                {/* Approval Badge */}
+                {item.isApproved && (
+                  <div style={{
+                    position: "absolute",
+                    top: "15px",
+                    right: "15px",
+                    background: "#10b981",
+                    color: "white",
+                    padding: "4px 8px",
+                    borderRadius: "20px",
+                    fontSize: "11px",
+                    fontWeight: "600"
+                  }}>
+                    ✅ Approved
+                  </div>
+                )}
+                
+                {/* Item Image */}
                 {item.imageURL || item.image ? (
                   <img
                     src={item.imageURL || item.image}
@@ -359,6 +453,78 @@ const MyItems = () => {
                   }
                 </p>
                 
+                {/* Status Update Section */}
+                <div style={{ 
+                  marginBottom: "20px",
+                  padding: "12px",
+                  background: "#f8fafc",
+                  borderRadius: "8px"
+                }}>
+                  <p style={{ 
+                    fontSize: "13px", 
+                    fontWeight: "600", 
+                    color: "#64748b",
+                    marginBottom: "8px" 
+                  }}>
+                    Update Status:
+                  </p>
+                  
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {['Available', 'Sold', 'Under Negotiation', 'Unavailable'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => updateStatus(item._id, status)}
+                        disabled={updatingStatus[item._id] || (item.status === status)}
+                        style={{
+                          padding: "6px 12px",
+                          background: item.status === status ? getStatusColor(status) : "white",
+                          color: item.status === status ? "white" : getStatusColor(status),
+                          border: `1px solid ${getStatusColor(status)}`,
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          cursor: updatingStatus[item._id] ? "not-allowed" : "pointer",
+                          opacity: updatingStatus[item._id] ? 0.7 : 1,
+                          transition: "all 0.2s",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!updatingStatus[item._id] && item.status !== status) {
+                            e.target.style.background = getStatusColor(status);
+                            e.target.style.color = "white";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!updatingStatus[item._id] && item.status !== status) {
+                            e.target.style.background = "white";
+                            e.target.style.color = getStatusColor(status);
+                          }
+                        }}
+                      >
+                        {updatingStatus[item._id] && item.status === status ? (
+                          <>
+                            <div style={{
+                              width: "10px",
+                              height: "10px",
+                              border: "2px solid white",
+                              borderTop: "2px solid transparent",
+                              borderRadius: "50%",
+                              animation: "spin 1s linear infinite"
+                            }}></div>
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            {getStatusIcon(status)} {status}
+                          </>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ 
                     fontSize: "20px", 
@@ -390,6 +556,20 @@ const MyItems = () => {
                       }}
                     >
                       View
+                    </Link>
+                    <Link 
+                      to={`/edit-item/${item._id}`} 
+                      style={{
+                        padding: "8px 16px",
+                        background: "#4361ee",
+                        color: "white",
+                        textDecoration: "none",
+                        borderRadius: "6px",
+                        fontSize: "14px",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      Edit
                     </Link>
                   </div>
                 </div>

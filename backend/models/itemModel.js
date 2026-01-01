@@ -9,6 +9,14 @@ const itemSchema = mongoose.Schema(
     category: String,
     image: String,
     owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    // ===== ADD THIS STATUS FIELD =====
+    status: {
+      type: String,
+      enum: ['Available', 'Sold', 'Under Negotiation', 'Unavailable'],
+      default: 'Available'
+    },
+    
     
     // ===== ADD THESE 5 FIELDS =====
     isApproved: {

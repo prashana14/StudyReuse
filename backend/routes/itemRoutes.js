@@ -8,7 +8,9 @@ const {
   getItemById,
   createItem,
   deleteItem,
-  getMyItems
+  getMyItems,
+  updateItemStatus,
+  updateItem
 } = require('../controller/itemController');
 const authMiddleware = require('../middleware/authMiddleware');
 const Item = require('../models/itemModel');
@@ -235,9 +237,6 @@ router.post('/test-create', authMiddleware, async (req, res) => {
 // Search route - MUST come before /:id
 router.get('/search', async (req, res) => {
   try {
-    //console.log("=".repeat(60));
-    //console.log("🔍 SEARCH REQUEST:", req.query);
-    
     const { q } = req.query;
     
     // If no search term, return all approved items
@@ -253,10 +252,7 @@ router.get('/search', async (req, res) => {
     }
     
     const searchTerm = q.trim().toLowerCase();
-    //console.log(`🔍 Searching for: "${searchTerm}"`);
     
-    // TEMPORARY: Remove status filter to test if items exist
-    // Change this back to { status: "approved" } later
     const searchQuery = {
       $or: [
         { title: { $regex: searchTerm, $options: "i" } },
@@ -266,15 +262,11 @@ router.get('/search', async (req, res) => {
       ]
     };
     
-    //console.log("🔍 Search query (NO STATUS FILTER):", JSON.stringify(searchQuery, null, 2));
-    
     // Execute search
     const items = await Item.find(searchQuery)
       .populate("owner", "name email profilePicture")
       .limit(20)
       .sort({ createdAt: -1 });
-    
-    //console.log(`✅ Found ${items.length} items for "${searchTerm}"`);
     
     // If no items found, try searching ALL items without any filter
     if (items.length === 0) {
@@ -294,7 +286,6 @@ router.get('/search', async (req, res) => {
       }
     }
     
-    //console.log("=".repeat(60));
     res.json(items);
     
   } catch (error) {
@@ -319,6 +310,12 @@ router.post('/',
   handleMulterErrors,
   createItem
 );
+
+// PUT Route for updating items (if you have it)
+// router.put('/:id', authMiddleware, upload.single('image'), updateItem);
+
+// PATCH Route for status update - CORRECT PLACEMENT
+router.patch('/:id/status', authMiddleware, updateItemStatus);
 
 // DELETE Route
 router.delete('/:id', authMiddleware, deleteItem);
