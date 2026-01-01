@@ -158,15 +158,15 @@ const MyItems = () => {
   };
 
   // Get status icon
-  // const getStatusIcon = (status) => {
-  //   switch(status) {
-  //     case 'Available': return 'availabe';
-  //     case 'Sold': return 'Sold';
-  //     case 'Under Negotiation': return 'Under Negotiation';
-  //     case 'Unavailable': return 'Unavailable';
-  //     default: return '*';
-  //   }
-  // };
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'Available': return '';
+      case 'Sold': return '';
+      case 'Under Negotiation': return '';
+      case 'Unavailable': return '';
+      default: return '';
+    }
+  };
 
   // Render loading
   if (loading) {

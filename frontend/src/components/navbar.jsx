@@ -76,16 +76,16 @@ const Navbar = () => {
     navigate("/");
   };
 
-  // const getNotificationIcon = (type) => {
-  //   switch(type) {
-  //     case 'barter': return '🔄';
-  //     case 'message': return '✉️';
-  //     case 'item_approved': return '✅';
-  //     case 'item_rejected': return '❌';
-  //     case 'system': return '📢';
-  //     default: return '🔔';
-  //   }
-  // };
+        const getNotificationIcon = (type) => {
+        switch(type) {
+        case 'barter': return '';
+            case 'message': return '';
+            case 'item_approved': return '';
+            case 'item_rejected': return '';
+            case 'system': return '';
+            default: return '';
+          }
+        };
 
   const markAsRead = async (notificationId, e) => {
     if (e) e.stopPropagation();
