@@ -1,10 +1,16 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useCart } from "../context/CartContext";
 
 const ItemCard = ({ item }) => {
   const [imageSrc, setImageSrc] = useState('');
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { addToCart, getItemQuantity } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
+  
+  // Get quantity in cart
+  const quantityInCart = getItemQuantity(item._id);
 
   // Get status color
   const getStatusColor = (status) => {
@@ -32,47 +38,66 @@ const ItemCard = ({ item }) => {
   const imageUrl = item.imageURL || item.image; // Cloudinary provides full URL
 
   useEffect(() => {
-  if (!imageUrl || imageUrl.trim() === '') {
-    setHasError(true);
-    setIsLoading(false);
-    return;
-  }
-  
-  setIsLoading(true);
-  setHasError(false);
-  
-  // Check if it's a Cloudinary URL
-  const isCloudinaryUrl = imageUrl.includes('cloudinary.com');
-  
-  if (isCloudinaryUrl) {
-    // Cloudinary URLs are reliable, preload for better UX
-    const img = new Image();
-    img.src = imageUrl;
-    
-    img.onload = () => {
-      setImageSrc(imageUrl);
-      setIsLoading(false);
-    };
-    
-    img.onerror = () => {
+    if (!imageUrl || imageUrl.trim() === '') {
       setHasError(true);
       setIsLoading(false);
-    };
+      return;
+    }
     
-    // Add timeout for safety
-    setTimeout(() => {
-      if (!img.complete) {
-        // Still try to show the image (Cloudinary might be slow)
+    setIsLoading(true);
+    setHasError(false);
+    
+    // Check if it's a Cloudinary URL
+    const isCloudinaryUrl = imageUrl.includes('cloudinary.com');
+    
+    if (isCloudinaryUrl) {
+      // Cloudinary URLs are reliable, preload for better UX
+      const img = new Image();
+      img.src = imageUrl;
+      
+      img.onload = () => {
         setImageSrc(imageUrl);
         setIsLoading(false);
-      }
-    }, 2000);
-  } else {
-    // Handle non-Cloudinary URLs (legacy)
-    setImageSrc(imageUrl);
-    setIsLoading(false);
-  }
-}, [imageUrl]);
+      };
+      
+      img.onerror = () => {
+        setHasError(true);
+        setIsLoading(false);
+      };
+      
+      // Add timeout for safety
+      setTimeout(() => {
+        if (!img.complete) {
+          // Still try to show the image (Cloudinary might be slow)
+          setImageSrc(imageUrl);
+          setIsLoading(false);
+        }
+      }, 2000);
+    } else {
+      // Handle non-Cloudinary URLs (legacy)
+      setImageSrc(imageUrl);
+      setIsLoading(false);
+    }
+  }, [imageUrl]);
+
+  // Add to cart handler
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (item.status !== 'Available') {
+      alert(`This item is ${item.status}. Cannot add to cart.`);
+      return;
+    }
+    
+    setIsAdding(true);
+    addToCart(item);
+    
+    // Reset button state after animation
+    setTimeout(() => {
+      setIsAdding(false);
+    }, 1000);
+  };
 
   // Get category icon text
   const getPlaceholderText = () => {
@@ -156,7 +181,8 @@ const ItemCard = ({ item }) => {
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        border: "1px solid #eaeaea"
+        border: "1px solid #eaeaea",
+        position: "relative"
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-3px)";
@@ -167,6 +193,29 @@ const ItemCard = ({ item }) => {
         e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
       }}
     >
+      {/* Quantity badge if item is in cart */}
+      {quantityInCart > 0 && (
+        <div style={{
+          position: "absolute",
+          top: "10px",
+          left: "10px",
+          background: "linear-gradient(135deg, #4361ee, #7209b7)",
+          color: "white",
+          padding: "3px 8px",
+          borderRadius: "4px",
+          fontSize: "10px",
+          fontWeight: "600",
+          letterSpacing: "0.5px",
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: "3px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+        }}>
+          <span>🛒</span> {quantityInCart} in cart
+        </div>
+      )}
+
       {/* Image Container */}
       <div style={{ 
         height: "180px", 
@@ -238,29 +287,30 @@ const ItemCard = ({ item }) => {
           </div>
         )}
         
-        {/* Status Badge - TOP LEFT */}
+        {/* Status Badge - TOP RIGHT (moved because cart badge is on left) */}
         {item.status && (
           <div style={{
             position: "absolute",
             top: "10px",
-            left: "10px",
+            right: "10px",
             background: getStatusColor(item.status),
             color: "white",
             padding: "3px 8px",
             borderRadius: "4px",
             fontSize: "10px",
             fontWeight: "600",
-            letterSpacing: "0.5px"
+            letterSpacing: "0.5px",
+            zIndex: 10
           }}>
             {getStatusText(item.status)}
           </div>
         )}
         
-        {/* Category Badge - TOP RIGHT */}
+        {/* Category Badge - BOTTOM RIGHT */}
         {item.category && (
           <div style={{
             position: "absolute",
-            top: "10px",
+            bottom: "10px",
             right: "10px",
             background: "rgba(255, 255, 255, 0.95)",
             padding: "3px 8px",
@@ -268,7 +318,8 @@ const ItemCard = ({ item }) => {
             fontSize: "10px",
             fontWeight: "600",
             color: "#495057",
-            border: "1px solid #dee2e6"
+            border: "1px solid #dee2e6",
+            zIndex: 10
           }}>
             {item.category.length > 12 ? item.category.substring(0, 12) + '...' : item.category}
           </div>
@@ -280,63 +331,73 @@ const ItemCard = ({ item }) => {
         padding: "16px",
         flex: 1,
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        gap: "10px"
       }}>
         {/* Title */}
         <h5 
           style={{ 
             fontSize: "16px", 
             fontWeight: "600",
-            marginBottom: "8px",
+            marginBottom: "4px",
             color: "#212529",
-            lineHeight: "1.4"
+            lineHeight: "1.4",
+            minHeight: "44px"
           }}
         >
           {truncateTitle(item.title)}
         </h5>
         
-        {/* Price */}
-        <div style={{ marginTop: "auto" }}>
-          <div style={{ 
-            fontSize: "11px", 
-            color: "#6c757d",
-            fontWeight: "500",
-            marginBottom: "2px"
-          }}>
-            PRICE
-          </div>
-          <div style={{ 
-            fontSize: "20px", 
-            fontWeight: "700", 
-            color: "#4361ee",
-            marginBottom: "12px"
-          }}>
-            {formatPrice(item.price)}
-          </div>
-        </div>
-        
-        {/* Condition */}
-        {item.condition && (
-          <div style={{
-            marginBottom: "12px"
-          }}>
-            <div style={{
-              fontSize: "11px",
+        {/* Price and Condition Row */}
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "5px"
+        }}>
+          {/* Price */}
+          <div>
+            <div style={{ 
+              fontSize: "11px", 
               color: "#6c757d",
               fontWeight: "500",
               marginBottom: "2px"
             }}>
-              CONDITION
+              PRICE
             </div>
-            <div style={{
-              fontSize: "12px",
-              fontWeight: "600",
-              color: "#495057"
+            <div style={{ 
+              fontSize: "20px", 
+              fontWeight: "700", 
+              color: "#4361ee"
             }}>
-              {formatCondition(item.condition)}
+              {formatPrice(item.price)}
             </div>
           </div>
-        )}
+          
+          {/* Condition */}
+          {item.condition && (
+            <div style={{ textAlign: "right" }}>
+              <div style={{
+                fontSize: "11px",
+                color: "#6c757d",
+                fontWeight: "500",
+                marginBottom: "2px"
+              }}>
+                CONDITION
+              </div>
+              <div style={{
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "#495057",
+                background: "#eef2ff",
+                padding: "4px 8px",
+                borderRadius: "4px"
+              }}>
+                {formatCondition(item.condition)}
+              </div>
+            </div>
+          )}
+        </div>
         
         {/* Owner Info (if available) */}
         {item.owner && typeof item.owner === 'object' && item.owner.name && (
@@ -344,9 +405,12 @@ const ItemCard = ({ item }) => {
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            marginBottom: "12px",
+            marginBottom: "5px",
             fontSize: "12px",
-            color: "#6c757d"
+            color: "#6c757d",
+            padding: "8px",
+            background: "#f8f9fa",
+            borderRadius: "6px"
           }}>
             <div style={{
               width: "24px",
@@ -366,28 +430,105 @@ const ItemCard = ({ item }) => {
           </div>
         )}
         
-        {/* View Details Button */}
-        <Link 
-          to={`/item/${item._id}`} 
-          style={{ 
-            width: "100%",
-            background: "#4361ee",
-            border: "none",
-            borderRadius: "6px",
-            padding: "10px",
-            fontWeight: "600",
-            transition: "background 0.2s",
-            color: "white",
-            textDecoration: "none",
-            textAlign: "center",
-            display: "block",
-            fontSize: "13px"
-          }}
-          onMouseEnter={(e) => e.target.style.background = "#3a56d4"}
-          onMouseLeave={(e) => e.target.style.background = "#4361ee"}
-        >
-          View Details
-        </Link>
+        {/* Buttons Container */}
+        <div style={{ 
+          display: "flex", 
+          flexDirection: "column",
+          gap: "8px",
+          marginTop: "auto"
+        }}>
+          {/* View Details Button */}
+          <Link 
+            to={`/item/${item._id}`} 
+            style={{ 
+              width: "100%",
+              background: "#4361ee",
+              border: "none",
+              borderRadius: "6px",
+              padding: "10px",
+              fontWeight: "600",
+              transition: "all 0.3s",
+              color: "white",
+              textDecoration: "none",
+              textAlign: "center",
+              display: "block",
+              fontSize: "13px"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#3a56d4";
+              e.target.style.transform = "translateY(-1px)";
+              e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "#4361ee";
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "none";
+            }}
+          >
+            View Details
+          </Link>
+          
+          {/* Add to Cart Button */}
+          <button
+            onClick={handleAddToCart}
+            disabled={isAdding || item.status !== 'Available'}
+            style={{ 
+              width: "100%",
+              background: isAdding ? "#28a745" : (item.status === 'Available' ? "#20c997" : "#6c757d"),
+              border: "none",
+              borderRadius: "6px",
+              padding: "10px",
+              fontWeight: "600",
+              transition: "all 0.3s",
+              color: "white",
+              cursor: item.status === 'Available' ? "pointer" : "not-allowed",
+              fontSize: "13px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "5px",
+              opacity: (isAdding || item.status === 'Available') ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (item.status === 'Available' && !isAdding) {
+                e.target.style.transform = "translateY(-1px)";
+                e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (item.status === 'Available' && !isAdding) {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "none";
+              }
+            }}
+          >
+            {isAdding ? (
+              <>
+                <div style={{
+                  width: "12px",
+                  height: "12px",
+                  border: "2px solid rgba(255,255,255,0.3)",
+                  borderTop: "2px solid white",
+                  borderRadius: "50%",
+                  animation: "spin 0.6s linear infinite"
+                }}></div>
+                Adding...
+              </>
+            ) : item.status === 'Available' ? (
+              quantityInCart > 0 ? (
+                <>
+                  <span>🛒</span> Add More ({quantityInCart} in cart)
+                </>
+              ) : (
+                <>
+                  <span>🛒</span> Add to Cart
+                </>
+              )
+            ) : (
+              `❌ ${item.status}`
+            )}
+          </button>
+        </div>
       </div>
       
       {/* Add CSS for spinner animation */}
@@ -395,6 +536,21 @@ const ItemCard = ({ item }) => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 480px) {
+          .card {
+            min-width: 250px !important;
+            max-width: 100% !important;
+          }
+          
+          .card h5 {
+            font-size: 14px !important;
+          }
+          
+          .buttons-container {
+            flex-direction: column !important;
+          }
         }
       `}</style>
     </div>

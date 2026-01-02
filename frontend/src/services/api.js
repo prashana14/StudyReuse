@@ -184,7 +184,50 @@ const adminAPI = {
 };
 
 // ======================
-// 6. API Services Object
+// 6. ORDER API Methods
+// ======================
+const orderAPI = {
+  // Create order from cart
+  create: (orderData) => API.post('/orders', orderData),
+  
+  // Get user's orders
+  getUserOrders: (params) => API.get('/orders/my', { params }),
+  
+  // Get order by ID
+  getById: (id) => API.get(`/orders/${id}`),
+  
+  // Update order status (admin only)
+  updateStatus: (id, status) => API.put(`/orders/${id}/status`, { status }),
+  
+  // Cancel order
+  cancel: (id) => API.put(`/orders/${id}/cancel`),
+  
+  // Get all orders (admin only)
+  getAll: (params) => API.get('/orders', { params }),
+};
+
+// ======================
+// 7. CART API Methods (Optional - for saving cart to DB)
+// ======================
+const cartAPI = {
+  // Save cart to database
+  save: (cartData) => API.post('/cart', cartData),
+  
+  // Get saved cart
+  getSaved: () => API.get('/cart'),
+  
+  // Clear saved cart
+  clear: () => API.delete('/cart'),
+  
+  // Update cart item
+  updateItem: (itemId, quantity) => API.put(`/cart/items/${itemId}`, { quantity }),
+  
+  // Remove item from cart
+  removeItem: (itemId) => API.delete(`/cart/items/${itemId}`),
+};
+
+// ======================
+// 8. API Services Object
 // ======================
 const apiService = {
   // Regular HTTP methods
@@ -245,6 +288,12 @@ const apiService = {
   // ADMIN API
   admin: adminAPI,
   
+  // ORDER API - ADDED
+  orders: orderAPI,
+  
+  // CART API - ADDED (Optional)
+  cart: cartAPI,
+  
   // NOTIFICATIONS API
   notifications: {
     getAll: (params) => API.get('/notifications', { params }),
@@ -293,4 +342,10 @@ const apiService = {
 
 // Export both default and named exports
 export default apiService;
-export { API, API_MULTIPART, adminAPI };
+export { 
+  API, 
+  API_MULTIPART, 
+  adminAPI, 
+  orderAPI, 
+  cartAPI 
+};

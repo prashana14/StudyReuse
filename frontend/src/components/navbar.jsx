@@ -2,6 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useContext, useEffect, useState, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
 import API from "../services/api";
+import CartIcon from './CartIcon';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
@@ -497,6 +498,7 @@ const Navbar = () => {
                   Add Item
                   {isActive('/add-item') && <span style={activeIndicatorStyle} />}
                 </Link>
+                <CartIcon />
 
                 {/* Barter Link */}
                 <Link 
@@ -512,6 +514,7 @@ const Navbar = () => {
                   {isActive('/barter') && <span style={activeIndicatorStyle} />}
                 </Link>
               </>
+              
             ) : (
               <>
                 {/* Guest Navigation */}
@@ -738,6 +741,12 @@ const Navbar = () => {
                       >
                       My Items
                       </Link>
+                      <Link to="/orders" style={{ textDecoration: 'none', color: 'inherit' }}>
+                          <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span>📦</span>
+                            <span>My Orders</span>
+                          </div>
+                        </Link>
                       
                       {user.role === "admin" && (
                         <Link 

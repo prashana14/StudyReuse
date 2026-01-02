@@ -20,6 +20,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const orderRoutes = require('./routes/orderRoutes'); // ADD THIS LINE
 
 const app = express();
 const server = http.createServer(app);
@@ -154,11 +155,30 @@ const chatLimiter = rateLimit({
   }
 });
 
+// Order-specific rate limiter
+const orderLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 10, // 10 order requests per minute
+  message: {
+    success: false,
+    message: 'Too many order requests, please slow down',
+    code: 'ORDER_RATE_LIMIT'
+  },
+  skip: (req) => !req.path.startsWith('/api/orders'),
+  keyGenerator: (req) => {
+    if (req.user?._id) {
+      return `order_user:${req.user._id}`;
+    }
+    return ipKeyGenerator(req);
+  }
+});
+
 // Apply rate limiters
 app.use('/api/', apiLimiter);
 app.use('/api/users/login', authLimiter);
 app.use('/api/users/register', authLimiter);
 app.use('/api/chat', chatLimiter);
+app.use('/api/orders', orderLimiter); // ADD THIS LINE
 
 // ======================
 // 4. Body Parsers & Security
@@ -292,6 +312,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/orders', orderRoutes); // ADD THIS LINE
 
 // ======================
 // 9. Health & Info Routes
@@ -320,7 +341,18 @@ app.get('/health', (req, res) => {
       enabled: true,
       general: '500 requests per 15 minutes',
       auth: '20 requests per 15 minutes',
-      chat: '60 requests per minute'
+      chat: '60 requests per minute',
+      orders: '10 requests per minute' // ADD THIS LINE
+    },
+    routes: {
+      users: '/api/users',
+      items: '/api/items',
+      barter: '/api/barter',
+      chat: '/api/chat',
+      reviews: '/api/reviews',
+      notifications: '/api/notifications',
+      admin: '/api/admin',
+      orders: '/api/orders' // ADD THIS LINE
     }
   });
 });
@@ -337,6 +369,7 @@ app.get('/', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
+      orders: '/api/orders', // ADD THIS LINE
       health: '/health'
     },
     status: 'operational',
@@ -415,6 +448,23 @@ app.use((err, req, res, next) => {
     });
   }
   
+  // Order-specific errors
+  if (err.message && err.message.includes('item is not available')) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: 'ITEM_UNAVAILABLE'
+    });
+  }
+  
+  if (err.message && err.message.includes('out of stock')) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: 'ITEM_OUT_OF_STOCK'
+    });
+  }
+  
   // Multer/File Upload Errors
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({
@@ -428,6 +478,15 @@ app.use((err, req, res, next) => {
     return res.status(403).json({
       success: false,
       message: 'CORS policy: Origin not allowed'
+    });
+  }
+  
+  // Payment errors
+  if (err.message && err.message.includes('payment')) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: 'PAYMENT_ERROR'
     });
   }
   
@@ -455,7 +514,8 @@ app.use('*', (req, res) => {
       health: '/health',
       items: '/api/items',
       users: '/api/users',
-      admin: '/api/admin'
+      admin: '/api/admin',
+      orders: '/api/orders' // ADD THIS LINE
     }
   });
 });
@@ -535,6 +595,7 @@ const startServer = async () => {
       console.log(`🩺 Health:   http://localhost:${PORT}/health`);
       console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('🔒 Rate Limiting: Enabled');
+      console.log('   - Orders: 10 requests per minute'); // ADD THIS LINE
       console.log('🌍 CORS: Configured for frontend origins');
       console.log('='.repeat(50));
       console.log('\n✅ Ready to accept connections\n');

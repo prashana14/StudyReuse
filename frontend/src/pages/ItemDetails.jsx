@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import apiService from "../services/api"; // CHANGED: Import apiService
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 const ItemDetails = () => {
   const { id } = useParams();
@@ -21,6 +22,10 @@ const ItemDetails = () => {
   const [barterSuccess, setBarterSuccess] = useState("");
   const [barterError, setBarterError] = useState("");
   const [isOwnItem, setIsOwnItem] = useState(false);
+
+  const { addToCart, getItemQuantity } = useCart();
+  const quantityInCart = getItemQuantity(item?._id);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   useEffect(() => {
     const fetchItem = async () => {
@@ -288,6 +293,23 @@ const ItemDetails = () => {
     if (item.isFlagged === false || item.isFlagged === 'false') return false;
     return Boolean(item.isFlagged);
   };
+
+    // Add this function:
+const handleAddToCart = () => {
+  if (!item) return;
+  
+  if (item.status !== 'Available') {
+    alert(`This item is ${item.status}. Cannot add to cart.`);
+    return;
+  }
+  
+  setIsAddingToCart(true);
+  addToCart(item);
+  
+  setTimeout(() => {
+    setIsAddingToCart(false);
+  }, 1000);
+};
 
   // 🔥 SIMPLIFIED: Get Cloudinary URL directly
   const getImageUrl = () => {
@@ -729,62 +751,122 @@ const ItemDetails = () => {
             </div>
           </div>
 
-          {/* Additional Actions */}
-          <div style={{ display: "flex", gap: "15px", marginTop: "30px", flexWrap: "wrap" }}>
-            {/* Request Barter Button */}
-            {!isOwnItem && (
-              <button 
-                onClick={handleBarterRequest}
-                disabled={barterLoading}
-                style={{ 
-                  flex: 1, 
-                  padding: "16px 24px",
-                  background: barterLoading 
-                    ? "#6c757d" 
-                    : "linear-gradient(135deg, #38b000, #2d9100)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  cursor: barterLoading ? "not-allowed" : "pointer",
-                  opacity: barterLoading ? 0.7 : 1,
-                  transition: "all 0.3s",
-                  minWidth: "200px"
-                }}
-                onMouseEnter={(e) => {
-                  if (!barterLoading) {
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(56, 176, 0, 0.3)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!barterLoading) {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }
-                }}
-              >
-                {barterLoading ? (
-                  <>
-                    <div style={{
-                      display: "inline-block",
-                      width: "16px",
-                      height: "16px",
-                      border: "2px solid white",
-                      borderTopColor: "transparent",
-                      borderRadius: "50%",
-                      marginRight: "8px",
-                      animation: "spin 1s linear infinite",
-                      verticalAlign: "middle"
-                    }}></div>
-                    Sending...
-                  </>
-                ) : (
-                  "🔄 Request Barter"
-                )}
-              </button>
-            )}
+          // In the "Additional Actions" section, add the Add to Cart button:
+<div style={{ display: "flex", gap: "15px", marginTop: "30px", flexWrap: "wrap" }}>
+  {/* Add to Cart Button - ADD THIS */}
+  <button 
+    onClick={handleAddToCart}
+    disabled={isAddingToCart || item?.status !== 'Available'}
+    style={{ 
+      flex: 1, 
+      padding: "16px 24px",
+      background: isAddingToCart 
+        ? "#28a745" 
+        : (item?.status === 'Available' 
+            ? "linear-gradient(135deg, #20c997, #109f7d)" 
+            : "#6c757d"),
+      color: "white",
+      border: "none",
+      borderRadius: "6px",
+      fontSize: "16px",
+      fontWeight: "600",
+      cursor: item?.status === 'Available' ? "pointer" : "not-allowed",
+      opacity: isAddingToCart ? 0.8 : 1,
+      transition: "all 0.3s",
+      minWidth: "200px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px"
+    }}
+    onMouseEnter={(e) => {
+      if (item?.status === 'Available' && !isAddingToCart) {
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(32, 201, 151, 0.3)";
+      }
+    }}
+    onMouseLeave={(e) => {
+      if (item?.status === 'Available' && !isAddingToCart) {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }
+    }}
+  >
+    {isAddingToCart ? (
+      <>
+        <div style={{
+          display: "inline-block",
+          width: "16px",
+          height: "16px",
+          border: "2px solid white",
+          borderTopColor: "transparent",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+          verticalAlign: "middle"
+        }}></div>
+        Adding...
+      </>
+    ) : item?.status === 'Available' ? (
+      quantityInCart > 0 ? `🛒 Add More (${quantityInCart} in cart)` : "🛒 Add to Cart"
+    ) : (
+      `❌ ${item?.status}`
+    )}
+  </button>
+  
+  {/* Keep your existing Request Barter button and other buttons */}
+  {!isOwnItem && (
+    <button 
+      onClick={handleBarterRequest}
+      disabled={barterLoading}
+      style={{ 
+        flex: 1, 
+        padding: "16px 24px",
+        background: barterLoading 
+          ? "#6c757d" 
+          : "linear-gradient(135deg, #38b000, #2d9100)",
+        color: "white",
+        border: "none",
+        borderRadius: "6px",
+        fontSize: "16px",
+        fontWeight: "600",
+        cursor: barterLoading ? "not-allowed" : "pointer",
+        opacity: barterLoading ? 0.7 : 1,
+        transition: "all 0.3s",
+        minWidth: "200px"
+      }}
+      onMouseEnter={(e) => {
+        if (!barterLoading) {
+          e.currentTarget.style.transform = "translateY(-2px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(56, 176, 0, 0.3)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!barterLoading) {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "none";
+        }
+      }}
+    >
+      {barterLoading ? (
+        <>
+          <div style={{
+            display: "inline-block",
+            width: "16px",
+            height: "16px",
+            border: "2px solid white",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            marginRight: "8px",
+            animation: "spin 1s linear infinite",
+            verticalAlign: "middle"
+          }}></div>
+          Sending...
+        </>
+      ) : (
+        "🔄 Request Barter"
+      )}
+    </button>
+  )}
             
             <button 
               onClick={() => alert("Added to favorites!")}

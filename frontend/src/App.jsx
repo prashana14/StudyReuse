@@ -13,7 +13,6 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import AddItem from "./pages/Additem";
 import ItemDetails from "./pages/ItemDetails";
-import ChatList from "./pages/ChatList";
 import ChatBox from "./pages/ChatBox";
 import BarterRequests from "./pages/BarterRequests";
 import Notifications from "./pages/Notifications";
@@ -27,8 +26,13 @@ import ItemManagement from './pages/admin/ItemManagement';
 import SendNotification from './pages/admin/SendNotification';
 import EditItem from "./pages/EditItem"; // ✅ ADD THIS
 import SearchResults from './pages/SearchResults';
-import Items from "./pages/Items"; // Add this import
+import Items from "./pages/Items";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import Orders from "./pages/Orders";
 
+// Import CartProvider
+import { CartProvider } from "./context/CartContext";
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -61,48 +65,48 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Navbar />
-      
-      <div style={{ minHeight: "calc(100vh - 140px)" }}>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Home />} />
-          <Route path="/item/:id" element={<ItemDetails />} />
-          
-          {/* Login/Register */}
-          <Route 
-            path="/login" 
-            element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
-          />
-          <Route 
-            path="/register" 
-            element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
-          />
-          {/* Search routes (public - anyone can search) */}
-              <Route path="/search" element={<SearchResults />} />
-              <Route path="/item/:id" element={<ItemDetails />} />
-          {/* User protected routes */}
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-          <Route path="/barter" element={<ProtectedRoute><BarterRequests /></ProtectedRoute>} />
-          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-          <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/my-items" element={<ProtectedRoute><MyItems /></ProtectedRoute>} />  
-          <Route path="/items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
-          <Route path="/edit-item/:id" element={
-            <ProtectedRoute>
-              <EditItem />
-            </ProtectedRoute>
-          } />
-           {/* Chat Routes - ADD THESE */}
-  <Route path="/chats" element={
-    <ProtectedRoute>
-      <ChatList /> {/* ADD THIS LINE */}
-    </ProtectedRoute>
-  } />
-          <Route 
+    <CartProvider>
+      <BrowserRouter>
+        <Navbar />
+        
+        <div style={{ minHeight: "calc(100vh - 140px)" }}>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/item/:id" element={<ItemDetails />} />
+            
+            {/* Login/Register */}
+            <Route 
+              path="/login" 
+              element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
+            />
+            <Route 
+              path="/register" 
+              element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
+            />
+            
+            {/* Search routes (public - anyone can search) */}
+            <Route path="/search" element={<SearchResults />} />
+            
+            {/* User protected routes */}
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+            <Route path="/barter" element={<ProtectedRoute><BarterRequests /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/my-items" element={<ProtectedRoute><MyItems /></ProtectedRoute>} />  
+            <Route path="/items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
+            <Route path="/edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+            
+            {/* Cart & Checkout Routes */}
+            <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
+            <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+            <Route path="/orders/:id" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+            
+            {/* Chat route */}
+            <Route 
               path="/chat/:itemId" 
               element={
                 <ProtectedRoute>
@@ -112,28 +116,28 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-
-
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<UserManagement />} />
-            <Route path="items" element={<ItemManagement />} />
-            <Route path="notifications" element={<SendNotification />} />
-          </Route>
-          
-          {/* Catch all */}
-          <Route 
-            path="*" 
-            element={<Navigate to={user ? "/dashboard" : "/"} replace />} 
-          />
-        </Routes>
-      </div>
-      
-      <Footer />
-    </BrowserRouter>
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="items" element={<ItemManagement />} />
+              <Route path="notifications" element={<SendNotification />} />
+            </Route>
+            
+            {/* Catch all */}
+            <Route 
+              path="*" 
+              element={<Navigate to={user ? "/dashboard" : "/"} replace />} 
+            />
+          </Routes>
+        </div>
+        
+        <Footer />
+      </BrowserRouter>
+    </CartProvider>
   );
 }
 
+// ADD THIS EXPORT - THIS IS WHAT'S MISSING
 export default App;
