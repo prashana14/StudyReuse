@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import API from "../services/api";
+import apiService from "../services/api"; // CHANGED: Import apiService
 import { useAuth } from "../context/AuthContext";
 
 const ItemDetails = () => {
@@ -25,47 +25,42 @@ const ItemDetails = () => {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        console.log(`📡 Fetching item ${id}`);
+        setLoading(true);
+        setError("");
         
-        const config = {};
-        if (token) {
-          config.headers = { Authorization: `Bearer ${token}` };
-        }
+        // 🔥 CHANGED: Use apiService.items.getById()
+        const response = await apiService.items.getById(id);
         
-        const response = await API.get(`/items/${id}`, config);
-        
-        // Get the item data - handle both response formats
+        // Get the item data
         const responseData = response?.data;
         let itemData = null;
         
         if (responseData?.data) {
-          // Case 1: response.data.data exists
           itemData = responseData.data;
         } else if (responseData && typeof responseData === 'object' && responseData._id) {
-          // Case 2: response.data is the item itself
           itemData = responseData;
         } else {
-          // Case 3: response is the item
           itemData = response;
         }
-        
-        console.log(' Item data received:', {
-          title: itemData?.title,
-          isApproved: itemData?.isApproved,
-          hasImage: !!(itemData?.imageURL || itemData?.image)
-        });
         
         if (!itemData) {
           throw new Error('No item data received');
         }
         
+        // 🔥 FIX: Ensure Cloudinary URL is available
+        const itemWithImageURL = {
+          ...itemData,
+          // Make sure we have the Cloudinary URL
+          imageURL: itemData.imageURL || itemData.image || null
+        };
+        
         // Set item state
-        setItem(itemData);
+        setItem(itemWithImageURL);
         
         // Check ownership
         if (user && itemData.owner) {
-          const ownerId = itemData.owner._id || itemData.owner;
-          const userId = user._id || user.id;
+          const ownerId = itemData.owner._id?.toString() || itemData.owner.toString();
+          const userId = user._id?.toString() || user.id?.toString() || user.toString();
           const isOwnerCheck = ownerId === userId;
           setIsOwner(isOwnerCheck);
           setIsOwnItem(isOwnerCheck);
@@ -77,7 +72,7 @@ const ItemDetails = () => {
         }
         
       } catch (err) {
-        console.error(" Error fetching item:", err);
+        console.error("❌ Error fetching item:", err);
         
         const errorMessage = err.response?.data?.message || err.message || "Failed to load item";
         
@@ -87,6 +82,8 @@ const ItemDetails = () => {
           setError("Item not found. It may have been deleted.");
         } else if (err.response?.status === 401) {
           setError("Please log in to view this item.");
+        } else if (err.message === "Network Error") {
+          setError("Cannot connect to server. Please check if backend is running.");
         } else {
           setError(errorMessage);
         }
@@ -107,7 +104,7 @@ const ItemDetails = () => {
     }
 
     if (isOwnItem) {
-      setBarterError(" You cannot barter with your own item");
+      setBarterError("You cannot barter with your own item");
       setTimeout(() => setBarterError(""), 3000);
       return;
     }
@@ -117,20 +114,25 @@ const ItemDetails = () => {
     setBarterSuccess("");
 
     try {
-      await API.post("/barter", {
+      // 🔥 CHANGED: Use apiService.barter.create()
+      await apiService.barter.create({
         itemId: item._id,
         message: `I'm interested in bartering for your ${item.title}`
       });
 
-      setBarterSuccess(" Barter request sent!");
+      setBarterSuccess("Barter request sent!");
       
       setTimeout(() => {
         setBarterSuccess("");
       }, 5000);
 
     } catch (error) {
-      const errorMsg = error.response?.data?.message || "Failed to send barter request";
-      setBarterError(`❌ ${errorMsg}`);
+      console.error("❌ Error sending barter request:", error);
+      
+      const errorMsg = error.response?.data?.message || 
+                      error.message || 
+                      "Failed to send barter request";
+      setBarterError(errorMsg);
       
       setTimeout(() => {
         setBarterError("");
@@ -153,10 +155,12 @@ const ItemDetails = () => {
 
     setDeleting(true);
     try {
-      await API.delete(`/items/${id}`);
+      // 🔥 CHANGED: Use apiService.items.delete()
+      await apiService.items.delete(id);
       alert("Item deleted successfully!");
       navigate("/dashboard");
     } catch (err) {
+      console.error("❌ Error deleting item:", err);
       alert(err.response?.data?.message || "Failed to delete item.");
     } finally {
       setDeleting(false);
@@ -169,7 +173,7 @@ const ItemDetails = () => {
 
   if (loading) {
     return (
-      <div className="container" style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
+      <div style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
         <div style={{ 
           width: "50px", 
           height: "50px", 
@@ -192,24 +196,49 @@ const ItemDetails = () => {
 
   if (error) {
     return (
-      <div className="container" style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
-        <div style={{ fontSize: "48px", marginBottom: "20px", color: "#e63946" }}>❌</div>
-        <h2 style={{ color: "#e63946", marginBottom: "16px" }}>Error Loading Item</h2>
+      <div style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
+        <h2 style={{ color: "#e63946", marginBottom: "16px", fontSize: "24px" }}>Error Loading Item</h2>
         <p style={{ color: "#6c757d", marginBottom: "30px", fontSize: "16px", lineHeight: "1.6" }}>{error}</p>
         
-        <div style={{ display: "flex", gap: "15px", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
           <button 
             onClick={() => navigate(-1)}
-            className="btn btn-outline"
-            style={{ padding: "12px 24px" }}
+            style={{ 
+              padding: "12px 24px",
+              background: "transparent",
+              border: "2px solid #4361ee",
+              color: "#4361ee",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "600",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#4361ee";
+              e.target.style.color = "white";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "#4361ee";
+            }}
           >
-            ← Go Back
+            Go Back
           </button>
           
           <button 
             onClick={() => navigate("/")}
-            className="btn btn-primary"
-            style={{ padding: "12px 24px" }}
+            style={{ 
+              padding: "12px 24px",
+              background: "#4361ee",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "600",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
           >
             Browse Items
           </button>
@@ -220,14 +249,25 @@ const ItemDetails = () => {
 
   if (!item) {
     return (
-      <div className="container" style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
-        <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>🔍</div>
-        <h2 style={{ marginBottom: "16px" }}>Item Not Found</h2>
-        <p style={{ color: "#6c757d", marginBottom: "30px" }}>The item you're looking for doesn't exist or has been removed.</p>
+      <div style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
+        <h2 style={{ marginBottom: "16px", fontSize: "24px", color: "#212529" }}>Item Not Found</h2>
+        <p style={{ color: "#6c757d", marginBottom: "30px", fontSize: "16px" }}>
+          The item you're looking for doesn't exist or has been removed.
+        </p>
         <button 
           onClick={() => navigate("/")}
-          className="btn btn-primary"
-          style={{ padding: "12px 24px" }}
+          style={{ 
+            padding: "12px 24px",
+            background: "#4361ee",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "600",
+            transition: "all 0.3s"
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+          onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
         >
           Browse Items
         </button>
@@ -235,32 +275,23 @@ const ItemDetails = () => {
     );
   }
 
-  // Helper function to check if item is approved (handles both boolean and string)
+  // Helper function to check if item is approved
   const isItemApproved = () => {
     if (item.isApproved === true || item.isApproved === 'true') return true;
     if (item.isApproved === false || item.isApproved === 'false') return false;
-    return Boolean(item.isApproved); // fallback
+    return Boolean(item.isApproved);
   };
 
   // Helper function to check if item is flagged
   const isItemFlagged = () => {
     if (item.isFlagged === true || item.isFlagged === 'true') return true;
     if (item.isFlagged === false || item.isFlagged === 'false') return false;
-    return Boolean(item.isFlagged); // fallback
+    return Boolean(item.isFlagged);
   };
 
-  // Build image URL
+  // 🔥 SIMPLIFIED: Get Cloudinary URL directly
   const getImageUrl = () => {
-    const imageUrl = item.imageURL || item.image;
-    if (!imageUrl) return null;
-    
-    if (imageUrl.startsWith('http')) {
-      return imageUrl;
-    } else if (imageUrl.startsWith('/')) {
-      return `http://localhost:4000${imageUrl}`;
-    } else {
-      return `http://localhost:4000/uploads/${imageUrl}`;
-    }
+    return item.imageURL || item.image || null;
   };
 
   const imageUrl = getImageUrl();
@@ -268,7 +299,7 @@ const ItemDetails = () => {
   const flagged = isItemFlagged();
 
   return (
-    <div className="container" style={{ maxWidth: "1200px", margin: "40px auto" }}>
+    <div style={{ maxWidth: "1200px", margin: "40px auto", padding: "0 20px" }}>
       {/* Success/Error Messages */}
       {(barterSuccess || barterError) && (
         <div style={{
@@ -281,14 +312,12 @@ const ItemDetails = () => {
           fontWeight: "600",
           zIndex: 1000,
           animation: "slideIn 0.3s ease",
-          background: barterSuccess 
-            ? "linear-gradient(135deg, #38b000, #2d9100)"
-            : "linear-gradient(135deg, #e63946, #d00000)",
+          background: barterSuccess ? "#28a745" : "#dc3545",
           boxShadow: "0 5px 20px rgba(0,0,0,0.2)",
           display: "flex",
           alignItems: "center"
         }}>
-          {barterSuccess || barterError}
+          {barterSuccess ? "✅ " : "❌ "}{barterSuccess || barterError}
           <button 
             onClick={() => {
               setBarterSuccess("");
@@ -303,7 +332,7 @@ const ItemDetails = () => {
               fontSize: "18px"
             }}
           >
-            ✕
+            ×
           </button>
         </div>
       )}
@@ -311,63 +340,68 @@ const ItemDetails = () => {
       {/* Owner/Admin Actions Section */}
       {(isOwner || isAdmin) && (
         <div style={{
-          background: "linear-gradient(135deg, #f8f9fa, #e9ecef)",
+          background: "#f8f9fa",
           padding: "20px",
-          borderRadius: "12px",
+          borderRadius: "8px",
           marginBottom: "30px",
           borderLeft: "5px solid #4361ee"
         }}>
           <h3 style={{ marginBottom: "15px", color: "#212529" }}>
             {isAdmin && !isOwner ? "Admin Controls" : "Manage Your Item"}
           </h3>
-          <div style={{ display: "flex", gap: "15px" }}>
+          <div style={{ display: "flex", gap: "15px", flexWrap: "wrap" }}>
             {isOwner && (
               <button
                 onClick={handleEdit}
-                className="btn btn-outline"
                 style={{
                   padding: "12px 24px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px"
+                  background: "transparent",
+                  border: "2px solid #4361ee",
+                  color: "#4361ee",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  transition: "all 0.3s"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "#4361ee";
+                  e.target.style.color = "white";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "transparent";
+                  e.target.style.color = "#4361ee";
                 }}
               >
-              Edit Item
+                Edit Item
               </button>
             )}
             
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="btn"
               style={{
                 padding: "12px 24px",
-                background: "#e63946",
+                background: deleting ? "#6c757d" : "#dc3545",
                 color: "white",
                 border: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                opacity: deleting ? 0.7 : 1
+                borderRadius: "6px",
+                cursor: deleting ? "not-allowed" : "pointer",
+                opacity: deleting ? 0.7 : 1,
+                fontWeight: "600",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => {
+                if (!deleting) {
+                  e.target.style.transform = "translateY(-2px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!deleting) {
+                  e.target.style.transform = "translateY(0)";
+                }
               }}
             >
-              {deleting ? (
-                <>
-                  <div style={{ 
-                    width: "16px", 
-                    height: "16px", 
-                    border: "2px solid rgba(255,255,255,0.3)",
-                    borderTop: "2px solid white",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite"
-                  }}></div>
-                  Deleting...
-                </>
-              ) : (
-                <>
-                Delete Item
-                </>
-              )}
+              {deleting ? "Deleting..." : "Delete Item"}
             </button>
           </div>
           <p style={{ marginTop: "10px", fontSize: "13px", color: "#6c757d" }}>
@@ -379,74 +413,136 @@ const ItemDetails = () => {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "50px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "50px", 
+        '@media (max-width: 768px)': { gridTemplateColumns: "1fr" } 
+      }}>
         {/* Left Column - Image */}
         <div>
           {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={item.title || 'Item'}
-              style={{
-                width: "100%",
-                borderRadius: "16px",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-                maxHeight: "500px",
-                objectFit: "cover"
-              }}
-              onError={(e) => {
-                console.log('Image failed to load, using placeholder');
-                e.target.src = 'https://via.placeholder.com/500x400?text=Image+Not+Available';
-              }}
-            />
+            <div style={{ position: "relative" }}>
+              <img
+                src={imageUrl}
+                alt={item.title || 'Item'}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  maxHeight: "500px",
+                  objectFit: "cover",
+                  transition: "all 0.3s"
+                }}
+                onError={(e) => {
+                  console.log('Image failed to load, showing fallback');
+                  e.target.style.display = 'none';
+                  
+                  const fallback = document.createElement('div');
+                  fallback.style.cssText = `
+                    width: 100%;
+                    height: 400px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 8px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 16px;
+                    border: 2px dashed rgba(255,255,255,0.3);
+                    text-align: center;
+                  `;
+                  
+                  fallback.innerHTML = `
+                    <div style="font-size: 48px; margin-bottom: 10px;">📚</div>
+                    <div style="font-weight: 600; margin-bottom: 5px;">Image Not Available</div>
+                    <div style="font-size: 14px; opacity: 0.8;">Cloudinary Image Load Failed</div>
+                  `;
+                  
+                  e.target.parentNode.appendChild(fallback);
+                }}
+                onLoad={(e) => {
+                  e.target.style.opacity = "1";
+                }}
+              />
+              
+              {/* Image Loading Indicator */}
+              <div style={{
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+                background: "rgba(0,0,0,0.7)",
+                color: "white",
+                padding: "4px 12px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: "500"
+              }}>
+                📷 Cloudinary
+              </div>
+            </div>
           ) : (
             <div style={{
               width: "100%",
               height: "400px",
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              borderRadius: "16px",
+              borderRadius: "8px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: "white",
-              fontSize: "64px",
-              boxShadow: "0 10px 40px rgba(0,0,0,0.1)"
+              border: "2px dashed rgba(255,255,255,0.3)",
+              flexDirection: "column",
+              textAlign: "center"
             }}>
-              📚
+              <div style={{ fontSize: "48px", marginBottom: "10px" }}>📚</div>
+              <div style={{ fontWeight: "600", marginBottom: "5px" }}>No Image Available</div>
+              <div style={{ fontSize: "14px", opacity: 0.8 }}>This item has no image</div>
             </div>
           )}
           
           <div style={{ display: "flex", gap: "15px", marginTop: "30px" }}>
             <Link 
               to={`/chat/${item._id}`}
-              className="btn btn-primary"
               style={{ 
                 flex: 1, 
                 padding: "16px 24px", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                gap: "10px",
-                fontSize: "16px",
-                fontWeight: "600"
+                background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                color: "white",
+                textDecoration: "none",
+                textAlign: "center",
+                borderRadius: "6px",
+                fontWeight: "600",
+                transition: "all 0.3s"
               }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
             >
-            Chat About Item
+              Chat About Item
             </Link>
             
             <Link 
               to={`/reviews/${item._id}`}
-              className="btn btn-outline"
               style={{ 
                 flex: 1, 
                 padding: "16px 24px", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                gap: "10px",
-                fontSize: "16px",
-                fontWeight: "600"
-              }}>
-            View Reviews
+                background: "transparent",
+                color: "#4361ee",
+                textDecoration: "none",
+                textAlign: "center",
+                borderRadius: "6px",
+                border: "2px solid #4361ee",
+                fontWeight: "600",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#4361ee";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "#4361ee";
+              }}
+            >
+              View Reviews
             </Link>
           </div>
         </div>
@@ -454,52 +550,68 @@ const ItemDetails = () => {
         {/* Right Column - Details */}
         <div>
           <div style={{ marginBottom: "30px" }}>
-            {/* Item Status Badge - FIXED LOGIC */}
-            <div style={{ marginBottom: "15px" }}>
+            {/* Item Status Badge */}
+            <div style={{ marginBottom: "15px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
               {!approved ? (
                 <span style={{
                   display: "inline-block",
-                  background: "#fff3cd",
-                  color: "#856404",
+                  background: "linear-gradient(135deg, #ffd166, #ff9e00)",
+                  color: "#212529",
                   padding: "8px 20px",
-                  borderRadius: "20px",
+                  borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "600",
-                  border: "1px solid #ffeaa7"
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
                 }}>
-                Pending Approval
+                  ⏳ Pending Approval
                 </span>
               ) : flagged ? (
                 <span style={{
                   display: "inline-block",
-                  background: "#f8d7da",
-                  color: "#721c24",
+                  background: "linear-gradient(135deg, #ff6b6b, #e63946)",
+                  color: "white",
                   padding: "8px 20px",
-                  borderRadius: "20px",
+                  borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "600",
-                  border: "1px solid #f5c6cb"
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
                 }}>
-                Flagged
+                  ⚠️ Flagged
                 </span>
               ) : (
                 <span style={{
                   display: "inline-block",
-                  background: "#d1e7dd",
-                  color: "#0f5132",
+                  background: "linear-gradient(135deg, #38b000, #2d9100)",
+                  color: "white",
                   padding: "8px 20px",
-                  borderRadius: "20px",
+                  borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "600",
-                  border: "1px solid #badbcc"
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
                 }}>
-                 Approved
+                  ✅ Approved
+                </span>
+              )}
+              
+              {/* Status badge */}
+              {item.status && (
+                <span style={{
+                  display: "inline-block",
+                  background: "#eef2ff",
+                  color: "#4361ee",
+                  padding: "8px 20px",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  border: "1px solid #dee2e6"
+                }}>
+                  {item.status}
                 </span>
               )}
             </div>
             
             <h1 style={{ 
-              fontSize: "2.5rem", 
+              fontSize: "2rem", 
               marginBottom: "16px",
               color: "#212529",
               lineHeight: 1.2
@@ -507,17 +619,16 @@ const ItemDetails = () => {
               {item.title || "Untitled Item"}
             </h1>
             
-            <div style={{ display: "flex", alignItems: "center", gap: "20px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px", flexWrap: "wrap" }}>
               <span style={{ 
-                fontSize: "32px", 
+                fontSize: "28px", 
                 fontWeight: "700", 
-                color: "#4361ee",
                 background: "linear-gradient(135deg, #4361ee, #7209b7)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text"
               }}>
-                Rs. {item.price || "0"}
+                ₹ {item.price || "0"}
               </span>
               
               {item.category && (
@@ -525,8 +636,8 @@ const ItemDetails = () => {
                   display: "inline-block",
                   background: "#eef2ff",
                   color: "#4361ee",
-                  padding: "8px 20px",
-                  borderRadius: "20px",
+                  padding: "6px 12px",
+                  borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "600"
                 }}>
@@ -539,26 +650,35 @@ const ItemDetails = () => {
                   display: "inline-block",
                   background: "#f0f9ff",
                   color: "#0369a1",
-                  padding: "8px 20px",
-                  borderRadius: "20px",
+                  padding: "6px 12px",
+                  borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "600"
                 }}>
-                  Condition: {item.condition}
+                  {item.condition}
                 </span>
               )}
             </div>
             
             <div style={{ 
-              padding: "25px", 
+              padding: "20px", 
               background: "#f8f9fa", 
-              borderRadius: "12px",
+              borderRadius: "8px",
               marginBottom: "30px"
             }}>
-              <h3 style={{ marginBottom: "15px", fontSize: "18px", color: "#212529" }}>Description</h3>
-              <p style={{ 
+              <h3 style={{ 
+                marginBottom: "12px", 
                 fontSize: "16px", 
-                lineHeight: 1.7, 
+                color: "#212529",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <span>📝</span> Description
+              </h3>
+              <p style={{ 
+                fontSize: "15px", 
+                lineHeight: 1.6, 
                 color: "#495057",
                 margin: 0,
                 whiteSpace: "pre-wrap"
@@ -568,36 +688,41 @@ const ItemDetails = () => {
             </div>
             
             <div style={{ 
-              padding: "25px", 
+              padding: "20px", 
               background: "linear-gradient(135deg, #4361ee, #7209b7)",
               color: "white",
-              borderRadius: "12px",
+              borderRadius: "8px",
               marginBottom: "30px"
             }}>
-              <h3 style={{ marginBottom: "15px", fontSize: "18px" }}>Seller Information</h3>
+              <h3 style={{ 
+                marginBottom: "12px", 
+                fontSize: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <span>👤</span> Seller Information
+              </h3>
               <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
                 <div style={{
-                  width: "56px",
-                  height: "56px",
+                  width: "48px",
+                  height: "48px",
                   borderRadius: "50%",
                   background: "rgba(255, 255, 255, 0.2)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "24px",
+                  fontSize: "18px",
                   fontWeight: "bold"
                 }}>
                   {item.owner?.name?.charAt(0) || "S"}
                 </div>
                 <div>
-                  <p style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: "600" }}>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "16px", fontWeight: "600" }}>
                     {item.owner?.name || "Seller"}
                   </p>
                   <p style={{ margin: 0, opacity: 0.9, fontSize: "14px" }}>
                     {item.owner?.email || "Contact via chat"}
-                  </p>
-                  <p style={{ margin: "4px 0 0 0", opacity: 0.8, fontSize: "13px" }}>
-                    Member since {item.createdAt ? new Date(item.createdAt).getFullYear() : "2024"}
                   </p>
                 </div>
               </div>
@@ -605,13 +730,12 @@ const ItemDetails = () => {
           </div>
 
           {/* Additional Actions */}
-          <div style={{ display: "flex", gap: "15px", marginTop: "30px" }}>
-            {/* Request Barter Button - Only show if NOT owner's item */}
+          <div style={{ display: "flex", gap: "15px", marginTop: "30px", flexWrap: "wrap" }}>
+            {/* Request Barter Button */}
             {!isOwnItem && (
               <button 
                 onClick={handleBarterRequest}
                 disabled={barterLoading}
-                className="btn"
                 style={{ 
                   flex: 1, 
                   padding: "16px 24px",
@@ -620,42 +744,70 @@ const ItemDetails = () => {
                     : "linear-gradient(135deg, #38b000, #2d9100)",
                   color: "white",
                   border: "none",
+                  borderRadius: "6px",
                   fontSize: "16px",
                   fontWeight: "600",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "10px",
                   cursor: barterLoading ? "not-allowed" : "pointer",
-                  opacity: barterLoading ? 0.7 : 1
+                  opacity: barterLoading ? 0.7 : 1,
+                  transition: "all 0.3s",
+                  minWidth: "200px"
+                }}
+                onMouseEnter={(e) => {
+                  if (!barterLoading) {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(56, 176, 0, 0.3)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!barterLoading) {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }
                 }}
               >
                 {barterLoading ? (
                   <>
-                    <div style={{ 
-                      width: "20px", 
-                      height: "20px", 
-                      border: "2px solid rgba(255,255,255,0.3)",
-                      borderTop: "2px solid white",
+                    <div style={{
+                      display: "inline-block",
+                      width: "16px",
+                      height: "16px",
+                      border: "2px solid white",
+                      borderTopColor: "transparent",
                       borderRadius: "50%",
-                      animation: "spin 1s linear infinite"
+                      marginRight: "8px",
+                      animation: "spin 1s linear infinite",
+                      verticalAlign: "middle"
                     }}></div>
                     Sending...
                   </>
                 ) : (
-                  <>
-                  Request Barter
-                  </>
+                  "🔄 Request Barter"
                 )}
               </button>
             )}
             
             <button 
               onClick={() => alert("Added to favorites!")}
-              className="btn btn-outline"
-              style={{ padding: "16px 24px", fontSize: "20px" }}
+              style={{ 
+                padding: "16px 24px", 
+                background: "transparent",
+                border: "2px solid #dee2e6",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "600",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#fff3cd";
+                e.target.style.borderColor = "#ffc107";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "transparent";
+                e.target.style.borderColor = "#dee2e6";
+              }}
             >
-              ♡
+              ❤️ Add to Favorites
             </button>
             
             <button 
@@ -663,9 +815,26 @@ const ItemDetails = () => {
                 navigator.clipboard.writeText(window.location.href);
                 alert("Link copied to clipboard!");
               }}
-              className="btn btn-outline"
-              style={{ padding: "16px 24px", fontSize: "20px" }}
+              style={{ 
+                padding: "16px 24px", 
+                background: "transparent",
+                border: "2px solid #dee2e6",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "600",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#e7f5ff";
+                e.target.style.borderColor = "#0d6efd";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "transparent";
+                e.target.style.borderColor = "#dee2e6";
+              }}
             >
+              📤 Share
             </button>
           </div>
         </div>
@@ -684,6 +853,13 @@ const ItemDetails = () => {
           to { 
             transform: translateX(0); 
             opacity: 1; 
+          }
+        }
+        
+        @media (max-width: 768px) {
+          div[style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+            gap: 30px !important;
           }
         }
       `}</style>

@@ -6,7 +6,7 @@ const Chat = require("../models/chatModel");
 const NotificationService = require("../services/notificationService");
 
 // ======================
-// 1. Send Message & Create/Get Chat
+// 1. Send Message & Create/Get Chat - FIXED NOTIFICATION
 // ======================
 exports.sendMessage = async (req, res) => {
   try {
@@ -59,6 +59,9 @@ exports.sendMessage = async (req, res) => {
         messages: []
       });
       await chat.save();
+      console.log(`✅ Created new chat: ${chat._id} for item: ${itemId}`);
+    } else {
+      console.log(`✅ Found existing chat: ${chat._id} for item: ${itemId}`);
     }
 
     // Create message
@@ -83,16 +86,28 @@ exports.sendMessage = async (req, res) => {
       .populate("receiver", "name email profilePicture")
       .populate("item", "title images price");
 
-    // Send notification
+    // FIXED: Send notification with itemId parameter (CRITICAL!)
     try {
+      console.log('📧 Sending notification for new message:', {
+        receiverId,
+        senderId,
+        senderName: req.user.name || "User",
+        message: message,
+        itemId: itemId // This is what was missing!
+      });
+      
       await NotificationService.notifyNewMessage(
         receiverId,
         senderId,
         req.user.name || "User",
-        message
+        message,
+        itemId // ADDED THIS: Item ID for chat link
       );
+      
+      console.log('✅ Notification sent successfully');
     } catch (notifError) {
-      console.warn("Notification failed:", notifError.message);
+      console.error("❌ Notification failed:", notifError.message);
+      console.error("Notification error stack:", notifError.stack);
     }
 
     res.status(201).json({
@@ -197,9 +212,12 @@ exports.getChatByItemId = async (req, res) => {
     const { itemId } = req.params;
     const userId = req.user._id;
 
+    console.log(`🔍 [CHAT CONTROLLER] Looking for chat for item: ${itemId}, user: ${userId}`);
+
     // Check if item exists
     const item = await Item.findById(itemId);
     if (!item) {
+      console.log(`❌ Item not found: ${itemId}`);
       return res.status(404).json({
         success: false,
         message: "Item not found"
@@ -222,6 +240,8 @@ exports.getChatByItemId = async (req, res) => {
     })
     .sort({ updatedAt: -1 });
 
+    console.log(`✅ Found ${chats.length} chats for item: ${itemId}`);
+
     res.json({
       success: true,
       data: chats
@@ -243,6 +263,8 @@ exports.getChatByItemId = async (req, res) => {
 exports.getUserChats = async (req, res) => {
   try {
     const userId = req.user._id;
+
+    console.log(`💬 [CHAT CONTROLLER] Getting all chats for user: ${userId}`);
 
     // Find all chats where user is a participant
     const chats = await Chat.find({
@@ -285,6 +307,8 @@ exports.getUserChats = async (req, res) => {
       })
     );
 
+    console.log(`✅ Found ${chatsWithUnread.length} chats for user`);
+
     res.json({
       success: true,
       data: chatsWithUnread
@@ -307,6 +331,8 @@ exports.createOrGetChat = async (req, res) => {
   try {
     const { itemId, receiverId } = req.body;
     const senderId = req.user._id;
+
+    console.log(`🤝 [CHAT CONTROLLER] Create or get chat: item=${itemId}, receiver=${receiverId}, sender=${senderId}`);
 
     // Validate
     if (!itemId || !receiverId) {
@@ -344,6 +370,7 @@ exports.createOrGetChat = async (req, res) => {
 
     // If no chat exists, create one
     if (!chat) {
+      console.log(`🆕 Creating new chat for item: ${itemId}`);
       chat = new Chat({
         item: itemId,
         participants: [senderId, receiverId],
@@ -355,6 +382,8 @@ exports.createOrGetChat = async (req, res) => {
       chat = await Chat.findById(chat._id)
         .populate("item", "title images price")
         .populate("participants", "name email profilePicture");
+    } else {
+      console.log(`✅ Found existing chat: ${chat._id}`);
     }
 
     res.json({
@@ -380,6 +409,8 @@ exports.markMessagesAsRead = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.user._id;
 
+    console.log(`📖 [CHAT CONTROLLER] Marking messages as read: chat=${chatId}, user=${userId}`);
+
     // Update all unread messages in this chat
     const result = await Message.updateMany(
       {
@@ -394,6 +425,8 @@ exports.markMessagesAsRead = async (req, res) => {
         }
       }
     );
+
+    console.log(`✅ Marked ${result.modifiedCount} messages as read`);
 
     res.json({
       success: true,
@@ -419,6 +452,8 @@ exports.deleteChat = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.user._id;
 
+    console.log(`🗑️ [CHAT CONTROLLER] Deleting chat: ${chatId}, user=${userId}`);
+
     // Find chat and check ownership
     const chat = await Chat.findOne({
       _id: chatId,
@@ -437,6 +472,8 @@ exports.deleteChat = async (req, res) => {
     
     // Delete the chat
     await Chat.findByIdAndDelete(chatId);
+
+    console.log(`✅ Chat deleted successfully: ${chatId}`);
 
     res.json({
       success: true,
@@ -460,6 +497,8 @@ exports.getUnreadCount = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    console.log(`🔔 [CHAT CONTROLLER] Getting unread count for user: ${userId}`);
+
     // Get all chats where user is a participant
     const chats = await Chat.find({ participants: userId });
     const chatIds = chats.map(chat => chat._id);
@@ -470,6 +509,8 @@ exports.getUnreadCount = async (req, res) => {
       receiver: userId,
       isRead: false
     });
+
+    console.log(`✅ User has ${unreadCount} unread messages`);
 
     res.json({
       success: true,
@@ -487,7 +528,54 @@ exports.getUnreadCount = async (req, res) => {
 };
 
 // ======================
-// 9. Test Endpoint
+// 9. Get Chat Messages (for polling/updates)
+// ======================
+exports.getChatMessages = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user._id;
+
+    console.log(`📨 [CHAT CONTROLLER] Getting messages for chat: ${chatId}`);
+
+    // Check if chat exists and user is participant
+    const chat = await Chat.findOne({
+      _id: chatId,
+      participants: userId
+    });
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found or access denied"
+      });
+    }
+
+    // Get messages
+    const messages = await Message.find({ chat: chatId })
+      .populate("sender", "name email profilePicture")
+      .populate("receiver", "name email profilePicture")
+      .populate("item", "title images price")
+      .sort({ createdAt: 1 });
+
+    console.log(`✅ Found ${messages.length} messages for chat: ${chatId}`);
+
+    res.json({
+      success: true,
+      data: messages
+    });
+
+  } catch (error) {
+    console.error("❌ [CHAT CONTROLLER] Error getting chat messages:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching messages",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ======================
+// 10. Test Endpoint
 // ======================
 exports.testConnection = (req, res) => {
   res.json({
@@ -496,4 +584,50 @@ exports.testConnection = (req, res) => {
     timestamp: new Date().toISOString(),
     version: "1.0.0"
   });
+};
+
+// ======================
+// 11. Get Chat Participants Info
+// ======================
+exports.getChatParticipants = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user._id;
+
+    console.log(`👥 [CHAT CONTROLLER] Getting participants for chat: ${chatId}`);
+
+    // Find chat and check if user is participant
+    const chat = await Chat.findOne({
+      _id: chatId,
+      participants: userId
+    }).populate("participants", "name email profilePicture");
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found or access denied"
+      });
+    }
+
+    // Find other participant
+    const otherParticipant = chat.participants.find(
+      p => p._id.toString() !== userId.toString()
+    );
+
+    res.json({
+      success: true,
+      data: {
+        participants: chat.participants,
+        otherParticipant
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ [CHAT CONTROLLER] Error getting chat participants:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching participants",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";  
-import API from "../services/api";
+import apiService from "../services/api"; // CHANGED: Import apiService instead of API
 import { useNavigate } from "react-router-dom";
 
 const AddItem = () => {
@@ -14,7 +14,7 @@ const AddItem = () => {
     condition: ""  
   });
   
-  const [image, setImage] = useState(null);
+  const [imageFile, setImageFile] = useState(null); // CHANGED: Renamed from image to imageFile
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -40,9 +40,8 @@ const AddItem = () => {
     { value: "poor", label: "Poor" }
   ]);
 
-  // 🔥 FIX 1: Clean up localStorage when component mounts
+  // Clean up localStorage when component mounts
   useEffect(() => {
-    // Clear any previous cooldown when user comes to add item page
     localStorage.removeItem('lastItemSubmitTime');
     console.log("🔄 Cleared localStorage cooldown on page load");
     
@@ -50,12 +49,11 @@ const AddItem = () => {
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
       }
-      // Also clear on unmount
       localStorage.removeItem('lastItemSubmitTime');
     };
   }, []);
 
-  // 🔥 FIX 2: Reset formSubmitted flag
+  // Reset formSubmitted flag
   useEffect(() => {
     return () => {
       formSubmitted.current = false;
@@ -69,7 +67,6 @@ const AddItem = () => {
       [name]: value
     }));
     
-    // Clear error when user starts typing
     if (error) setError("");
   };
 
@@ -81,27 +78,20 @@ const AddItem = () => {
       return;
     }
     
+    // Validate file using apiService helper
+    const validation = apiService.helpers.validateImageFile(file);
+    if (!validation.valid) {
+      setError(validation.errors[0]);
+      e.target.value = '';
+      return;
+    }
+    
     // 🔥 PREVENT SAME FILE UPLOAD
-    if (image && 
-        image.name === file.name && 
-        image.size === file.size &&
-        image.lastModified === file.lastModified) {
+    if (imageFile && 
+        imageFile.name === file.name && 
+        imageFile.size === file.size &&
+        imageFile.lastModified === file.lastModified) {
       console.log("Same file selected again, ignoring...");
-      e.target.value = '';
-      return;
-    }
-    
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image size must be less than 5MB");
-      e.target.value = '';
-      return;
-    }
-    
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      setError("Only JPEG, JPG, PNG, GIF, and WEBP images are allowed");
       e.target.value = '';
       return;
     }
@@ -111,7 +101,7 @@ const AddItem = () => {
       URL.revokeObjectURL(imagePreview);
     }
     
-    setImage(file);
+    setImageFile(file); // CHANGED: Set imageFile instead of image
     setImagePreview(URL.createObjectURL(file));
     setError("");
     
@@ -123,7 +113,7 @@ const AddItem = () => {
     if (imagePreview) {
       URL.revokeObjectURL(imagePreview);
     }
-    setImage(null);
+    setImageFile(null); // CHANGED
     setImagePreview(null);
     
     // Clear the file input
@@ -142,13 +132,11 @@ const AddItem = () => {
       return;
     }
     
-    // 🔥 FIX 3: SMARTER COOLDOWN CHECK
-    // Only check cooldown if there was a recent SUCCESSFUL submission
+    // 🔥 FIX: SMARTER COOLDOWN CHECK
     const now = Date.now();
     const lastSubmitTime = localStorage.getItem('lastItemSubmitTime');
     const timeSinceLastSubmit = lastSubmitTime ? now - parseInt(lastSubmitTime) : 0;
     
-    // Check if it's a fresh page load (clear old timestamps)
     const pageLoadTime = localStorage.getItem('pageLoadTime');
     const timeSincePageLoad = pageLoadTime ? now - parseInt(pageLoadTime) : Infinity;
     
@@ -196,97 +184,72 @@ const AddItem = () => {
       validationErrors.push("Please enter a description (minimum 10 characters)");
     }
 
-    if (!image) {
+    if (!imageFile) { // CHANGED
       validationErrors.push("Please upload an image of the item");
     }
     
     if (validationErrors.length > 0) {
-      setError(validationErrors[0]); // Show first error
+      setError(validationErrors[0]);
       setLoading(false);
       formSubmitted.current = false;
       return;
     }
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append("title", formData.title.trim());
-      formDataToSend.append("price", formData.price);
-      formDataToSend.append("description", formData.description.trim());
-      formDataToSend.append("category", formData.category);
-      formDataToSend.append("condition", formData.condition);
-      formDataToSend.append("image", image);
-
-      console.log("Sending FormData with fields:");
-      for (let [key, value] of formDataToSend.entries()) {
-        console.log(`${key}:`, value instanceof File ? 
-          `${value.name} (${value.type}, ${value.size} bytes)` : value);
-      }
-
-      // Get token from localStorage
-      const token = localStorage.getItem("token");
-      console.log("Token available:", token ? "Yes" : "No");
-
-      // Add timeout to prevent hanging requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-      const response = await API.post("/items", formDataToSend, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          "Authorization": `Bearer ${token}`
-        },
-        signal: controller.signal
+      console.log("Creating item with:", {
+        ...formData,
+        price: parseFloat(formData.price),
+        imageFile: imageFile?.name
       });
 
-      clearTimeout(timeoutId);
-      console.log("Response from server:", response.data);
+      // 🔥 UPDATED: Use apiService.items.create() with FormData
+      // This automatically handles multipart/form-data and Cloudinary upload
+      const response = await apiService.items.create(formData, imageFile);
+      
+      console.log("✅ Cloudinary upload successful:", response.data);
 
-      if (response.data.message || response.data.success) {
-        // 🔥 FIX 4: Set cooldown only on success
-        localStorage.setItem('lastItemSubmitTime', now.toString());
-        setSuccess(response.data.message || "Item added successfully!");
+      // 🔥 FIX: Set cooldown only on success
+      localStorage.setItem('lastItemSubmitTime', now.toString());
+      setSuccess(response.data.message || "Item added successfully!");
+      
+      // Reset form after delay
+      setTimeout(() => {
+        setFormData({
+          title: "",
+          price: "",
+          description: "",
+          category: "",
+          condition: ""
+        });
         
-        // Reset form after delay
-        setTimeout(() => {
-          setFormData({
-            title: "",
-            price: "",
-            description: "",
-            category: "",
-            condition: ""
-          });
-          
-          // Clean up image preview
-          if (imagePreview) {
-            URL.revokeObjectURL(imagePreview);
-          }
-          setImage(null);
-          setImagePreview(null);
-          
-          // Clear the file input
-          const fileInput = document.getElementById('fileInput');
-          if (fileInput) {
-            fileInput.value = '';
-          }
-          
-          // Reset submission flag
-          formSubmitted.current = false;
-          
-          // Navigate to dashboard after 2 seconds
-          setTimeout(() => navigate("/dashboard"), 2000);
-        }, 1500);
-      } else {
-        setError(response.data.message || "Failed to add item");
+        // Clean up image preview
+        if (imagePreview) {
+          URL.revokeObjectURL(imagePreview);
+        }
+        setImageFile(null); // CHANGED
+        setImagePreview(null);
+        
+        // Clear the file input
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+          fileInput.value = '';
+        }
+        
+        // Reset submission flag
         formSubmitted.current = false;
-      }
+        
+        // Navigate to dashboard after 2 seconds
+        setTimeout(() => navigate("/dashboard"), 2000);
+      }, 1500);
       
     } catch (err) {
-      console.error("Error adding item:", err);
+      console.error("❌ Error adding item:", err);
       
-      // 🔥 FIX 5: Clear cooldown on error
+      // 🔥 FIX: Clear cooldown on error
       localStorage.removeItem('lastItemSubmitTime');
       formSubmitted.current = false;
       
+      // Handle specific error types
       if (err.name === 'AbortError') {
         setError("Request timed out. Please try again.");
       } else if (err.response?.status === 401) {
@@ -311,6 +274,10 @@ const AddItem = () => {
         setError(err.response.data.errors.join(", "));
       } else if (err.message === "Network Error") {
         setError("Cannot connect to server. Please check if backend is running.");
+      } else if (err.message.includes("File too large")) {
+        setError("Image too large. Maximum size is 5MB.");
+      } else if (err.message.includes("Invalid image format")) {
+        setError("Invalid image format. Use JPG, PNG, GIF, or WEBP.");
       } else {
         setError("Failed to add item. Please try again.");
       }
@@ -318,6 +285,8 @@ const AddItem = () => {
       setLoading(false);
     }
   };
+
+  // ... [REST OF THE JSX REMAINS THE SAME, just update variable names] ...
 
   return (
     <div className="container" style={{ maxWidth: "900px", margin: "40px auto" }}>
@@ -342,8 +311,8 @@ const AddItem = () => {
       {error && (
         <div style={{
           background: error.includes("wait") 
-            ? "linear-gradient(135deg, #f39c12, #e67e22)" // Orange for cooldown
-            : "linear-gradient(135deg, #ff6b6b, #e63946)", // Red for errors
+            ? "linear-gradient(135deg, #f39c12, #e67e22)"
+            : "linear-gradient(135deg, #ff6b6b, #e63946)",
           color: "white",
           padding: "16px 20px",
           borderRadius: "10px",
@@ -389,7 +358,7 @@ const AddItem = () => {
           gap: "12px",
           animation: "fadeIn 0.3s ease"
         }}>
-          <span style={{ fontSize: "20px" }}></span>
+          <span style={{ fontSize: "20px" }}>✅</span>
           <span style={{ flex: 1 }}>{success}</span>
         </div>
       )}
@@ -546,7 +515,7 @@ const AddItem = () => {
                 </label>
                 <div
                   style={{
-                    border: !image ? "2px dashed #ff6b6b" : "2px dashed #e0e0e0",
+                    border: !imageFile ? "2px dashed #ff6b6b" : "2px dashed #e0e0e0", // CHANGED
                     borderRadius: "12px",
                     padding: "30px",
                     textAlign: "center",
@@ -568,7 +537,7 @@ const AddItem = () => {
                   }}
                   onDragLeave={(e) => {
                     if (!loading) {
-                      e.currentTarget.style.borderColor = !image ? "#ff6b6b" : "#e0e0e0";
+                      e.currentTarget.style.borderColor = !imageFile ? "#ff6b6b" : "#e0e0e0"; // CHANGED
                       e.currentTarget.style.background = imagePreview ? 
                         `url(${imagePreview}) center/cover no-repeat, #f8f9fa` : "#f8f9fa";
                     }
@@ -599,6 +568,7 @@ const AddItem = () => {
                   {!imagePreview ? (
                     <>
                       <div style={{ fontSize: "48px", marginBottom: "16px", color: loading ? "#ccc" : "#4361ee" }}>
+                        📷
                       </div>
                       <p style={{ color: loading ? "#ccc" : "#4361ee", fontWeight: "600", marginBottom: "8px" }}>
                         {loading ? "Upload in progress..." : "Click to upload or drag & drop"}
@@ -638,7 +608,7 @@ const AddItem = () => {
                 </div>
               </div>
               
-              {imagePreview && (
+              {imagePreview && imageFile && ( // CHANGED
                 <div style={{ 
                   textAlign: "center", 
                   marginTop: "10px",
@@ -654,7 +624,7 @@ const AddItem = () => {
                     alignItems: "center", 
                     gap: "6px" 
                   }}>
-                    <span>✅</span> Image selected: {image.name}
+                    <span>✅</span> Image selected: {imageFile.name} {/* CHANGED */}
                   </span>
                   {!loading && (
                     <button
@@ -679,15 +649,15 @@ const AddItem = () => {
                 </div>
               )}
               
-              {imagePreview && (
+              {imagePreview && imageFile && ( // CHANGED
                 <p style={{ 
                   fontSize: "12px", 
                   color: "#6c757d", 
                   textAlign: "center",
                   marginTop: "4px" 
                 }}>
-                  Size: {(image.size / 1024 / 1024).toFixed(2)} MB • 
-                  Type: {image.type.split('/')[1].toUpperCase()}
+                  Size: {(imageFile.size / 1024 / 1024).toFixed(2)} MB • {/* CHANGED */}
+                  Type: {imageFile.type.split('/')[1].toUpperCase()} {/* CHANGED */}
                 </p>
               )}
             </div>
@@ -726,7 +696,7 @@ const AddItem = () => {
               fontWeight: formData.description.length < 10 ? "600" : "normal"
             }}>
               {formData.description.length} characters • Minimum 10 characters required
-              {formData.description.length < 10 }
+              {formData.description.length < 10 && " (more required)"}
             </p>
           </div>
 
@@ -740,7 +710,6 @@ const AddItem = () => {
             <button
               type="button"
               onClick={() => {
-                // Clear localStorage before navigating away
                 localStorage.removeItem('lastItemSubmitTime');
                 navigate(-1);
               }}
@@ -849,7 +818,7 @@ const AddItem = () => {
           gap: "10px",
           fontSize: "20px"
         }}>
-          <span style={{ fontSize: "24px" }}></span> Tips for a Successful Listing
+          <span style={{ fontSize: "24px" }}>💡</span> Tips for a Successful Listing
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
           <div style={{ background: "white", padding: "20px", borderRadius: "8px" }}>

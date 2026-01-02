@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import API from "../services/api";
 import { Link, useNavigate } from "react-router-dom";
+import apiService from "../services/api"; // CHANGED: Import apiService
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -27,28 +27,6 @@ const Dashboard = () => {
     if (hour < 12) return "Good Morning";
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
-  };
-
-  // Helper function to extract array from response
-  const extractArray = (data) => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (data.data && Array.isArray(data.data)) return data.data;
-    if (data.items && Array.isArray(data.items)) return data.items;
-    if (data.user && Array.isArray(data.user.items)) return data.user.items;
-    
-    // Check all properties for an array
-    if (typeof data === 'object') {
-      const keys = Object.keys(data);
-      for (const key of keys) {
-        if (Array.isArray(data[key])) {
-          return data[key];
-        }
-      }
-    }
-    
-    console.warn('Could not extract array from response:', data);
-    return [];
   };
 
   const StatCard = ({ title, value, icon, color, suffix, onClick }) => (
@@ -100,92 +78,126 @@ const Dashboard = () => {
   );
 
   useEffect(() => {
-   const fetchDashboardData = async () => {
-  try {
-    setLoading(true);
-    setError("");
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        
+        // 🔥 CHANGED: Use apiService.items.getMyItems()
+        const itemsResponse = await apiService.items.getMyItems();
+        console.log("Dashboard Items API Response:", itemsResponse.data);
+        
+        // Extract items from the new API response structure
+        const userItems = itemsResponse.data?.data?.items || 
+                         itemsResponse.data?.items || 
+                         itemsResponse.data || 
+                         [];
+        
+        console.log("Extracted userItems:", userItems.length, "items");
+        setAllItems(userItems);
+        
+        // 🔥 FIX: Handle Cloudinary URLs
+        const itemsWithImageURL = userItems.map(item => ({
+          ...item,
+          // Ensure we have the Cloudinary URL
+          imageURL: item.imageURL || item.image || null
+        }));
+        
+        setAllItems(itemsWithImageURL);
+        
+        // Fetch barter requests
+        try {
+          const barterResponse = await apiService.barter.getMy();
+          console.log("Barter API Response:", barterResponse.data);
+          
+          const barters = barterResponse.data?.data || 
+                         barterResponse.data || 
+                         [];
+          
+          console.log("Extracted barters:", barters.length, "barters");
+          setAllBarters(barters);
+          
+          // Calculate barter stats
+          let activeBarters = 0;
+          let pendingRequests = 0;
+          
+          if (barters.length > 0) {
+            activeBarters = barters.filter(b => b?.status === "pending" || b?.status === "negotiating").length;
+            
+            // Get user info from localStorage
+            const user = JSON.parse(localStorage.getItem("user") || "{}");
+            const userId = user?._id?.toString() || user?.id;
+            
+            pendingRequests = barters.filter(b => {
+              const ownerId = b?.owner?._id?.toString() || b?.owner?.toString() || b?.ownerId;
+              return (b?.status === "pending") && (ownerId === userId);
+            }).length;
+          }
+          
+          // Update stats with barters
+          setStats(prev => ({
+            ...prev,
+            activeBarters,
+            pendingRequests
+          }));
+          
+          // Set recent barters
+          setRecentBarters(barters.slice(0, 3));
+          
+        } catch (barterError) {
+          console.warn("Could not fetch barters:", barterError);
+          setAllBarters([]);
+          setRecentBarters([]);
+        }
+        
+        // Calculate item stats
+        let totalValue = 0;
+        let itemsThisMonth = 0;
+        let totalViews = 0;
+        
+        if (userItems.length > 0) {
+          totalValue = userItems.reduce((sum, item) => {
+            const price = parseFloat(item?.price) || 0;
+            return sum + price;
+          }, 0);
+          
+          totalViews = userItems.reduce((sum, item) => sum + (item?.views || 0), 0);
+          
+          // Get current month items
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          itemsThisMonth = userItems.filter(item => {
+            if (!item?.createdAt) return false;
+            const itemDate = new Date(item.createdAt);
+            return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
+          }).length;
+        }
+        
+        // Update stats
+        setStats({
+          totalItems: userItems.length,
+          totalValue: totalValue,
+          activeBarters: stats.activeBarters, // Keep existing or default
+          pendingRequests: stats.pendingRequests,
+          itemsThisMonth: itemsThisMonth,
+          totalViews: totalViews
+        });
+        
+        // Set recent items (last 3)
+        setRecentItems(itemsWithImageURL.slice(0, 3));
+        
+      } catch (err) {
+        console.error("❌ Error fetching dashboard data:", err);
+        setError(err.response?.data?.message || "Failed to load dashboard data. Please try again.");
+        setAllItems([]);
+        setAllBarters([]);
+        setRecentItems([]);
+        setRecentBarters([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Fetch user's items
-    const itemsRes = await API.get("/items/my");
-    console.log("Dashboard Items API Response:", itemsRes.data);
-    
-    // Extract items - using the same pattern as Home.jsx
-    const userItems = itemsRes.data?.data?.items || [];
-    console.log("Extracted userItems:", userItems);
-    setAllItems(userItems);
-    
-    // Fetch barter requests
-    const barterRes = await API.get("/barter/my");
-    console.log("Barter API Response:", barterRes.data);
-    
-    // Extract barters (returns empty array currently)
-    const barters = Array.isArray(barterRes.data) ? barterRes.data : [];
-    console.log("Extracted barters:", barters);
-    setAllBarters(barters);
-    
-    // Calculate stats safely
-    let totalValue = 0;
-    let activeBarters = 0;
-    let pendingRequests = 0;
-    let itemsThisMonth = 0;
-    let totalViews = 0;
-    
-    if (userItems.length > 0) {
-      totalValue = userItems.reduce((sum, item) => {
-        const price = parseFloat(item?.price) || 0;
-        return sum + price;
-      }, 0);
-      
-      totalViews = userItems.reduce((sum, item) => sum + (item?.views || 0), 0);
-      
-      // Get current month items
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      itemsThisMonth = userItems.filter(item => {
-        if (!item?.createdAt) return false;
-        const itemDate = new Date(item.createdAt);
-        return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
-      }).length;
-    }
-    
-    if (barters.length > 0) {
-      activeBarters = barters.filter(b => b?.status === "pending").length;
-      
-      // Get user info from localStorage
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      pendingRequests = barters.filter(b => {
-        const ownerId = b?.owner?._id?.toString() || b?.owner?.toString();
-        const userId = user?._id?.toString();
-        return b?.status === "pending" && ownerId === userId;
-      }).length;
-    }
-    
-    setStats({
-      totalItems: userItems.length,
-      totalValue: totalValue,
-      activeBarters: activeBarters,
-      pendingRequests: pendingRequests,
-      itemsThisMonth: itemsThisMonth,
-      totalViews: totalViews
-    });
-    
-    // Set recent items (last 3)
-    setRecentItems(userItems.slice(0, 3));
-    
-    // Set recent barters (last 3)
-    setRecentBarters(barters.slice(0, 3));
-    
-  } catch (err) {
-    console.error("Error fetching dashboard data:", err);
-    setError("Failed to load dashboard data. Please try again.");
-    setAllItems([]);
-    setAllBarters([]);
-    setRecentItems([]);
-    setRecentBarters([]);
-  } finally {
-    setLoading(false);
-  }
-};
     fetchDashboardData();
   }, []);
 
@@ -228,7 +240,7 @@ const Dashboard = () => {
           borderRadius: "12px",
           marginTop: "40px"
         }}>
-          <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}></div>
+          <div style={{ fontSize: "60px", marginBottom: "20px", opacity: 0.3 }}>❌</div>
           <h2 style={{ marginBottom: "15px", color: "#d32f2f" }}>Unable to Load Dashboard</h2>
           <p style={{ color: "#6c757d", marginBottom: "30px", maxWidth: "500px", margin: "0 auto" }}>
             {error}
@@ -255,6 +267,11 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  // Helper to get image URL for display
+  const getItemImage = (item) => {
+    return item.imageURL || item.image || null;
+  };
 
   // Safe map function for rendering
   const safeMap = (array, renderFunction) => {
@@ -360,13 +377,15 @@ const Dashboard = () => {
             <StatCard 
               title="TOTAL ITEMS"
               value={stats.totalItems}
+              icon="📚"
               color={{ start: "#4361ee", end: "#7209b7" }}
               onClick={() => setActiveTab("items")}
             />
             
             <StatCard 
               title="TOTAL VALUE"
-              value={stats.totalValue.toLocaleString()}
+              value={stats.totalValue.toLocaleString('en-IN')}
+              icon="💰"
               color={{ start: "#38b000", end: "#2d9100" }}
               suffix=" Rs."
             />
@@ -374,6 +393,7 @@ const Dashboard = () => {
             <StatCard 
               title="ACTIVE BARTERS"
               value={stats.activeBarters}
+              icon="🔄"
               color={{ start: "#ff9e00", end: "#e68900" }}
               onClick={() => setActiveTab("barters")}
             />
@@ -381,6 +401,7 @@ const Dashboard = () => {
             <StatCard 
               title="PENDING REQUESTS"
               value={stats.pendingRequests}
+              icon="⏳"
               color={{ start: "#f72585", end: "#b5179e" }}
               onClick={() => setActiveTab("barters")}
             />
@@ -434,100 +455,123 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                  {safeMap(recentItems, (item) => (
-                    <div key={item._id} style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "20px",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "12px",
-                      transition: "all 0.3s",
-                      background: "white"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.08)"}
-                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = "none"}
-                    >
-                      {item.imageURL ? (
-                        <img
-                          src={item.imageURL}
-                          alt={item.title || "Item"}
-                          style={{
+                  {safeMap(recentItems, (item) => {
+                    const imageUrl = getItemImage(item);
+                    return (
+                      <div key={item._id} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "20px",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: "12px",
+                        transition: "all 0.3s",
+                        background: "white"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.08)"}
+                      onMouseLeave={(e) => e.currentTarget.style.boxShadow = "none"}
+                      >
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={item.title || "Item"}
+                            style={{
+                              width: "80px",
+                              height: "80px",
+                              objectFit: "cover",
+                              borderRadius: "8px",
+                              marginRight: "20px"
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.innerHTML = `
+                                <div style="
+                                  width: 80px;
+                                  height: 80px;
+                                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                  border-radius: 8px;
+                                  margin-right: 20px;
+                                  display: flex;
+                                  align-items: center;
+                                  justify-content: center;
+                                  color: white;
+                                  font-size: 24px;
+                                ">
+                                  📚
+                                </div>
+                              `;
+                            }}
+                          />
+                        ) : (
+                          <div style={{
                             width: "80px",
                             height: "80px",
-                            objectFit: "cover",
+                            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                             borderRadius: "8px",
-                            marginRight: "20px"
-                          }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: "80px",
-                          height: "80px",
-                          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          borderRadius: "8px",
-                          marginRight: "20px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "24px"
-                        }}>
-                        </div>
-                      )}
-                      
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
-                          {item.title || "Untitled Item"}
-                        </h4>
-                        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-                          <span style={{ 
-                            fontSize: "18px", 
-                            fontWeight: "700", 
-                            color: "#4361ee"
+                            marginRight: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "white",
+                            fontSize: "24px"
                           }}>
-                            Rs. {item.price || 0}
-                          </span>
-                          {item.category && (
-                            <span style={{
-                              background: "#eef2ff",
-                              color: "#4361ee",
-                              padding: "4px 12px",
-                              borderRadius: "20px",
-                              fontSize: "12px",
-                              fontWeight: "500"
+                            📚
+                          </div>
+                        )}
+                        
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
+                            {item.title || "Untitled Item"}
+                          </h4>
+                          <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
+                            <span style={{ 
+                              fontSize: "18px", 
+                              fontWeight: "700", 
+                              color: "#4361ee"
                             }}>
-                              {item.category}
+                              ₹ {item.price || 0}
                             </span>
-                          )}
+                            {item.category && (
+                              <span style={{
+                                background: "#eef2ff",
+                                color: "#4361ee",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "12px",
+                                fontWeight: "500"
+                              }}>
+                                {item.category}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        
+                        <Link 
+                          to={`/item/${item._id}`} 
+                          className="btn btn-outline"
+                          style={{ 
+                            padding: "8px 20px", 
+                            fontSize: "14px",
+                            border: "1px solid #4361ee",
+                            color: "#4361ee",
+                            background: "transparent",
+                            borderRadius: "6px",
+                            textDecoration: "none",
+                            transition: "all 0.3s"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "#4361ee";
+                            e.currentTarget.style.color = "white";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "#4361ee";
+                          }}
+                        >
+                          View
+                        </Link>
                       </div>
-                      
-                      <Link 
-                        to={`/item/${item._id}`} 
-                        className="btn btn-outline"
-                        style={{ 
-                          padding: "8px 20px", 
-                          fontSize: "14px",
-                          border: "1px solid #4361ee",
-                          color: "#4361ee",
-                          background: "transparent",
-                          borderRadius: "6px",
-                          textDecoration: "none",
-                          transition: "all 0.3s"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "#4361ee";
-                          e.currentTarget.style.color = "white";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "#4361ee";
-                        }}
-                      >
-                        View
-                      </Link>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -555,7 +599,7 @@ const Dashboard = () => {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: "#6c757d", fontSize: "14px" }}>Avg. Item Price</span>
                     <span style={{ fontSize: "18px", fontWeight: "700", color: "#7209b7" }}>
-                      Rs. {stats.totalItems > 0 ? Math.round(stats.totalValue / stats.totalItems) : 0}
+                      ₹ {stats.totalItems > 0 ? Math.round(stats.totalValue / stats.totalItems) : 0}
                     </span>
                   </div>
                 </div>
@@ -813,131 +857,154 @@ const Dashboard = () => {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
-              {safeMap(allItems, (item) => (
-                <div key={item._id} className="card" style={{ 
-                  padding: "20px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "12px",
-                  transition: "all 0.3s",
-                  background: "white"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-5px)";
-                  e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-                >
-                  {item.imageURL ? (
-                    <img
-                      src={item.imageURL}
-                      alt={item.title || "Item"}
-                      style={{
+              {safeMap(allItems, (item) => {
+                const imageUrl = getItemImage(item);
+                return (
+                  <div key={item._id} className="card" style={{ 
+                    padding: "20px",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "12px",
+                    transition: "all 0.3s",
+                    background: "white"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-5px)";
+                    e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  >
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={item.title || "Item"}
+                        style={{
+                          width: "100%",
+                          height: "180px",
+                          objectFit: "cover",
+                          borderRadius: "8px",
+                          marginBottom: "15px"
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = `
+                            <div style="
+                              width: 100%;
+                              height: 180px;
+                              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                              border-radius: 8px;
+                              margin-bottom: 15px;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              color: white;
+                              font-size: 36px;
+                            ">
+                              📚
+                            </div>
+                          `;
+                        }}
+                      />
+                    ) : (
+                      <div style={{
                         width: "100%",
                         height: "180px",
-                        objectFit: "cover",
+                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                         borderRadius: "8px",
-                        marginBottom: "15px"
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: "100%",
-                      height: "180px",
-                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                      borderRadius: "8px",
-                      marginBottom: "15px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "white",
-                      fontSize: "36px"
-                    }}>
-                    </div>
-                  )}
-                  
-                  <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
-                    {item.title || "Untitled Item"}
-                  </h4>
-                  
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                    <span style={{ 
-                      fontSize: "18px", 
-                      fontWeight: "700", 
-                      color: "#4361ee"
-                    }}>
-                      Rs. {item.price || 0}
-                    </span>
-                    {item.category && (
-                      <span style={{
-                        background: "#eef2ff",
-                        color: "#4361ee",
-                        padding: "4px 12px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: "500"
+                        marginBottom: "15px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontSize: "36px"
                       }}>
-                        {item.category}
-                      </span>
+                        📚
+                      </div>
                     )}
+                    
+                    <h4 style={{ marginBottom: "8px", fontSize: "16px", fontWeight: "600" }}>
+                      {item.title || "Untitled Item"}
+                    </h4>
+                    
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                      <span style={{ 
+                        fontSize: "18px", 
+                        fontWeight: "700", 
+                        color: "#4361ee"
+                      }}>
+                        ₹ {item.price || 0}
+                      </span>
+                      {item.category && (
+                        <span style={{
+                          background: "#eef2ff",
+                          color: "#4361ee",
+                          padding: "4px 12px",
+                          borderRadius: "20px",
+                          fontSize: "12px",
+                          fontWeight: "500"
+                        }}>
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+                      <button 
+                        onClick={() => navigate(`/item/${item._id}`)}
+                        className="btn btn-outline"
+                        style={{ 
+                          flex: 1, 
+                          padding: "8px", 
+                          fontSize: "14px",
+                          border: "1px solid #4361ee",
+                          background: "transparent",
+                          borderRadius: "6px",
+                          color: "#4361ee",
+                          fontWeight: "500",
+                          transition: "all 0.3s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#4361ee";
+                          e.currentTarget.style.color = "white";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                          e.currentTarget.style.color = "#4361ee";
+                        }}
+                      >
+                        View
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/edit-item/${item._id}`)}
+                        className="btn btn-outline"
+                        style={{ 
+                          flex: 1, 
+                          padding: "8px", 
+                          fontSize: "14px",
+                          border: "1px solid #38b000",
+                          background: "transparent",
+                          borderRadius: "6px",
+                          color: "#38b000",
+                          fontWeight: "500",
+                          transition: "all 0.3s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#38b000";
+                          e.currentTarget.style.color = "white";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                          e.currentTarget.style.color = "#38b000";
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-                    <button 
-                      onClick={() => navigate(`/item/${item._id}`)}
-                      className="btn btn-outline"
-                      style={{ 
-                        flex: 1, 
-                        padding: "8px", 
-                        fontSize: "14px",
-                        border: "1px solid #4361ee",
-                        background: "transparent",
-                        borderRadius: "6px",
-                        color: "#4361ee",
-                        fontWeight: "500",
-                        transition: "all 0.3s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "#4361ee";
-                        e.currentTarget.style.color = "white";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                        e.currentTarget.style.color = "#4361ee";
-                      }}
-                    >
-                      View
-                    </button>
-                    <button 
-                      onClick={() => navigate(`/edit-item/${item._id}`)}
-                      className="btn btn-outline"
-                      style={{ 
-                        flex: 1, 
-                        padding: "8px", 
-                        fontSize: "14px",
-                        border: "1px solid #38b000",
-                        background: "transparent",
-                        borderRadius: "6px",
-                        color: "#38b000",
-                        fontWeight: "500",
-                        transition: "all 0.3s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "#38b000";
-                        e.currentTarget.style.color = "white";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
-                        e.currentTarget.style.color = "#38b000";
-                      }}
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1119,7 +1186,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>📊</div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Analytics Coming Soon</h3>
               <p style={{ color: "#6c757d" }}>
                 Detailed analytics and insights are under development.
@@ -1142,7 +1209,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>📈</div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Activity Trends</h3>
               <p style={{ color: "#6c757d" }}>
                 View your monthly performance and engagement metrics.
@@ -1165,7 +1232,7 @@ const Dashboard = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}></div>
+              <div style={{ fontSize: "48px", marginBottom: "20px", opacity: 0.3 }}>🏆</div>
               <h3 style={{ marginBottom: "10px", color: "#212529", fontWeight: "600" }}>Leaderboard</h3>
               <p style={{ color: "#6c757d" }}>
                 See how you rank among other users in the community.
@@ -1174,6 +1241,13 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

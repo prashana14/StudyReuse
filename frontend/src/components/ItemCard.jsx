@@ -9,127 +9,106 @@ const ItemCard = ({ item }) => {
   // Get status color
   const getStatusColor = (status) => {
     switch(status) {
-      case 'Available': return '#10b981';
-      case 'Sold': return '#ef4444';
-      case 'Under Negotiation': return '#f59e0b';
-      case 'Unavailable': return '#6b7280';
-      default: return '#6b7280';
+      case 'Available': return '#28a745';
+      case 'Sold': return '#dc3545';
+      case 'Under Negotiation': return '#ffc107';
+      case 'Unavailable': return '#6c757d';
+      default: return '#6c757d';
     }
   };
 
-  // Get status icon
-  const getStatusIcon = (status) => {
+  // Get status text
+  const getStatusText = (status) => {
     switch(status) {
-      case 'Available': return '✅';
-      case 'Sold': return '💰';
-      case 'Under Negotiation': return '🤝';
-      case 'Unavailable': return '⏸️';
-      default: return '📦';
+      case 'Available': return 'AVAILABLE';
+      case 'Sold': return 'SOLD';
+      case 'Under Negotiation': return 'NEGOTIATION';
+      case 'Unavailable': return 'UNAVAILABLE';
+      default: return 'UNKNOWN';
     }
   };
 
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    
-    // If it's already a full URL
-    if (imagePath.startsWith('http')) return imagePath;
-    
-    // If it starts with /uploads
-    if (imagePath.startsWith('/uploads')) {
-      return `http://localhost:4000${imagePath}`;
-    }
-    
-    // If it's just a filename
-    if (imagePath.includes('.')) {
-      return `http://localhost:4000/uploads/${imagePath}`;
-    }
-    
-    return null;
-  };
-
-  const imageUrl = item.imageURL || getImageUrl(item.image);
+  // ✅ SIMPLIFIED: Use Cloudinary URL directly
+  const imageUrl = item.imageURL || item.image; // Cloudinary provides full URL
 
   useEffect(() => {
-    if (imageUrl) {
-      setIsLoading(true);
-      setHasError(false);
-      
-      // Create a test image to check if it exists
-      const testImage = new Image();
-      
-      testImage.onload = () => {
-        console.log('✅ Image exists:', imageUrl);
-        setImageSrc(imageUrl);
-        setHasError(false);
-        setIsLoading(false);
-      };
-      
-      testImage.onerror = () => {
-        console.warn('⚠️ Image not found, using fallback:', imageUrl);
-        // Use a generic placeholder based on category
-        setImageSrc(''); // Clear the URL to show fallback
-        setHasError(true);
-        setIsLoading(false);
-      };
-      
-      testImage.src = imageUrl;
-      
-      // Set a timeout to prevent hanging if server doesn't respond
-      const timeoutId = setTimeout(() => {
-        if (!testImage.complete) {
-          console.warn('⏰ Image load timeout:', imageUrl);
-          setImageSrc('');
-          setHasError(true);
-          setIsLoading(false);
-        }
-      }, 3000); // 3 second timeout
-      
-      return () => {
-        clearTimeout(timeoutId);
-      };
-    } else {
-      // No image URL provided
-      setImageSrc('');
+  if (!imageUrl || imageUrl.trim() === '') {
+    setHasError(true);
+    setIsLoading(false);
+    return;
+  }
+  
+  setIsLoading(true);
+  setHasError(false);
+  
+  // Check if it's a Cloudinary URL
+  const isCloudinaryUrl = imageUrl.includes('cloudinary.com');
+  
+  if (isCloudinaryUrl) {
+    // Cloudinary URLs are reliable, preload for better UX
+    const img = new Image();
+    img.src = imageUrl;
+    
+    img.onload = () => {
+      setImageSrc(imageUrl);
+      setIsLoading(false);
+    };
+    
+    img.onerror = () => {
       setHasError(true);
       setIsLoading(false);
-    }
-  }, [imageUrl]);
+    };
+    
+    // Add timeout for safety
+    setTimeout(() => {
+      if (!img.complete) {
+        // Still try to show the image (Cloudinary might be slow)
+        setImageSrc(imageUrl);
+        setIsLoading(false);
+      }
+    }, 2000);
+  } else {
+    // Handle non-Cloudinary URLs (legacy)
+    setImageSrc(imageUrl);
+    setIsLoading(false);
+  }
+}, [imageUrl]);
 
-  // Get category-specific placeholder
-  const getPlaceholderIcon = () => {
+  // Get category icon text
+  const getPlaceholderText = () => {
     const category = (item.category || '').toLowerCase();
     
-    if (category.includes('book'));
-    if (category.includes('notes'));
-    if (category.includes('electron'));
-    if (category.includes('lab equipment'));
-    if (category.includes('study guides'));
-    if (category.includes('stationery'));
-    if (category.includes('reference book'));
-    if (category.includes('others'));
+    if (category.includes('book')) return 'BOOK';
+    if (category.includes('notes')) return 'NOTES';
+    if (category.includes('electron')) return 'ELECTRONICS';
+    if (category.includes('lab equipment')) return 'LAB EQUIP';
+    if (category.includes('study guides')) return 'GUIDES';
+    if (category.includes('stationery')) return 'STATIONERY';
+    if (category.includes('furniture')) return 'FURNITURE';
+    if (category.includes('others')) return 'ITEM';
     
-    return '.'; // Default
+    return 'ITEM';
   };
 
-  // Get gradient based on category
-  const getPlaceholderGradient = () => {
+  // Get placeholder background based on category
+  const getPlaceholderBackground = () => {
     const category = (item.category || '').toLowerCase();
     
     if (category.includes('book') || category.includes('text')) 
-      return 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      return '#4a6bff';
     if (category.includes('electron') || category.includes('laptop')) 
-      return 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+      return '#ff6b6b';
     if (category.includes('furniture') || category.includes('chair')) 
-      return 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)';
-    if (category.includes('cloth') || category.includes('wear')) 
-      return 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+      return '#20c997';
     if (category.includes('stationery') || category.includes('pen')) 
-      return 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)';
+      return '#7950f2';
+    if (category.includes('lab equipment')) 
+      return '#fd7e14';
     
-    return 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)';
+    return '#4361ee';
   };
 
-  // Format price with Indian Rupees
+  // Format price
   const formatPrice = (price) => {
     if (!price && price !== 0) return "Free";
     
@@ -138,15 +117,29 @@ const ItemCard = ({ item }) => {
     
     if (numPrice === 0) return "Free";
     
-    // Format with commas for Indian numbering system
     return `₹${numPrice.toLocaleString('en-IN')}`;
   };
 
-  // Truncate title if too long
+  // Truncate title
   const truncateTitle = (title, maxLength = 50) => {
     if (!title) return "Untitled Item";
     if (title.length <= maxLength) return title;
     return title.substring(0, maxLength) + '...';
+  };
+
+  // Format condition text
+  const formatCondition = (condition) => {
+    if (!condition) return '';
+    
+    const conditionMap = {
+      'new': 'Brand New',
+      'like_new': 'Like New',
+      'good': 'Good',
+      'fair': 'Fair',
+      'needs_repair': 'Needs Repair'
+    };
+    
+    return conditionMap[condition] || condition;
   };
 
   return (
@@ -157,25 +150,26 @@ const ItemCard = ({ item }) => {
         maxWidth: "300px",
         minWidth: "280px",
         transition: "transform 0.3s, box-shadow 0.3s",
-        borderRadius: "12px",
+        borderRadius: "8px",
         overflow: "hidden",
         backgroundColor: "white",
         display: "flex",
         flexDirection: "column",
-        height: "100%"
+        height: "100%",
+        border: "1px solid #eaeaea"
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-5px)";
-        e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.15)";
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.1)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
       }}
     >
       {/* Image Container */}
       <div style={{ 
-        height: "200px", 
+        height: "180px", 
         width: "100%",
         overflow: "hidden",
         position: "relative",
@@ -192,10 +186,10 @@ const ItemCard = ({ item }) => {
             background: "#f8f9fa"
           }}>
             <div style={{
-              width: "40px",
-              height: "40px",
-              border: "3px solid #e0e0e0",
-              borderTop: "3px solid #4361ee",
+              width: "30px",
+              height: "30px",
+              border: "2px solid #e0e0e0",
+              borderTop: "2px solid #4361ee",
               borderRadius: "50%",
               animation: "spin 1s linear infinite"
             }}></div>
@@ -210,11 +204,9 @@ const ItemCard = ({ item }) => {
             style={{ 
               width: "100%",
               height: "100%",
-              objectFit: "cover",
-              transition: "transform 0.5s"
+              objectFit: "cover"
             }}
             onError={(e) => {
-              console.error(`Image failed to display: ${imageSrc}`);
               e.target.style.display = 'none';
               setHasError(true);
             }}
@@ -228,28 +220,20 @@ const ItemCard = ({ item }) => {
             style={{ 
               width: "100%",
               height: "100%",
-              background: getPlaceholderGradient(),
+              background: getPlaceholderBackground(),
               color: "white",
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center"
             }}
           >
             <div style={{ 
-              fontSize: "48px",
-              marginBottom: "10px",
-              opacity: 0.9
+              fontSize: "14px",
+              fontWeight: "600",
+              letterSpacing: "1px",
+              textTransform: "uppercase"
             }}>
-              {getPlaceholderIcon()}
-            </div>
-            <div style={{ 
-              fontSize: "12px",
-              opacity: 0.8,
-              textAlign: "center",
-              padding: "0 10px"
-            }}>
-              {item.category || "Item Image"}
+              {getPlaceholderText()}
             </div>
           </div>
         )}
@@ -258,21 +242,17 @@ const ItemCard = ({ item }) => {
         {item.status && (
           <div style={{
             position: "absolute",
-            top: "12px",
-            left: "12px",
+            top: "10px",
+            left: "10px",
             background: getStatusColor(item.status),
             color: "white",
-            padding: "4px 12px",
-            borderRadius: "20px",
-            fontSize: "11px",
+            padding: "3px 8px",
+            borderRadius: "4px",
+            fontSize: "10px",
             fontWeight: "600",
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            zIndex: 10
+            letterSpacing: "0.5px"
           }}>
-            <span>{getStatusIcon(item.status)}</span>
-            <span>{item.status}</span>
+            {getStatusText(item.status)}
           </div>
         )}
         
@@ -280,25 +260,24 @@ const ItemCard = ({ item }) => {
         {item.category && (
           <div style={{
             position: "absolute",
-            top: "12px",
-            right: "12px",
-            background: "rgba(255, 255, 255, 0.9)",
-            backdropFilter: "blur(4px)",
-            padding: "4px 12px",
-            borderRadius: "20px",
-            fontSize: "11px",
+            top: "10px",
+            right: "10px",
+            background: "rgba(255, 255, 255, 0.95)",
+            padding: "3px 8px",
+            borderRadius: "4px",
+            fontSize: "10px",
             fontWeight: "600",
-            color: "#4361ee",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+            color: "#495057",
+            border: "1px solid #dee2e6"
           }}>
-            {item.category}
+            {item.category.length > 12 ? item.category.substring(0, 12) + '...' : item.category}
           </div>
         )}
       </div>
 
       {/* Card Content */}
       <div style={{ 
-        padding: "20px",
+        padding: "16px",
         flex: 1,
         display: "flex",
         flexDirection: "column"
@@ -306,12 +285,11 @@ const ItemCard = ({ item }) => {
         {/* Title */}
         <h5 
           style={{ 
-            fontSize: "18px", 
+            fontSize: "16px", 
             fontWeight: "600",
-            marginBottom: "10px",
+            marginBottom: "8px",
             color: "#212529",
-            lineHeight: "1.4",
-            flex: 1
+            lineHeight: "1.4"
           }}
         >
           {truncateTitle(item.title)}
@@ -319,49 +297,72 @@ const ItemCard = ({ item }) => {
         
         {/* Price */}
         <div style={{ marginTop: "auto" }}>
-          <p 
-            style={{ 
-              fontSize: "12px", 
-              color: "#6c757d",
-              fontWeight: "500",
-              marginBottom: "4px"
-            }}
-          >
-            Price
-          </p>
-          <p 
-            style={{ 
-              fontSize: "24px", 
-              fontWeight: "700", 
-              color: "#4361ee",
-              marginBottom: "20px"
-            }}
-          >
+          <div style={{ 
+            fontSize: "11px", 
+            color: "#6c757d",
+            fontWeight: "500",
+            marginBottom: "2px"
+          }}>
+            PRICE
+          </div>
+          <div style={{ 
+            fontSize: "20px", 
+            fontWeight: "700", 
+            color: "#4361ee",
+            marginBottom: "12px"
+          }}>
             {formatPrice(item.price)}
-          </p>
+          </div>
         </div>
         
-        {/* Condition (if available) */}
+        {/* Condition */}
         {item.condition && (
+          <div style={{
+            marginBottom: "12px"
+          }}>
+            <div style={{
+              fontSize: "11px",
+              color: "#6c757d",
+              fontWeight: "500",
+              marginBottom: "2px"
+            }}>
+              CONDITION
+            </div>
+            <div style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: "#495057"
+            }}>
+              {formatCondition(item.condition)}
+            </div>
+          </div>
+        )}
+        
+        {/* Owner Info (if available) */}
+        {item.owner && typeof item.owner === 'object' && item.owner.name && (
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: "6px",
-            marginBottom: "15px",
-            fontSize: "13px",
+            gap: "8px",
+            marginBottom: "12px",
+            fontSize: "12px",
             color: "#6c757d"
           }}>
-            <span>Condition:</span>
-            <span style={{
+            <div style={{
+              width: "24px",
+              height: "24px",
+              borderRadius: "50%",
+              background: "#e9ecef",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "10px",
               fontWeight: "600",
-              color: "#4361ee",
-              background: "#eef2ff",
-              padding: "2px 8px",
-              borderRadius: "12px",
-              fontSize: "12px"
+              color: "#495057"
             }}>
-              {item.condition}
-            </span>
+              {item.owner.name.charAt(0).toUpperCase()}
+            </div>
+            <span>{item.owner.name.split(' ')[0]}</span>
           </div>
         )}
         
@@ -370,20 +371,20 @@ const ItemCard = ({ item }) => {
           to={`/item/${item._id}`} 
           style={{ 
             width: "100%",
-            background: "linear-gradient(135deg, #4361ee, #7209b7)",
+            background: "#4361ee",
             border: "none",
-            borderRadius: "8px",
-            padding: "12px",
+            borderRadius: "6px",
+            padding: "10px",
             fontWeight: "600",
-            transition: "all 0.3s",
+            transition: "background 0.2s",
             color: "white",
             textDecoration: "none",
             textAlign: "center",
             display: "block",
-            fontSize: "14px"
+            fontSize: "13px"
           }}
-          onMouseEnter={(e) => e.target.style.transform = "scale(1.03)"}
-          onMouseLeave={(e) => e.target.style.transform = "scale(1)"}
+          onMouseEnter={(e) => e.target.style.background = "#3a56d4"}
+          onMouseLeave={(e) => e.target.style.background = "#4361ee"}
         >
           View Details
         </Link>

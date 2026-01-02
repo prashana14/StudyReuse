@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
+import apiService from "../services/api"; // CHANGED: Import apiService
 import { Link } from "react-router-dom";
 
 const Home = () => {
@@ -13,26 +13,48 @@ const Home = () => {
     const user = localStorage.getItem("user");
     setIsLoggedIn(!!token && !!user);
     
-    if (token && user) {
-      fetchItems();
-    } else {
-      setLoading(false);
-    }
+    // Always fetch items (public endpoint)
+    fetchItems();
   }, []);
 
   const fetchItems = async () => {
     try {
-      const res = await api.get("/items");
-      const itemsArray = res.data?.data?.items || [];
+      setLoading(true);
+      setError("");
+      
+      // 🔥 CHANGED: Use apiService.items.getAll()
+      const response = await apiService.items.getAll();
+      console.log("Home API Response:", response.data);
+      
+      // Extract items from the new API response structure
+      const itemsArray = response.data?.data?.items || 
+                        response.data?.items || 
+                        response.data || 
+                        [];
+      
       console.log(`Found ${itemsArray.length} items`);
-      setItems(itemsArray.slice(0, 6));
+      
+      // 🔥 FIX: Handle Cloudinary URLs
+      const itemsWithImageURL = itemsArray.map(item => ({
+        ...item,
+        // Ensure we have the Cloudinary URL
+        imageURL: item.imageURL || item.image || null
+      }));
+      
+      setItems(itemsWithImageURL.slice(0, 6));
+      
     } catch (err) {
-      console.error("Error fetching items:", err);
-      setError("Failed to load items. Please try again.");
+      console.error("❌ Error fetching items:", err);
+      setError(err.response?.data?.message || "Failed to load items. Please try again.");
       setItems([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper to get item image URL
+  const getItemImage = (item) => {
+    return item.imageURL || item.image || null;
   };
 
   return (
@@ -100,70 +122,154 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Recent Items Section - Only shown when logged in */}
-      {isLoggedIn && (
-        <section className="recent-items-section">
-          <div className="container">
-            <div className="section-title">
-              <h2>Recent Study Items</h2>
-              <p>Check out the latest study materials added by students</p>
+      {/* Recent Items Section - Show for ALL users (public) */}
+      <section className="recent-items-section">
+        <div className="container">
+          <div className="section-title">
+            <h2>Recent Study Items</h2>
+            <p>Check out the latest study materials added by students</p>
+          </div>
+
+          {error && (
+            <div className="card" style={{ 
+              background: "#ffebee", 
+              borderColor: "#ffcdd2", 
+              textAlign: "center", 
+              padding: "30px",
+              borderRadius: "12px",
+              marginBottom: "30px"
+            }}>
+              <div style={{ fontSize: "48px", marginBottom: "15px", color: "#d32f2f" }}>⚠️</div>
+              <p style={{ color: "#d32f2f", margin: 0, fontSize: "16px", fontWeight: "500" }}>{error}</p>
+              <button 
+                onClick={fetchItems}
+                style={{
+                  marginTop: "15px",
+                  padding: "8px 20px",
+                  background: "#d32f2f",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
+              >
+                Try Again
+              </button>
             </div>
+          )}
 
-            {error && (
-              <div className="card" style={{ background: "#ffebee", borderColor: "#ffcdd2", textAlign: "center", padding: "30px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "15px" }}></div>
-                <p style={{ color: "#d32f2f", margin: 0 }}>{error}</p>
-              </div>
-            )}
-
-            {loading ? (
-              <div style={{ textAlign: "center", padding: "60px" }}>
-                <div className="loading" style={{ 
-                  width: "50px", 
-                  height: "50px", 
-                  border: "4px solid #f3f3f3",
-                  borderTop: "4px solid var(--primary)",
-                  borderRadius: "50%",
-                  animation: "spin 1s linear infinite",
-                  margin: "0 auto 20px"
-                }}></div>
-                <p style={{ color: "var(--gray)" }}>Loading items...</p>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "50px 30px" }}>
-                <div style={{ fontSize: "64px", marginBottom: "20px", opacity: 0.5 }}>📚</div>
-                <h3 style={{ marginBottom: "10px" }}>No items available yet</h3>
-                <p style={{ color: "var(--gray)", marginBottom: "30px" }}>
-                  Be the first to add study materials to our community!
-                </p>
-                <Link to="/add-item" className="btn btn-primary">
+          {loading ? (
+            <div style={{ 
+              textAlign: "center", 
+              padding: "60px",
+              background: "white",
+              borderRadius: "12px",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
+            }}>
+              <div className="loading" style={{ 
+                width: "50px", 
+                height: "50px", 
+                border: "4px solid #f3f3f3",
+                borderTop: "4px solid #4361ee",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto 20px"
+              }}></div>
+              <p style={{ color: "#6c757d", fontSize: "16px" }}>Loading featured items...</p>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="card" style={{ 
+              textAlign: "center", 
+              padding: "50px 30px",
+              background: "white",
+              borderRadius: "12px",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
+            }}>
+              <div style={{ fontSize: "64px", marginBottom: "20px", opacity: 0.5 }}>📚</div>
+              <h3 style={{ marginBottom: "10px", color: "#212529", fontSize: "24px" }}>No items available yet</h3>
+              <p style={{ color: "#6c757d", marginBottom: "30px", fontSize: "16px" }}>
+                Be the first to add study materials to our community!
+              </p>
+              {isLoggedIn ? (
+                <Link to="/add-item" className="btn btn-primary" style={{
+                  padding: "12px 32px",
+                  fontSize: "16px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  display: "inline-block"
+                }}>
                   Add Your First Item
                 </Link>
-              </div>
-            ) : (
-              <>
-                <div className="items-grid">
-                  {items.map((item) => (
-                    <div key={item._id || item.id} className="card hover-lift">
-                      {item.imageURL ? (
+              ) : (
+                <Link to="/register" className="btn btn-primary" style={{
+                  padding: "12px 32px",
+                  fontSize: "16px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  display: "inline-block"
+                }}>
+                  Join to Add Items
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="items-grid">
+                {items.map((item) => {
+                  const imageUrl = getItemImage(item);
+                  return (
+                    <div key={item._id} className="card hover-lift" style={{
+                      background: "white",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      transition: "transform 0.3s, box-shadow 0.3s"
+                    }}>
+                      {imageUrl ? (
                         <img
-                          src={item.imageURL}
+                          src={imageUrl}
                           alt={item.title}
                           style={{
                             width: "100%",
                             height: "200px",
                             objectFit: "cover",
-                            borderRadius: "8px",
-                            marginBottom: "16px"
+                            borderRadius: "8px 8px 0 0"
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML = `
+                              <div style="
+                                width: 100%;
+                                height: 200px;
+                                background: linear-gradient(135deg, #4361ee, #7209b7);
+                                border-radius: 8px 8px 0 0;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-size: 48px;
+                              ">
+                                📚
+                              </div>
+                            `;
                           }}
                         />
                       ) : (
                         <div style={{
                           width: "100%",
                           height: "200px",
-                          background: "linear-gradient(135deg, var(--primary), var(--secondary))",
-                          borderRadius: "8px",
-                          marginBottom: "16px",
+                          background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                          borderRadius: "8px 8px 0 0",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -174,60 +280,195 @@ const Home = () => {
                         </div>
                       )}
                       
-                      <h3 style={{ marginBottom: "8px" }}>{item.title || "Untitled Item"}</h3>
-                      <p style={{ color: "var(--gray)", marginBottom: "12px", fontSize: "14px", lineHeight: "1.5" }}>
-                        {item.description ? item.description.substring(0, 100) + "..." : "No description available"}
-                      </p>
-                      
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span className="text-gradient" style={{ fontSize: "20px", fontWeight: "700" }}>
-                          Rs. {item.price || 0}
-                        </span>
-                        <Link to={`/item/${item._id || item.id}`} className="btn btn-outline" style={{ padding: "8px 16px", fontSize: "14px" }}>
-                          View Details
-                        </Link>
+                      <div style={{ padding: "20px" }}>
+                        <h3 style={{ 
+                          marginBottom: "8px", 
+                          fontSize: "18px", 
+                          fontWeight: "600",
+                          color: "#212529"
+                        }}>
+                          {item.title || "Untitled Item"}
+                        </h3>
+                        <p style={{ 
+                          color: "#6c757d", 
+                          marginBottom: "12px", 
+                          fontSize: "14px", 
+                          lineHeight: "1.5",
+                          minHeight: "42px"
+                        }}>
+                          {item.description ? 
+                            (item.description.length > 100 ? item.description.substring(0, 100) + "..." : item.description) 
+                            : "No description available"}
+                        </p>
+                        
+                        <div style={{ 
+                          display: "flex", 
+                          justifyContent: "space-between", 
+                          alignItems: "center" 
+                        }}>
+                          <span style={{ 
+                            fontSize: "20px", 
+                            fontWeight: "700",
+                            background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                            backgroundClip: "text"
+                          }}>
+                            ₹ {item.price || 0}
+                          </span>
+                          <Link 
+                            to={`/item/${item._id}`} 
+                            className="btn btn-outline" 
+                            style={{ 
+                              padding: "8px 16px", 
+                              fontSize: "14px",
+                              border: "1px solid #4361ee",
+                              color: "#4361ee",
+                              borderRadius: "6px",
+                              textDecoration: "none",
+                              fontWeight: "500",
+                              transition: "all 0.3s"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background = "#4361ee";
+                              e.target.style.color = "white";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background = "transparent";
+                              e.target.style.color = "#4361ee";
+                            }}
+                          >
+                            View Details
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-                
-                <div style={{ textAlign: "center", marginTop: "50px" }}>
-                  <Link to="/items" className="btn btn-primary">
-                    View All Items →
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-      )}
+                  );
+                })}
+              </div>
+              
+              <div style={{ textAlign: "center", marginTop: "50px" }}>
+                <Link to="/items" className="btn btn-primary" style={{
+                  padding: "14px 32px",
+                  fontSize: "16px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "white",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  display: "inline-block",
+                  transition: "transform 0.3s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
+                >
+                  View All Items →
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
 
       {/* For Non-Logged In Users: Show How It Works Section */}
       {!isLoggedIn && (
-        <section className="how-it-works">
+        <section className="how-it-works" style={{ 
+          padding: "100px 0", 
+          background: "#cae9eaff"
+        }}>
           <div className="container">
             <div className="section-title">
-              <h2>How It Works</h2>
-              <p>Join thousands of students in just 3 simple steps</p>
+              <h2 style={{ fontSize: "2.5rem", marginBottom: "16px", color: "#212529" }}>How It Works</h2>
+              <p style={{ fontSize: "1.125rem", color: "#6c757d" }}>Join thousands of students in just 3 simple steps</p>
             </div>
             
             <div className="steps-grid">
-              <div className="step-card">
-                <div className="step-number">1</div>
-                <h3>Create Your Account</h3>
-                <p>Sign up for free in 30 seconds. Free To Use.</p>
+              <div className="step-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "white",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s"
+              }}>
+                <div className="step-number" style={{
+                  width: "60px",
+                  height: "60px",
+                  margin: "0 auto 20px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "white"
+                }}>
+                  1
+                </div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Create Your Account</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px" }}>
+                  Sign up for free in 30 seconds. Free To Use.
+                </p>
               </div>
               
-              <div className="step-card">
-                <div className="step-number">2</div>
-                <h3>Browse or List Items</h3>
-                <p>Find study materials you need or list items you want to share.</p>
+              <div className="step-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "white",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s"
+              }}>
+                <div className="step-number" style={{
+                  width: "60px",
+                  height: "60px",
+                  margin: "0 auto 20px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "white"
+                }}>
+                  2
+                </div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Browse or List Items</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px" }}>
+                  Find study materials you need or list items you want to share.
+                </p>
               </div>
               
-              <div className="step-card">
-                <div className="step-number">3</div>
-                <h3>Connect & Trade</h3>
-                <p>Message sellers directly and arrange pickup or delivery.</p>
+              <div className="step-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "white",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s"
+              }}>
+                <div className="step-number" style={{
+                  width: "60px",
+                  height: "60px",
+                  margin: "0 auto 20px",
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "white"
+                }}>
+                  3
+                </div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Connect & Trade</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px" }}>
+                  Message sellers directly and arrange pickup or delivery.
+                </p>
               </div>
             </div>
           </div>
@@ -236,42 +477,92 @@ const Home = () => {
 
       {/* For Logged In Users: Show Quick Actions */}
       {isLoggedIn && (
-        <section className="quick-actions">
+        <section className="quick-actions" style={{ 
+          padding: "100px 0", 
+          background: "white"
+        }}>
           <div className="container">
             <div className="section-title">
-              <h2>Quick Actions</h2>
-              <p>What would you like to do today?</p>
+              <h2 style={{ fontSize: "2.5rem", marginBottom: "16px", color: "#212529" }}>Quick Actions</h2>
+              <p style={{ fontSize: "1.125rem", color: "#6c757d" }}>What would you like to do today?</p>
             </div>
             
             <div className="actions-grid">
-              <Link to="/add-item" className="action-card">
-                <div className="action-icon"></div>
-                <h3>List New Item</h3>
-                <p>Share your study materials with the community</p>
+              <Link to="/add-item" className="action-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "#a4c1ddc5",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s",
+                textDecoration: "none",
+                color: "inherit",
+                border: "1px solid #dee2e6"
+              }}>
+                <div className="action-icon" style={{ fontSize: "48px", marginBottom: "20px" }}>📝</div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>List New Item</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px", marginBottom: 0 }}>
+                  Share your study materials with the community
+                </p>
               </Link>
               
-              <Link to="/items" className="action-card">
-                <div className="action-icon"></div>
-                <h3>Browse Items</h3>
-                <p>Find study materials you need</p>
+              <Link to="/items" className="action-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "#a4c1ddc5",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s",
+                textDecoration: "none",
+                color: "inherit",
+                border: "1px solid #dee2e6"
+              }}>
+                <div className="action-icon" style={{ fontSize: "48px", marginBottom: "20px" }}>🔍</div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Browse Items</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px", marginBottom: 0 }}>
+                  Find study materials you need
+                </p>
               </Link>
               
-              <Link to="/dashboard" className="action-card">
-                <div className="action-icon"></div>
-                <h3>Your Dashboard</h3>
-                <p>View your listings and messages</p>
+              <Link to="/dashboard" className="action-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "#a4c1ddc5",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s",
+                textDecoration: "none",
+                color: "inherit",
+                border: "1px solid #dee2e6"
+              }}>
+                <div className="action-icon" style={{ fontSize: "48px", marginBottom: "20px" }}>📊</div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Your Dashboard</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px", marginBottom: 0 }}>
+                  View your listings and messages
+                </p>
               </Link>
               
-              <Link to="/profile" className="action-card">
-                <div className="action-icon"></div>
-                <h3>Update Profile</h3>
-                <p>Manage your account settings</p>
+              <Link to="/profile" className="action-card" style={{
+                textAlign: "center",
+                padding: "40px 30px",
+                background: "#a4c1ddc5",
+                borderRadius: "12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                transition: "transform 0.3s, box-shadow 0.3s",
+                textDecoration: "none",
+                color: "inherit",
+                border: "1px solid #dee2e6"
+              }}>
+                <div className="action-icon" style={{ fontSize: "48px", marginBottom: "20px" }}>👤</div>
+                <h3 style={{ marginBottom: "15px", color: "#212529", fontSize: "20px" }}>Update Profile</h3>
+                <p style={{ color: "#6c757d", lineHeight: "1.6", fontSize: "15px", marginBottom: 0 }}>
+                  Manage your account settings
+                </p>
               </Link>
             </div>
           </div>
         </section>
       )}
-
 
       {/* CTA Section - Different for logged in vs not logged in */}
       {isLoggedIn ? (
@@ -299,7 +590,10 @@ const Home = () => {
                   fontSize: "18px", 
                   fontWeight: "600",
                   background: "white",
-                  color: "#38b000"
+                  color: "#38b000",
+                  textDecoration: "none",
+                  borderRadius: "8px",
+                  display: "inline-block"
                 }}>
                   List Another Item
                 </Link>
@@ -332,8 +626,11 @@ const Home = () => {
                   padding: "18px 48px", 
                   fontSize: "18px", 
                   fontWeight: "600",
-                  background: "var(--primary)",
-                  color: "white"
+                  background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                  color: "white",
+                  textDecoration: "none",
+                  borderRadius: "8px",
+                  display: "inline-block"
                 }}>
                   Join StudyReuse Free
                 </Link>
@@ -347,9 +644,30 @@ const Home = () => {
       )}
 
       {/* Add custom styles */}
-      <style jsx>{`
+      <style>{`
         .home-page {
           min-height: 100vh;
+        }
+        
+        .hero {
+          padding: 100px 0;
+          background: linear-gradient(135deg, #4361ee, #7209b7);
+          text-align: center;
+          color: white;
+        }
+        
+        .hero h1 {
+          font-size: 3rem;
+          margin-bottom: 20px;
+          font-weight: 700;
+        }
+        
+        .hero p {
+          font-size: 1.25rem;
+          max-width: 600px;
+          margin: 0 auto 30px;
+          opacity: 0.9;
+          line-height: 1.6;
         }
         
         .hero-buttons {
@@ -359,10 +677,70 @@ const Home = () => {
           flex-wrap: wrap;
         }
         
-        .items-grid {
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 20px;
+        }
+        
+        .section-title {
+          text-align: center;
+          margin-bottom: 60px;
+        }
+        
+        .section-title h2 {
+          font-size: 2.5rem;
+          margin-bottom: 16px;
+          color: #212529;
+        }
+        
+        .section-title p {
+          font-size: 1.125rem;
+          color: #6c757d;
+          max-width: 600px;
+          margin: 0 auto;
+        }
+        
+        .features {
+          padding: 100px 0;
+          background: #f8f9fa;
+        }
+        
+        .features-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 30px;
+        }
+        
+        .feature-card {
+          padding: 40px 30px;
+          text-align: center;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+          transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .feature-card:hover {
+          transform: translateY(-10px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+        
+        .feature-icon {
+          font-size: 48px;
+          margin-bottom: 20px;
+        }
+        
+        .feature-card h3 {
+          margin-bottom: 15px;
+          color: #212529;
+          font-size: 20px;
+        }
+        
+        .feature-card p {
+          color: #6c757d;
+          line-height: 1.6;
+          margin-bottom: 0;
         }
         
         .recent-items-section {
@@ -370,13 +748,49 @@ const Home = () => {
           background: #f5f7ff;
         }
         
-        /* How It Works Section */
-        .how-it-works {
-          padding: 100px 0;
-          background: #cae9eaff;
+        .items-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 30px;
         }
         
-        .steps-grid {
+        .card.hover-lift {
+          transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card.hover-lift:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+        
+        .btn {
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 16px;
+          text-decoration: none;
+          display: inline-block;
+          transition: all 0.3s;
+        }
+        
+        .btn-primary {
+          background: linear-gradient(135deg, #4361ee, #7209b7);
+          color: white;
+          border: none;
+        }
+        
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(67, 97, 238, 0.3);
+        }
+        
+        .btn-outline {
+          background: transparent;
+          border: 1px solid;
+        }
+        
+        .how-it-works .steps-grid,
+        .quick-actions .actions-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 40px;
@@ -384,149 +798,11 @@ const Home = () => {
           margin: 0 auto;
         }
         
-        .step-card {
-          text-align: center;
-          padding: 40px 30px;
-          background: white;
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
-          transition: var(--transition);
-        }
-        
+        .action-card:hover,
         .step-card:hover {
           transform: translateY(-10px);
-          box-shadow: var(--shadow-lg);
-        }
-        
-        .step-number {
-          width: 60px;
-          height: 60px;
-          margin: 0 auto 20px;
-          background: linear-gradient(135deg, var(--primary), var(--secondary));
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          font-weight: 700;
-          color: white;
-        }
-        
-        .step-card h3 {
-          margin-bottom: 15px;
-          color: var(--dark);
-        }
-        
-        .step-card p {
-          color: var(--gray);
-          line-height: 1.6;
-        }
-        
-        /* Quick Actions Section */
-        .quick-actions {
-          padding: 100px 0;
-          background: white;
-        }
-        
-        .actions-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 30px;
-        }
-        
-        .action-card {
-          text-align: center;
-          padding: 40px 30px;
-          background: #a4c1ddc5 ;
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
-          transition: var(--transition);
-          text-decoration: none;
-          color: inherit;
-          border: 1px solid var(--light-gray);
-        }
-        
-        .action-card:hover {
-          transform: translateY(-5px);
-          box-shadow: var(--shadow-lg);
-          border-color: var(--primary);
-        }
-        
-        .action-icon {
-          font-size: 48px;
-          margin-bottom: 20px;
-        }
-        
-        .action-card h3 {
-          margin-bottom: 15px;
-          color: var(--dark);
-        }
-        
-        .action-card p {
-          color: var(--gray);
-          line-height: 1.6;
-          margin-bottom: 0;
-        }
-        
-        /* Testimonials Section */
-        .testimonials {
-          padding: 100px 0;
-          background: #f8f9fa;
-        }
-        
-        .testimonials-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 30px;
-        }
-        
-        .testimonial-card {
-          background: white;
-          border-radius: var(--radius);
-          padding: 30px;
-          box-shadow: var(--shadow);
-        }
-        
-        .testimonial-content {
-          margin-bottom: 25px;
-          padding-bottom: 25px;
-          border-bottom: 1px solid var(--light-gray);
-        }
-        
-        .testimonial-content p {
-          font-style: italic;
-          color: var(--dark);
-          line-height: 1.6;
-          margin-bottom: 0;
-        }
-        
-        .testimonial-author {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-        
-        .author-avatar {
-          width: 50px;
-          height: 50px;
-          background: linear-gradient(135deg, var(--primary), var(--secondary));
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          color: white;
-        }
-        
-        .testimonial-author h4 {
-          margin-bottom: 5px;
-          color: var(--dark);
-        }
-        
-        .testimonial-author p {
-          color: var(--gray);
-          font-size: 14px;
-          margin-bottom: 0;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+          border-color: #4361ee;
         }
         
         @keyframes spin {
@@ -535,6 +811,14 @@ const Home = () => {
         }
         
         @media (max-width: 768px) {
+          .hero h1 {
+            font-size: 2.2rem;
+          }
+          
+          .hero p {
+            font-size: 1.125rem;
+          }
+          
           .hero-buttons {
             flex-direction: column;
             align-items: center;
@@ -546,10 +830,14 @@ const Home = () => {
           }
           
           .items-grid,
+          .features-grid,
           .steps-grid,
-          .actions-grid,
-          .testimonials-grid {
+          .actions-grid {
             grid-template-columns: 1fr;
+          }
+          
+          .section-title h2 {
+            font-size: 2rem;
           }
         }
       `}</style>

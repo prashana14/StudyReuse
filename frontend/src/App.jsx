@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import AddItem from "./pages/Additem";
 import ItemDetails from "./pages/ItemDetails";
+import ChatList from "./pages/ChatList";
 import ChatBox from "./pages/ChatBox";
 import BarterRequests from "./pages/BarterRequests";
 import Notifications from "./pages/Notifications";
@@ -95,6 +96,12 @@ function App() {
               <EditItem />
             </ProtectedRoute>
           } />
+           {/* Chat Routes - ADD THESE */}
+  <Route path="/chats" element={
+    <ProtectedRoute>
+      <ChatList /> {/* ADD THIS LINE */}
+    </ProtectedRoute>
+  } />
           <Route 
               path="/chat/:itemId" 
               element={
@@ -105,6 +112,7 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+
 
           
           {/* Admin Routes */}

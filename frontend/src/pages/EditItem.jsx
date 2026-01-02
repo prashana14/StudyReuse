@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import apiService from "../services/api";
+import apiService from "../services/api"; // Import apiService
 import { useAuth } from "../context/AuthContext";
 
 const EditItem = () => {
@@ -18,7 +18,7 @@ const EditItem = () => {
     price: "",
     category: "",
     condition: "good",
-    image: null,
+    imageFile: null, // CHANGED: Renamed from image to imageFile
     imagePreview: "",
   });
 
@@ -44,8 +44,9 @@ const EditItem = () => {
     const fetchItem = async () => {
       try {
         setLoading(true);
-        const res = await apiService.get(`/items/${id}`);
-        const item = res.data;
+        // CHANGED: Use apiService.items.getById()
+        const response = await apiService.items.getById(id);
+        const item = response.data.data || response.data;
         
         setFormData({
           title: item.title || "",
@@ -53,8 +54,8 @@ const EditItem = () => {
           price: item.price || "",
           category: item.category || "",
           condition: item.condition || "good",
-          image: null,
-          imagePreview: item.imageURL || item.image || "",
+          imageFile: null, // Keep null, we'll use imagePreview for existing image
+          imagePreview: item.imageURL || item.image || "", // Cloudinary URL
         });
       } catch (err) {
         console.error("Error fetching item:", err);
@@ -75,36 +76,29 @@ const EditItem = () => {
       ...prev,
       [name]: value
     }));
-    // Clear any previous errors/success messages
     if (error) setError("");
     if (success) setSuccess("");
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-      if (!validTypes.includes(file.type)) {
-        setError("Please select a valid image file (JPG, PNG, WEBP)");
-        return;
-      }
+    if (!file) return;
 
-      // Validate file size (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image size must be less than 5MB");
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      }));
-      
-      if (error) setError("");
-      if (success) setSuccess("");
+    // Use apiService helper for validation
+    const validation = apiService.helpers.validateImageFile(file);
+    if (!validation.valid) {
+      setError(validation.errors[0]);
+      return;
     }
+
+    setFormData(prev => ({
+      ...prev,
+      imageFile: file, // CHANGED: Store as imageFile
+      imagePreview: URL.createObjectURL(file)
+    }));
+    
+    if (error) setError("");
+    if (success) setSuccess("");
   };
 
   const handleSubmit = async (e) => {
@@ -133,38 +127,86 @@ const EditItem = () => {
 
     setSaving(true);
     setError("");
+    setSuccess("");
     
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append("title", formData.title);
-      formDataToSend.append("description", formData.description);
-      formDataToSend.append("price", formData.price);
-      formDataToSend.append("category", formData.category);
-      formDataToSend.append("condition", formData.condition);
-      
-      if (formData.image) {
-        formDataToSend.append("image", formData.image);
-      }
-
-      await apiService.put(`/items/${id}`, formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        }
+      console.log("Updating item with:", {
+        id,
+        title: formData.title,
+        price: parseFloat(formData.price),
+        hasNewImage: !!formData.imageFile
       });
 
-      setSuccess("Item updated successfully!");
+      // 🔥 UPDATED: Use apiService.items.update() with FormData
+      // Pass the existing form data and optional new image file
+      const response = await apiService.items.update(
+        id,
+        {
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          price: formData.price,
+          category: formData.category,
+          condition: formData.condition,
+        },
+        formData.imageFile // Pass the image file (or null if no new image)
+      );
+
+      console.log("✅ Cloudinary update successful:", response.data);
+      setSuccess(response.data.message || "Item updated successfully!");
       
-      // Redirect after 2 seconds
+      // Redirect after delay
       setTimeout(() => {
         navigate(`/item/${id}`);
       }, 2000);
       
     } catch (err) {
-      console.error("Error updating item:", err);
-      setError(err.response?.data?.message || "Failed to update item. Please try again.");
+      console.error("❌ Error updating item:", err);
+      
+      // Handle specific error types
+      if (err.response?.status === 401) {
+        setError("Session expired. Please login again.");
+        setTimeout(() => navigate("/login"), 2000);
+      } else if (err.response?.status === 400) {
+        const errorData = err.response?.data;
+        
+        if (errorData?.errors && Array.isArray(errorData.errors)) {
+          setError(`Validation Error: ${errorData.errors.join(", ")}`);
+        } else if (errorData?.message) {
+          setError(`Error: ${errorData.message}`);
+        } else {
+          setError("Bad Request. Please check all fields.");
+        }
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.message === "Network Error") {
+        setError("Cannot connect to server. Please check if backend is running.");
+      } else if (err.message.includes("File too large")) {
+        setError("Image too large. Maximum size is 5MB.");
+      } else if (err.message.includes("Invalid image format")) {
+        setError("Invalid image format. Use JPG, PNG, GIF, or WEBP.");
+      } else {
+        setError("Failed to update item. Please try again.");
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    if (formData.imagePreview) {
+      URL.revokeObjectURL(formData.imagePreview);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      imageFile: null,
+      imagePreview: ""
+    }));
+    
+    // Clear file input
+    const fileInput = document.getElementById('image-upload');
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -219,11 +261,7 @@ const EditItem = () => {
           <h1 style={{
             fontSize: "2.2rem",
             marginBottom: "8px",
-            color: "#212529",
-            background: "linear-gradient(135deg, #4361ee, #7209b7)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text"
+            color: "#212529"
           }}>
             Edit Item
           </h1>
@@ -246,16 +284,13 @@ const EditItem = () => {
             fontSize: "16px",
             fontWeight: "600",
             cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
             transition: "all 0.3s"
           }}
-          onMouseOver={(e) => {
+          onMouseEnter={(e) => {
             e.target.style.background = "#4361ee";
             e.target.style.color = "white";
           }}
-          onMouseOut={(e) => {
+          onMouseLeave={(e) => {
             e.target.style.background = "transparent";
             e.target.style.color = "#4361ee";
           }}
@@ -267,44 +302,60 @@ const EditItem = () => {
       {/* Status Messages */}
       {error && (
         <div style={{
-          padding: "16px",
-          background: "#f8d7da",
-          color: "#721c24",
-          borderRadius: "8px",
+          padding: "16px 20px",
+          background: "linear-gradient(135deg, #ff6b6b, #e63946)",
+          color: "white",
+          borderRadius: "10px",
           marginBottom: "30px",
-          border: "1px solid #f5c6cb",
           display: "flex",
           alignItems: "center",
-          gap: "12px"
+          gap: "12px",
+          animation: "fadeIn 0.3s ease"
         }}>
           <span style={{ fontSize: "20px" }}>⚠️</span>
-          <span>{error}</span>
+          <span style={{ flex: 1 }}>{error}</span>
+          <button 
+            onClick={() => setError("")}
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: "white", 
+              cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              transition: "background 0.3s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {success && (
         <div style={{
-          padding: "16px",
-          background: "#d4edda",
-          color: "#155724",
-          borderRadius: "8px",
+          padding: "16px 20px",
+          background: "linear-gradient(135deg, #38b000, #2d9100)",
+          color: "white",
+          borderRadius: "10px",
           marginBottom: "30px",
-          border: "1px solid #c3e6cb",
           display: "flex",
           alignItems: "center",
-          gap: "12px"
+          gap: "12px",
+          animation: "fadeIn 0.3s ease"
         }}>
           <span style={{ fontSize: "20px" }}>✅</span>
-          <span>{success}</span>
+          <span style={{ flex: 1 }}>{success}</span>
         </div>
       )}
 
       {/* Form */}
       <form onSubmit={handleSubmit} style={{
         background: "white",
-        borderRadius: "16px",
+        borderRadius: "12px",
         padding: "40px",
-        boxShadow: "0 10px 40px rgba(0,0,0,0.08)"
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
       }}>
         <div style={{
           display: "grid",
@@ -317,12 +368,8 @@ const EditItem = () => {
             <h3 style={{
               fontSize: "18px",
               marginBottom: "20px",
-              color: "#212529",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px"
+              color: "#212529"
             }}>
-              <span style={{ fontSize: "24px" }}>🖼️</span>
               Item Image
             </h3>
             
@@ -331,8 +378,8 @@ const EditItem = () => {
               style={{
                 width: "100%",
                 height: "300px",
-                border: formData.imagePreview ? "none" : "3px dashed #dee2e6",
-                borderRadius: "12px",
+                border: formData.imagePreview ? "none" : "2px dashed #dee2e6",
+                borderRadius: "8px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -345,13 +392,13 @@ const EditItem = () => {
                   ? `url(${formData.imagePreview}) center/cover no-repeat`
                   : "#f8f9fa"
               }}
-              onMouseOver={(e) => {
+              onMouseEnter={(e) => {
                 if (!formData.imagePreview) {
                   e.target.style.borderColor = "#4361ee";
                   e.target.style.background = "#f0f4ff";
                 }
               }}
-              onMouseOut={(e) => {
+              onMouseLeave={(e) => {
                 if (!formData.imagePreview) {
                   e.target.style.borderColor = "#dee2e6";
                   e.target.style.background = "#f8f9fa";
@@ -361,8 +408,8 @@ const EditItem = () => {
               {!formData.imagePreview ? (
                 <>
                   <div style={{
-                    width: "60px",
-                    height: "60px",
+                    width: "50px",
+                    height: "50px",
                     background: "#4361ee",
                     borderRadius: "50%",
                     display: "flex",
@@ -370,7 +417,7 @@ const EditItem = () => {
                     justifyContent: "center",
                     marginBottom: "16px"
                   }}>
-                    <span style={{ fontSize: "24px", color: "white" }}>📤</span>
+                    <span style={{ fontSize: "20px", color: "white" }}>📷</span>
                   </div>
                   <p style={{
                     color: "#4361ee",
@@ -383,7 +430,7 @@ const EditItem = () => {
                     color: "#6c757d",
                     fontSize: "14px"
                   }}>
-                    JPG, PNG or WEBP (Max 5MB)
+                    JPG, PNG, GIF, WEBP (Max 5MB)
                   </p>
                 </>
               ) : (
@@ -393,14 +440,12 @@ const EditItem = () => {
                   right: "15px",
                   background: "rgba(0,0,0,0.7)",
                   color: "white",
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px"
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  fontWeight: "500"
                 }}>
-                  Change Image
+                  {formData.imageFile ? "New Image" : "Current Image"}
                 </div>
               )}
             </div>
@@ -414,51 +459,66 @@ const EditItem = () => {
             />
             
             {formData.imagePreview && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData(prev => ({
-                    ...prev,
-                    image: null,
-                    imagePreview: ""
-                  }));
-                }}
-                style={{
-                  width: "100%",
-                  marginTop: "15px",
-                  padding: "12px",
-                  background: "#e63946",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "10px",
-                  transition: "all 0.3s"
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = "#c1121f";
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = "#e63946";
-                }}
-              >
-              Remove Image
-              </button>
+              <div style={{
+                display: "flex",
+                gap: "10px",
+                marginTop: "15px"
+              }}>
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: "#ff6b6b",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.3s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "#e63946";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "#ff6b6b";
+                  }}
+                >
+                  {formData.imageFile ? "Cancel New Image" : "Remove Image"}
+                </button>
+              </div>
             )}
             
-            <p style={{
-              marginTop: "15px",
-              color: "#6c757d",
-              fontSize: "14px",
-              lineHeight: 1.6
-            }}>
-              <strong>Tip:</strong> Clear, well-lit images attract more buyers. Show any wear and tear honestly.
-            </p>
+            {formData.imageFile && (
+              <div style={{
+                marginTop: "10px",
+                padding: "10px",
+                background: "#eef2ff",
+                borderRadius: "6px",
+                borderLeft: "4px solid #4361ee"
+              }}>
+                <p style={{
+                  fontSize: "14px",
+                  color: "#4361ee",
+                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <span>📸</span>
+                  <span>New image selected: {formData.imageFile.name}</span>
+                </p>
+                <p style={{
+                  fontSize: "12px",
+                  color: "#6c757d",
+                  margin: "4px 0 0 0"
+                }}>
+                  Size: {(formData.imageFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Right Column - Form Fields */}
@@ -466,12 +526,8 @@ const EditItem = () => {
             <h3 style={{
               fontSize: "18px",
               marginBottom: "20px",
-              color: "#212529",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px"
+              color: "#212529"
             }}>
-              <span style={{ fontSize: "24px" }}>📝</span>
               Item Details
             </h3>
 
@@ -493,18 +549,16 @@ const EditItem = () => {
                 style={{
                   width: "100%",
                   padding: "14px",
-                  border: "2px solid #dee2e6",
+                  border: "1px solid #dee2e6",
                   borderRadius: "8px",
                   fontSize: "16px",
                   transition: "all 0.3s"
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#4361ee";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = "#dee2e6";
-                  e.target.style.boxShadow = "none";
                 }}
                 required
               />
@@ -523,25 +577,23 @@ const EditItem = () => {
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="Describe your item in detail. Include brand, model, condition notes, reason for selling, etc."
-                rows="5"
+                placeholder="Describe your item in detail..."
+                rows="4"
                 style={{
                   width: "100%",
                   padding: "14px",
-                  border: "2px solid #dee2e6",
+                  border: "1px solid #dee2e6",
                   borderRadius: "8px",
                   fontSize: "16px",
                   resize: "vertical",
                   transition: "all 0.3s",
-                  minHeight: "120px"
+                  minHeight: "100px"
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#4361ee";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = "#dee2e6";
-                  e.target.style.boxShadow = "none";
                 }}
                 required
               />
@@ -573,18 +625,16 @@ const EditItem = () => {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    border: "2px solid #dee2e6",
+                    border: "1px solid #dee2e6",
                     borderRadius: "8px",
                     fontSize: "16px",
                     transition: "all 0.3s"
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = "#4361ee";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = "#dee2e6";
-                    e.target.style.boxShadow = "none";
                   }}
                   required
                 />
@@ -606,7 +656,7 @@ const EditItem = () => {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    border: "2px solid #dee2e6",
+                    border: "1px solid #dee2e6",
                     borderRadius: "8px",
                     fontSize: "16px",
                     background: "white",
@@ -615,11 +665,9 @@ const EditItem = () => {
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = "#4361ee";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = "#dee2e6";
-                    e.target.style.boxShadow = "none";
                   }}
                   required
                 >
@@ -640,18 +688,18 @@ const EditItem = () => {
               }}>
                 Condition *
               </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                 {conditions.map(cond => (
                   <label
                     key={cond.value}
                     style={{
                       flex: "1",
-                      minWidth: "120px",
-                      padding: "16px",
-                      border: `2px solid ${
+                      minWidth: "110px",
+                      padding: "14px",
+                      border: `1px solid ${
                         formData.condition === cond.value ? "#4361ee" : "#dee2e6"
                       }`,
-                      borderRadius: "8px",
+                      borderRadius: "6px",
                       background: formData.condition === cond.value 
                         ? "#f0f4ff" 
                         : "white",
@@ -659,13 +707,13 @@ const EditItem = () => {
                       transition: "all 0.3s",
                       textAlign: "center"
                     }}
-                    onMouseOver={(e) => {
+                    onMouseEnter={(e) => {
                       if (formData.condition !== cond.value) {
                         e.target.style.borderColor = "#4361ee";
                         e.target.style.background = "#f8f9fa";
                       }
                     }}
-                    onMouseOut={(e) => {
+                    onMouseLeave={(e) => {
                       if (formData.condition !== cond.value) {
                         e.target.style.borderColor = "#dee2e6";
                         e.target.style.background = "white";
@@ -680,16 +728,21 @@ const EditItem = () => {
                       onChange={handleChange}
                       style={{ display: "none" }}
                     />
-                    <div style={{ fontSize: "24px", marginBottom: "8px" }}>
-                      {cond.value === "new"}
-                      {cond.value === "like_new"}
-                      {cond.value === "good"}
-                      {cond.value === "fair"}
-                      {cond.value === "needs_repair"}
+                    <div style={{ 
+                      fontSize: "12px", 
+                      fontWeight: "600",
+                      marginBottom: "4px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>
+                      {cond.value === "new" && "NEW"}
+                      {cond.value === "like_new" && "LIKE NEW"}
+                      {cond.value === "good" && "GOOD"}
+                      {cond.value === "fair" && "FAIR"}
+                      {cond.value === "needs_repair" && "REPAIR"}
                     </div>
                     <span style={{
                       fontSize: "14px",
-                      fontWeight: "600",
                       color: formData.condition === cond.value 
                         ? "#4361ee" 
                         : "#495057"
@@ -715,29 +768,25 @@ const EditItem = () => {
             type="button"
             onClick={() => navigate(-1)}
             style={{
-              padding: "14px 28px",
+              padding: "12px 24px",
               background: "transparent",
-              border: "2px solid #6c757d",
+              border: "1px solid #6c757d",
               color: "#6c757d",
-              borderRadius: "8px",
+              borderRadius: "6px",
               fontSize: "16px",
-              fontWeight: "600",
               cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
               transition: "all 0.3s"
             }}
-            onMouseOver={(e) => {
+            onMouseEnter={(e) => {
               e.target.style.background = "#6c757d";
               e.target.style.color = "white";
             }}
-            onMouseOut={(e) => {
+            onMouseLeave={(e) => {
               e.target.style.background = "transparent";
               e.target.style.color = "#6c757d";
             }}
           >
-            ← Cancel
+            Cancel
           </button>
           
           <div style={{ display: "flex", gap: "15px" }}>
@@ -745,57 +794,50 @@ const EditItem = () => {
               type="button"
               onClick={() => navigate(`/item/${id}`)}
               style={{
-                padding: "14px 28px",
+                padding: "12px 24px",
                 background: "#6c757d",
                 color: "white",
                 border: "none",
-                borderRadius: "8px",
+                borderRadius: "6px",
                 fontSize: "16px",
-                fontWeight: "600",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
                 transition: "all 0.3s"
               }}
-              onMouseOver={(e) => {
+              onMouseEnter={(e) => {
                 e.target.style.background = "#495057";
               }}
-              onMouseOut={(e) => {
+              onMouseLeave={(e) => {
                 e.target.style.background = "#6c757d";
               }}
             >
-            Preview
+              Preview
             </button>
             
             <button
               type="submit"
               disabled={saving}
               style={{
-                padding: "14px 40px",
-                background: saving ? "#94d82d" : "#38b000",
+                padding: "12px 32px",
+                background: saving 
+                  ? "#94d82d" 
+                  : "linear-gradient(135deg, #4361ee, #7209b7)",
                 color: "white",
                 border: "none",
-                borderRadius: "8px",
+                borderRadius: "6px",
                 fontSize: "16px",
                 fontWeight: "600",
                 cursor: saving ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
                 transition: "all 0.3s",
                 opacity: saving ? 0.8 : 1
               }}
-              onMouseOver={(e) => {
+              onMouseEnter={(e) => {
                 if (!saving) {
-                  e.target.style.background = "#2d9100";
                   e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 4px 12px rgba(56, 176, 0, 0.3)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(67, 97, 238, 0.3)";
                 }
               }}
-              onMouseOut={(e) => {
+              onMouseLeave={(e) => {
                 if (!saving) {
-                  e.target.style.background = "#38b000";
                   e.target.style.transform = "translateY(0)";
                   e.target.style.boxShadow = "none";
                 }
@@ -804,55 +846,36 @@ const EditItem = () => {
               {saving ? (
                 <>
                   <div style={{
-                    width: "18px",
-                    height: "18px",
+                    display: "inline-block",
+                    width: "16px",
+                    height: "16px",
                     border: "2px solid white",
                     borderTopColor: "transparent",
                     borderRadius: "50%",
-                    animation: "spin 1s linear infinite"
+                    marginRight: "8px",
+                    animation: "spin 1s linear infinite",
+                    verticalAlign: "middle"
                   }}></div>
-                  Saving Changes...
+                  Saving...
                 </>
               ) : (
-                <>
-                Update Item
-                </>
+                "Update Item"
               )}
             </button>
           </div>
         </div>
       </form>
-
-      {/* Help Section */}
-      <div style={{
-        marginTop: "40px",
-        padding: "25px",
-        background: "#f8f9fa",
-        borderRadius: "12px",
-        borderLeft: "5px solid #4361ee"
-      }}>
-        <h4 style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          marginBottom: "15px",
-          color: "#212529"
-        }}>
-          Tips for Better Listings
-        </h4>
-        <ul style={{
-          margin: 0,
-          paddingLeft: "20px",
-          color: "#6c757d",
-          lineHeight: 1.7
-        }}>
-          <li>Use clear, well-lit photos from multiple angles</li>
-          <li>Be honest about the condition and any defects</li>
-          <li>Include brand, model, and other identifying details</li>
-          <li>Mention why you're selling and any included accessories</li>
-          <li>Price competitively based on condition and market value</li>
-        </ul>
-      </div>
+      
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };

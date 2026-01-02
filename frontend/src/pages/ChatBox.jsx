@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../services/api";
 
@@ -12,6 +12,7 @@ const ChatBox = () => {
   const [otherUser, setOtherUser] = useState(null);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [chatId, setChatId] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Safe get current user
@@ -24,86 +25,130 @@ const ChatBox = () => {
     }
   }, []);
 
-  // Fetch item details
-  const fetchItemDetails = useCallback(async () => {
-    if (!itemId) return;
+  const currentUser = useMemo(() => getCurrentUser(), [getCurrentUser]);
+
+  // Fetch all data in one function to prevent loops
+  const fetchChatData = useCallback(async () => {
+    if (!itemId || !currentUser) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      console.log(` Fetching item: ${itemId}`);
+      setLoading(true);
+      setError("");
       
-      const response = await API.get(`/items/${itemId}`);
+      console.log(`📦 Fetching item: ${itemId}`);
       
-      if (response?.data) {
-        console.log(" Item loaded:", response.data);
-        setItemDetails(response.data.data);
+      // 1. Fetch item details
+      const itemResponse = await API.get(`/items/${itemId}`);
+      
+      if (itemResponse?.data?.success) {
+        const itemData = itemResponse.data.data;
+        console.log("✅ Item loaded:", itemData);
+        setItemDetails(itemData);
         
         // Set other user from item owner
-        const currentUser = getCurrentUser();
-        if (currentUser && response.data.owner) {
-          const owner = response.data.owner;
+        if (itemData.owner) {
+          const owner = itemData.owner;
           const ownerId = owner._id || owner;
-          const currentUserId = currentUser.id || currentUser.id;
+          const currentUserId = currentUser.id || currentUser._id;
           
           if (ownerId.toString() !== currentUserId?.toString()) {
-            console.log(" Setting other user from item owner:", owner);
+            console.log("👤 Setting other user from item owner:", owner);
             setOtherUser(typeof owner === 'object' ? owner : { _id: owner });
           } else {
-            console.log(" You are the owner of this item");
+            console.log("⚠️ You are the owner of this item");
             setError("You cannot chat with yourself about your own item");
           }
         }
-      }
-    } catch (err) {
-      console.error(" Error fetching item:", err);
-      setError("Failed to load item details");
-    }
-  }, [itemId, getCurrentUser]);
-
-  // Fetch messages
-  const fetchMessages = useCallback(async () => {
-    if (!itemId) return;
-
-    try {
-      const currentUser = getCurrentUser();
-      if (!currentUser) {
-        console.warn("No user logged in");
-        return;
-      }
-
-      console.log(`Fetching messages for item: ${itemId}`);
-      
-      const response = await API.get(`/chat/item/${itemId}`);
-      console.log("Messages response:", response.data);
-      
-      if (response.data?.success) {
-        const messagesData = response.data.data[0].messages || [];
-        setMessages(Array.isArray(messagesData) ? messagesData : []);
         
-        // If we have messages, extract other user from them
-        if (messagesData.length > 0) {
-          const firstMsg = messagesData[0];
-          const currentUserId = currentUser.id || currentUser.id;
+        // 2. Try to fetch existing chat
+        console.log(`💬 Looking for existing chat for item: ${itemId}`);
+        try {
+          const chatResponse = await API.get(`/chat/item/${itemId}`);
           
-          if (firstMsg.sender?._id?.toString() !== currentUserId?.toString()) {
-            setOtherUser(firstMsg.sender);
-          } else if (firstMsg.receiver?._id?.toString() !== currentUserId?.toString()) {
-            setOtherUser(firstMsg.receiver);
+          if (chatResponse.data?.success && chatResponse.data.data) {
+            let chats = chatResponse.data.data;
+            
+            if (Array.isArray(chats) && chats.length > 0) {
+              const chat = chats[0];
+              setChatId(chat._id);
+              console.log(`✅ Found existing chat: ${chat._id}`);
+              
+              // Load messages if available
+              if (chat.messages && Array.isArray(chat.messages)) {
+                const validMessages = chat.messages
+                  .filter(msg => msg && typeof msg === 'object')
+                  .map(msg => ({
+                    _id: msg._id,
+                    chat: msg.chat,
+                    item: msg.item,
+                    sender: msg.sender,
+                    receiver: msg.receiver,
+                    message: msg.message || msg.text || "",
+                    isRead: msg.isRead,
+                    readAt: msg.readAt,
+                    createdAt: msg.createdAt,
+                    updatedAt: msg.updatedAt
+                  }));
+                
+                setMessages(validMessages);
+                console.log(`✅ Loaded ${validMessages.length} messages`);
+                
+                // Set other user from messages if not already set
+                if (validMessages.length > 0 && !otherUser) {
+                  const firstMsg = validMessages[0];
+                  const currentUserId = currentUser.id || currentUser._id;
+                  
+                  if (firstMsg.sender?._id?.toString() !== currentUserId?.toString()) {
+                    setOtherUser(firstMsg.sender);
+                  } else if (firstMsg.receiver?._id?.toString() !== currentUserId?.toString()) {
+                    setOtherUser(firstMsg.receiver);
+                  }
+                }
+              }
+            } else {
+              console.log("🆕 No existing chat found");
+              setMessages([]);
+            }
+          } else {
+            console.log("🆕 No chat data received");
+            setMessages([]);
+          }
+        } catch (chatErr) {
+          // 404 is expected when no chat exists
+          if (chatErr.response?.status === 404) {
+            console.log("🔍 No chat found (404) - This is normal");
+            setMessages([]);
+          } else {
+            console.warn("⚠️ Chat fetch issue:", chatErr.message);
           }
         }
-        
-        console.log(`Loaded ${messagesData.length} messages`);
+      } else {
+        setError("Item details not available");
       }
-      
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.error("❌ Error loading chat data:", err);
+      
+      if (err.response?.status === 404) {
+        setError("Item not found. It may have been removed.");
+        setTimeout(() => navigate('/'), 2000);
+      } else {
+        setError("Failed to load chat. You can still start a conversation.");
+      }
     } finally {
       setLoading(false);
     }
-  }, [itemId, getCurrentUser]);
+  }, [itemId, currentUser, navigate]);
+
+  // Load data once when component mounts
+  useEffect(() => {
+    fetchChatData();
+  }, [fetchChatData]); // Only depends on fetchChatData which is memoized with itemId and currentUser
 
   // Send first message to create chat
   const sendFirstMessage = useCallback(async (messageText = "Hi, I'm interested in this item!") => {
-    const currentUser = getCurrentUser();
     if (!currentUser) {
       alert("Please log in to send messages");
       navigate("/login");
@@ -119,14 +164,10 @@ const ChatBox = () => {
       receiverName = itemDetails.owner.name || receiverName;
       
       // Check if user is trying to message themselves
-      if (receiverId.toString() === currentUser.id?.toString()) {
+      if (receiverId.toString() === currentUser.id?.toString() || 
+          receiverId.toString() === currentUser._id?.toString()) {
         alert("You cannot send messages to yourself about your own item");
         return;
-      }
-      
-      // Set other user
-      if (!otherUser) {
-        setOtherUser(itemDetails.owner);
       }
     }
     
@@ -138,7 +179,7 @@ const ChatBox = () => {
     setSending(true);
     
     try {
-      console.log("Sending first message to create chat...");
+      console.log("📤 Sending first message to create chat...");
       
       const response = await API.post("/chat", {
         itemId: itemId,
@@ -146,23 +187,46 @@ const ChatBox = () => {
         message: messageText
       });
 
-      console.log("Chat created:", response.data);
+      console.log("✅ Chat created:", response.data);
       
-      // Set the text input to the sent message
-      setText(messageText);
-      
-      // Refresh messages to show the new chat
-      setTimeout(fetchMessages, 1000);
-      
-      alert("Chat started! You can now continue the conversation.");
+      if (response.data?.success) {
+        // Set chat ID
+        setChatId(response.data.data?.chat?._id);
+        
+        // Add the sent message to state
+        const newMessage = response.data.data?.message;
+        if (newMessage) {
+          setMessages(prev => [...prev, {
+            _id: newMessage._id,
+            chat: newMessage.chat,
+            item: newMessage.item,
+            sender: newMessage.sender,
+            receiver: newMessage.receiver,
+            message: newMessage.message,
+            isRead: newMessage.isRead,
+            readAt: newMessage.readAt,
+            createdAt: newMessage.createdAt,
+            updatedAt: newMessage.updatedAt
+          }]);
+        }
+        
+        alert("Chat started! You can now continue the conversation.");
+      }
       
     } catch (err) {
-      console.error("Error creating chat:", err);
-      alert(err.response?.data?.message || "Failed to start chat");
+      console.error("❌ Error creating chat:", err);
+      
+      if (err.response?.status === 404) {
+        alert("Item not found. It may have been removed.");
+      } else if (err.response?.status === 400) {
+        alert("Invalid request. Please check the details.");
+      } else {
+        alert(err.response?.data?.message || "Failed to start chat");
+      }
     } finally {
       setSending(false);
     }
-  }, [itemId, getCurrentUser, itemDetails, otherUser, navigate, fetchMessages]);
+  }, [itemId, currentUser, itemDetails, navigate]);
 
   // Send message
   const sendMessage = useCallback(async (e) => {
@@ -174,7 +238,6 @@ const ChatBox = () => {
       return;
     }
 
-    const currentUser = getCurrentUser();
     if (!currentUser) {
       alert("Please log in to send messages");
       navigate("/login");
@@ -193,7 +256,8 @@ const ChatBox = () => {
       receiverName = itemDetails.owner.name || receiverName;
       
       // Check if user is trying to message themselves
-      if (receiverId.toString() === currentUser.id?.toString()) {
+      if (receiverId.toString() === currentUser.id?.toString() || 
+          receiverId.toString() === currentUser._id?.toString()) {
         alert("You cannot send messages to yourself");
         return;
       }
@@ -208,9 +272,10 @@ const ChatBox = () => {
     const tempId = `temp_${Date.now()}`;
     const newMessage = {
       _id: tempId,
+      chat: chatId,
       item: itemId,
       sender: { 
-        _id: currentUser.id || currentUser.id, 
+        _id: currentUser.id || currentUser._id, 
         name: currentUser.name || "You" 
       },
       receiver: { 
@@ -219,6 +284,7 @@ const ChatBox = () => {
       },
       message: messageText,
       createdAt: new Date().toISOString(),
+      isRead: false,
       isTemporary: true
     };
 
@@ -228,7 +294,7 @@ const ChatBox = () => {
     setSending(true);
 
     try {
-      console.log("Sending message...");
+      console.log("📤 Sending message...");
       
       const response = await API.post("/chat", {
         itemId: itemId,
@@ -236,63 +302,47 @@ const ChatBox = () => {
         message: messageText
       });
 
-      console.log("Message sent:", response.data);
+      console.log("✅ Message sent:", response.data);
       
-      // Replace temporary message with real one
-      setMessages(prev => prev.map(msg => 
-        msg._id === tempId 
-          ? { 
-              ...msg, 
-              isTemporary: false,
-              _id: response.data.data?._id || msg._id,
-              ...(response.data.data || {})
-            }
-          : msg
-      ));
-
-      // Refresh messages
-      setTimeout(fetchMessages, 500);
+      if (response.data?.success) {
+        // Replace temporary message with real one
+        const realMessage = response.data.data?.message;
+        if (realMessage) {
+          setMessages(prev => prev.map(msg => 
+            msg._id === tempId 
+              ? { 
+                  ...realMessage,
+                  message: realMessage.message
+                }
+              : msg
+          ));
+        }
+        
+        // If we got a chat ID, store it
+        if (response.data.data?.chat?._id && !chatId) {
+          setChatId(response.data.data.chat._id);
+        }
+      }
 
     } catch (err) {
-      console.error("Error sending message:", err);
+      console.error("❌ Error sending message:", err);
       
       // Remove temporary message
       setMessages(prev => prev.filter(msg => msg._id !== tempId));
       
-      alert(err.response?.data?.message || "Failed to send message");
+      if (err.response?.status === 404) {
+        alert("Item not found. It may have been removed.");
+      } else if (err.response?.status === 429) {
+        alert("Too many messages. Please wait a moment.");
+      } else {
+        alert(err.response?.data?.message || "Failed to send message");
+      }
     } finally {
       setSending(false);
     }
-  }, [text, itemId, getCurrentUser, otherUser, itemDetails, navigate, fetchMessages]);
+  }, [text, itemId, chatId, currentUser, otherUser, itemDetails, navigate]);
 
-  // Load data
-  useEffect(() => {
-    if (!itemId) {
-      setError("No item selected");
-      setLoading(false);
-      return;
-    }
-    
-    const loadData = async () => {
-      try {
-        await fetchItemDetails();
-        await fetchMessages();
-      } catch (err) {
-        console.error("Error loading chat:", err);
-      }
-    };
-
-    loadData();
-
-    // Poll for new messages
-    const interval = setInterval(fetchMessages, 5000);
-    
-    return () => {
-      clearInterval(interval);
-    };
-  }, [itemId, fetchItemDetails, fetchMessages]);
-
-  // Scroll to bottom
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -316,7 +366,58 @@ const ChatBox = () => {
     }
   };
 
-  const currentUser = getCurrentUser();
+  // Format date
+  const formatDate = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  // Group messages by date
+  const groupMessagesByDate = () => {
+    const groups = {};
+    messages.forEach(msg => {
+      const date = formatDate(msg.createdAt);
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(msg);
+    });
+    return groups;
+  };
+
+  const messageGroups = groupMessagesByDate();
+
+  // If item not found, show error message
+  if (error && error.includes("Item not found")) {
+    return (
+      <div style={{ maxWidth: "800px", margin: "100px auto", textAlign: "center" }}>
+        <div style={{ fontSize: "64px", marginBottom: "20px" }}>❌</div>
+        <h2>Item Not Found</h2>
+        <p>The item you're trying to chat about doesn't exist or has been removed.</p>
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            padding: "12px 24px",
+            background: "#4361ee",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            marginTop: "20px"
+          }}
+        >
+          Go to Home
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
@@ -345,18 +446,32 @@ const ChatBox = () => {
               height: "40px",
               borderRadius: "50%",
               cursor: "pointer",
-              fontSize: "18px"
+              fontSize: "18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
             }}
+            aria-label="Go back"
           >
             ←
           </button>
           <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0 }}>Chat</h2>
-            <p style={{ margin: "5px 0 0 0", opacity: 0.9 }}>
+            <h2 style={{ margin: 0, fontSize: "20px" }}>Chat</h2>
+            <p style={{ margin: "5px 0 0 0", opacity: 0.9, fontSize: "14px" }}>
               {itemDetails?.title || "Loading..."}
               {otherUser && ` • With ${otherUser.name}`}
             </p>
           </div>
+          {error && !error.includes("Item not found") && (
+            <div style={{
+              padding: "8px 12px",
+              background: "rgba(255,255,255,0.2)",
+              borderRadius: "6px",
+              fontSize: "13px"
+            }}>
+              ⚠️ {error}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", minHeight: "500px" }}>
@@ -396,7 +511,7 @@ const ChatBox = () => {
                       : "Be the first to send a message!"}
                   </p>
                   
-                  <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                  {itemDetails?.owner && currentUser && (
                     <button
                       onClick={() => sendFirstMessage("Hi, I'm interested in this item!")}
                       disabled={sending || !itemDetails?.owner}
@@ -405,122 +520,122 @@ const ChatBox = () => {
                         background: "#4361ee",
                         color: "white",
                         border: "none",
-                        borderRadius: "6px",
+                        borderRadius: "8px",
                         cursor: "pointer",
-                        opacity: (itemDetails?.owner && !sending) ? 1 : 0.5
+                        opacity: (itemDetails?.owner && !sending) ? 1 : 0.5,
+                        fontSize: "14px",
+                        fontWeight: "500"
                       }}
                     >
-                      {sending ? "Starting chat..." : "Say Hello 👋"}
+                      {sending ? "Starting chat..." : "Start Conversation"}
                     </button>
-                    
-                    <button
-                      onClick={() => sendFirstMessage("Is this item still available?")}
-                      disabled={sending || !itemDetails?.owner}
-                      style={{
-                        padding: "12px 24px",
-                        background: "#e9ecef",
-                        color: "#495057",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        opacity: (itemDetails?.owner && !sending) ? 1 : 0.5
-                      }}
-                    >
-                      Ask Availability
-                    </button>
-                  </div>
-                  
-                  {itemDetails?.owner && (
-                    <div style={{ 
-                      marginTop: "20px", 
-                      padding: "12px",
-                      background: "#eef2ff",
-                      borderRadius: "8px",
-                      fontSize: "14px"
-                    }}>
-                      <p style={{ margin: "0 0 5px 0", fontWeight: "500" }}>Chatting with:</p>
-                      <p style={{ margin: 0 }}>
-                        <strong>{itemDetails.owner.name}</strong>
-                        {itemDetails.owner.email && ` (${itemDetails.owner.email})`}
-                      </p>
-                    </div>
                   )}
                 </div>
               ) : (
                 <>
-                  {messages.map((message, index) => {
-                    {console.log("Message object:", message)}
-                    const isCurrentUser = currentUser && 
-                      message.sender?._id?.toString() === currentUser.id?.toString();
-                    const isTemporary = message.isTemporary;
-                    
-                    return (
-                      <div 
-                        key={message._id || index}
-                        style={{ 
-                          marginBottom: "10px",
-                          opacity: isTemporary ? 0.7 : 1
-                        }}
-                      >
-                        <div style={{ 
-                          display: "flex", 
-                          justifyContent: isCurrentUser ? "flex-end" : "flex-start"
+                  {Object.entries(messageGroups).map(([date, dateMessages]) => (
+                    <div key={date}>
+                      <div style={{
+                        textAlign: "center",
+                        margin: "15px 0",
+                        position: "relative"
+                      }}>
+                        <div style={{
+                          display: "inline-block",
+                          padding: "5px 15px",
+                          background: "#e9ecef",
+                          borderRadius: "20px",
+                          fontSize: "12px",
+                          color: "#6c757d",
+                          fontWeight: "500"
                         }}>
-                          <div style={{
-                            maxWidth: "70%",
-                            background: isCurrentUser ? "#4361ee" : "white",
-                            color: isCurrentUser ? "white" : "#212529",
-                            padding: "10px 15px",
-                            borderRadius: isCurrentUser 
-                              ? "15px 15px 5px 15px" 
-                              : "15px 15px 15px 5px",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-                          }}>
-                            {!isCurrentUser && message.sender?.name && (
-                              <div style={{
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                marginBottom: "4px",
-                                opacity: 0.8
-                              }}>
-                                {message.sender.name}
-                              </div>
-                            )}
-                            
-                            <p style={{ margin: 0, lineHeight: 1.4, fontSize: "14px" }}>
-                              {message.message}
-                              {isTemporary && (
-                                <span style={{ marginLeft: "8px", fontSize: "11px", opacity: 0.7 }}>
-                                  (sending...)
-                                </span>
-                              )}
-                            </p>
-                            <div style={{
-                              fontSize: "11px",
-                              opacity: 0.8,
-                              marginTop: "5px",
-                              textAlign: "right"
-                            }}>
-                              {formatTime(message.createdAt)}
-                            </div>
-                          </div>
+                          {date}
                         </div>
                       </div>
-                    );
-                  })}
+                      {dateMessages.map((message) => {
+                        const isCurrentUser = currentUser && 
+                          message.sender?._id?.toString() === (currentUser.id || currentUser._id)?.toString();
+                        const isTemporary = message.isTemporary;
+                        
+                        return (
+                          <div 
+                            key={message._id}
+                            style={{ 
+                              marginBottom: "10px",
+                              opacity: isTemporary ? 0.7 : 1
+                            }}
+                          >
+                            <div style={{ 
+                              display: "flex", 
+                              justifyContent: isCurrentUser ? "flex-end" : "flex-start"
+                            }}>
+                              <div style={{
+                                maxWidth: "70%",
+                                background: isCurrentUser ? "#4361ee" : "white",
+                                color: isCurrentUser ? "white" : "#212529",
+                                padding: "10px 15px",
+                                borderRadius: isCurrentUser 
+                                  ? "15px 15px 5px 15px" 
+                                  : "15px 15px 15px 5px",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+                              }}>
+                                {!isCurrentUser && message.sender?.name && (
+                                  <div style={{
+                                    fontSize: "12px",
+                                    fontWeight: "600",
+                                    marginBottom: "4px",
+                                    opacity: 0.8
+                                  }}>
+                                    {message.sender.name}
+                                  </div>
+                                )}
+                                
+                                <p style={{ 
+                                  margin: 0, 
+                                  lineHeight: 1.4, 
+                                  fontSize: "14px",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word"
+                                }}>
+                                  {message.message || ""}
+                                  {isTemporary && (
+                                    <span style={{ 
+                                      marginLeft: "8px", 
+                                      fontSize: "11px", 
+                                      opacity: 0.7 
+                                    }}>
+                                      (sending...)
+                                    </span>
+                                  )}
+                                </p>
+                                <div style={{
+                                  fontSize: "11px",
+                                  opacity: 0.8,
+                                  marginTop: "5px",
+                                  textAlign: "right"
+                                }}>
+                                  {formatTime(message.createdAt)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                   <div ref={messagesEndRef} />
                 </>
               )}
             </div>
 
             {/* Input - Only show if we have messages or otherUser is identified */}
-            {(messages.length > 0 || otherUser) && (
+            {(messages.length > 0 || otherUser) && !error && (
               <div style={{ 
                 padding: "15px 20px", 
                 borderTop: "1px solid #e0e0e0",
                 background: "white"
               }}>
-                <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px" }}>
+                <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                   <input
                     type="text"
                     placeholder={
@@ -538,6 +653,7 @@ const ChatBox = () => {
                       fontSize: "14px"
                     }}
                     disabled={!otherUser || sending}
+                    aria-label="Type your message"
                   />
                   <button
                     type="submit"
@@ -549,8 +665,11 @@ const ChatBox = () => {
                       border: "none",
                       borderRadius: "8px",
                       cursor: "pointer",
-                      opacity: (otherUser && text.trim() && !sending) ? 1 : 0.5
+                      opacity: (otherUser && text.trim() && !sending) ? 1 : 0.5,
+                      fontSize: "14px",
+                      fontWeight: "500"
                     }}
+                    aria-label="Send message"
                   >
                     {sending ? "Sending..." : "Send"}
                   </button>
@@ -564,9 +683,11 @@ const ChatBox = () => {
             width: "300px", 
             borderLeft: "1px solid #e0e0e0",
             padding: "20px",
-            background: "white"
+            background: "white",
+            display: "flex",
+            flexDirection: "column"
           }}>
-            <h3 style={{ marginBottom: "15px" }}>Item Details</h3>
+            <h3 style={{ marginBottom: "15px", fontSize: "18px" }}>Item Details</h3>
             
             {itemDetails ? (
               <>
@@ -584,8 +705,18 @@ const ChatBox = () => {
                   />
                 )}
                 
-                <h4 style={{ marginBottom: "8px" }}>{itemDetails.title}</h4>
-                <p style={{ color: "#6c757d", fontSize: "14px", marginBottom: "15px" }}>
+                <h4 style={{ 
+                  marginBottom: "8px", 
+                  fontSize: "16px"
+                }}>
+                  {itemDetails.title}
+                </h4>
+                <p style={{ 
+                  color: "#6c757d", 
+                  fontSize: "14px", 
+                  marginBottom: "15px",
+                  lineHeight: 1.5
+                }}>
                   {itemDetails.description?.substring(0, 100)}
                   {itemDetails.description?.length > 100 && "..."}
                 </p>
@@ -602,7 +733,7 @@ const ChatBox = () => {
                     padding: "12px",
                     background: "#f8f9fa",
                     borderRadius: "8px",
-                    marginTop: "20px"
+                    marginTop: "auto"
                   }}>
                     <p style={{ margin: "0 0 5px 0", fontSize: "13px", color: "#6c757d" }}>Item Owner</p>
                     <p style={{ margin: 0, fontWeight: "500" }}>
@@ -616,7 +747,7 @@ const ChatBox = () => {
                   </div>
                 )}
               </>
-            ) : (
+            ) : !error ? (
               <div style={{ textAlign: "center", padding: "30px 20px" }}>
                 <div style={{ 
                   width: "30px", 
@@ -631,7 +762,7 @@ const ChatBox = () => {
                   Loading item...
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

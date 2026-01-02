@@ -36,7 +36,7 @@ class NotificationService {
   static async populateNotification(notificationId) {
     try {
       const notification = await Notification.findById(notificationId)
-        .populate('relatedItem', 'title image price')
+        .populate('relatedItem', 'title images price')
         .populate('relatedUser', 'name email profilePicture')
         .populate('user', 'name email');
       
@@ -66,6 +66,7 @@ class NotificationService {
         title: 'Item Approved 🎉',
         message: `Your item "${itemTitle}" has been approved and is now visible to everyone.`,
         relatedItem: itemId,
+        link: `/item/${itemId}`, // Link to item page
         isRead: false
       });
     } catch (error) {
@@ -88,6 +89,7 @@ class NotificationService {
         title: 'Item Needs Changes ⚠️',
         message: `Your item "${itemTitle}" requires changes. Reason: ${reason}`,
         relatedItem: itemId,
+        link: `/item/${itemId}/edit`, // Link to edit item page
         isRead: false
       });
     } catch (error) {
@@ -96,36 +98,65 @@ class NotificationService {
     }
   }
   
-  // Send new message notification
-  static async notifyNewMessage(receiverId, senderId, senderName, messagePreview) {
-    try {
-      if (!receiverId || !senderId || !senderName) {
-        console.error('❌ Missing parameters for notifyNewMessage');
-        return null;
-      }
-      
-      const preview = messagePreview || 'New message received';
-      
-      return await this.create({
-        user: receiverId,
-        type: 'message',
-        title: `New Message from ${senderName} ✉️`,
-        message: preview.length > 50 
-          ? `${preview.substring(0, 50)}...` 
-          : preview,
-        relatedUser: senderId,
-        isRead: false
-      });
-    } catch (error) {
-      console.error('❌ Error in notifyNewMessage:', error.message);
+  // Send new message notification - FIXED: Added itemId parameter
+  static async notifyNewMessage(receiverId, senderId, senderName, messagePreview, itemId) {
+  try {
+    if (!receiverId || !senderId || !senderName) {
+      console.error('❌ Missing parameters for notifyNewMessage');
       return null;
     }
+    
+    // CRITICAL: ItemId is required for chat notifications
+    if (!itemId) {
+      console.error('❌ notifyNewMessage called without itemId! This will break chat links!');
+      console.error('Parameters:', { receiverId, senderId, senderName, messagePreview, itemId });
+      // Still create notification but it won't have proper chat link
+    }
+    
+    const preview = messagePreview || 'New message received';
+    
+    const notificationData = {
+      user: receiverId,
+      type: 'message',
+      title: `New Message from ${senderName} ✉️`,
+      message: preview.length > 50 
+        ? `${preview.substring(0, 50)}...` 
+        : preview,
+      relatedUser: senderId,
+      isRead: false
+    };
+    
+    // Store itemId in multiple places for reliability
+    if (itemId) {
+      notificationData.relatedItem = itemId;
+      notificationData.data = {
+        itemId: itemId,
+        senderId: senderId,
+        notificationType: 'chat_message'
+      };
+    }
+    
+    // Always link to chats list, not specific chat (safer)
+    notificationData.link = '/chats';
+    
+    console.log('✅ Creating notification with data:', {
+      receiverId,
+      senderName,
+      itemId,
+      link: notificationData.link
+    });
+    
+    return await this.create(notificationData);
+  } catch (error) {
+    console.error('❌ Error in notifyNewMessage:', error);
+    return null;
   }
+}
   
   // Send barter request notification
-  static async notifyBarterRequest(receiverId, senderId, senderName, itemTitle) {
+  static async notifyBarterRequest(receiverId, senderId, senderName, itemTitle, itemId) {
     try {
-      if (!receiverId || !senderId || !senderName || !itemTitle) {
+      if (!receiverId || !senderId || !senderName || !itemTitle || !itemId) {
         console.error('❌ Missing parameters for notifyBarterRequest');
         return null;
       }
@@ -136,6 +167,8 @@ class NotificationService {
         title: 'New Barter Request 🔄',
         message: `${senderName} wants to barter for your "${itemTitle}"`,
         relatedUser: senderId,
+        relatedItem: itemId,
+        link: `/barter/${itemId}`, // Link to barter page
         isRead: false
       });
     } catch (error) {
@@ -152,14 +185,25 @@ class NotificationService {
         return null;
       }
       
-      return await this.create({
+      const notificationData = {
         user: userId,
         type: 'system',
         title: title,
         message: message,
-        data: data,
         isRead: false
-      });
+      };
+      
+      // Add link if provided in data
+      if (data.link) {
+        notificationData.link = data.link;
+      }
+      
+      // Add additional data
+      if (Object.keys(data).length > 0) {
+        notificationData.data = data;
+      }
+      
+      return await this.create(notificationData);
     } catch (error) {
       console.error('❌ Error in notifySystem:', error.message);
       return null;
@@ -186,6 +230,7 @@ class NotificationService {
         type: 'system',
         title: 'Welcome to StudyReuse! 🎓',
         message: `Welcome ${user.name}! Thanks for joining our community. Start by browsing items or listing your own study materials!`,
+        link: '/', // Link to home page
         isRead: false
       });
     } catch (error) {
@@ -206,7 +251,7 @@ class NotificationService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('relatedItem', 'title image price')
+        .populate('relatedItem', 'title images price')
         .populate('relatedUser', 'name email profilePicture')
         .populate('user', 'name email');
       
@@ -229,7 +274,7 @@ class NotificationService {
         { _id: notificationId, user: userId },
         { isRead: true },
         { new: true }
-      ).populate('relatedItem', 'title image price')
+      ).populate('relatedItem', 'title images price')
        .populate('relatedUser', 'name email profilePicture');
       
       return notification;
@@ -301,6 +346,25 @@ class NotificationService {
       return count;
     } catch (error) {
       console.error('❌ Error in getUnreadCount:', error.message);
+      return 0;
+    }
+  }
+  
+  // Clean up old notifications (optional utility)
+  static async cleanupOldNotifications(daysOld = 30) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+      
+      const result = await Notification.deleteMany({
+        createdAt: { $lt: cutoffDate },
+        isRead: true
+      });
+      
+      console.log(`🧹 Cleaned up ${result.deletedCount} old notifications`);
+      return result.deletedCount;
+    } catch (error) {
+      console.error('❌ Error in cleanupOldNotifications:', error.message);
       return 0;
     }
   }

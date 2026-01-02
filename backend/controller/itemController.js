@@ -1,7 +1,6 @@
-const path = require('path');
-const fs = require('fs');
 const Item = require('../models/itemModel');
 const jwt = require('jsonwebtoken');
+const cloudinary = require('../config/cloudinary');
 const NotificationService = require('../services/notificationService');
 
 // ======================
@@ -21,7 +20,6 @@ function verifyToken(req) {
     
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
-    console.error('Token verification failed:', error.message);
     throw error;
   }
 }
@@ -48,7 +46,6 @@ function validateItemData(data) {
     errors.push('Category is required');
   }
   
-  // Validate condition if provided
   const validConditions = ['new', 'like_new', 'good', 'fair', 'needs_repair'];
   if (data.condition && !validConditions.includes(data.condition)) {
     errors.push(`Condition must be one of: ${validConditions.join(', ')}`);
@@ -58,26 +55,30 @@ function validateItemData(data) {
 }
 
 /**
- * Delete image file from uploads folder
+ * Delete image from Cloudinary
  */
-async function deleteImageFile(imagePath) {
+async function deleteCloudinaryImage(imageUrl) {
   try {
-    if (imagePath && imagePath.startsWith('/uploads/')) {
-      const filename = path.basename(imagePath);
-      const fullPath = path.join(__dirname, '..', 'uploads', filename);
-      
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
-        console.log(`🗑️ Deleted image file: ${filename}`);
-        return true;
-      } else {
-        console.log(`⚠️ Image file not found: ${filename}`);
-        return false;
-      }
+    if (!imageUrl || !imageUrl.includes('cloudinary.com')) {
+      return false;
     }
-    return false;
+    
+    // Extract public_id from Cloudinary URL
+    const urlParts = imageUrl.split('/');
+    const filename = urlParts[urlParts.length - 1];
+    const publicIdWithFolder = `study-reuse/${filename.split('.')[0]}`;
+    
+    const result = await cloudinary.uploader.destroy(publicIdWithFolder);
+    
+    if (result.result === 'ok') {
+      console.log(`✅ Deleted Cloudinary image: ${publicIdWithFolder}`);
+      return true;
+    } else {
+      console.log(`⚠️ Failed to delete Cloudinary image: ${result.result}`);
+      return false;
+    }
   } catch (error) {
-    console.error('Error deleting image file:', error.message);
+    console.error('❌ Error deleting Cloudinary image:', error.message);
     return false;
   }
 }
@@ -86,32 +87,24 @@ async function deleteImageFile(imagePath) {
  * Build item query based on user role
  */
 function buildItemQuery(userData) {
+  // For ALL users (including logged-in), show only approved items
+  const query = { isApproved: true, isFlagged: false };
+  
+  // Only exception: Admins can see all items
   if (userData?.role === 'admin') {
-    return {}; // Admins see all items
+    return {};
   }
   
-  if (userData) {
-    return { 
-      $or: [
-        { isApproved: true, isFlagged: false },
-        { owner: userData.id } // Users can see their own items even if not approved
-      ]
-    };
-  }
-  
-  // Non-logged in users see only approved, non-flagged items
-  return { isApproved: true, isFlagged: false };
+  return query;
 }
 
 /**
- * Add full image URL to items
+ * Add image URLs to items (Cloudinary URLs are already full URLs)
  */
-function addImageURLs(items, req) {
+function addImageURLs(items) {
   return items.map(item => ({
     ...item.toObject ? item.toObject() : item,
-    imageURL: item.image 
-      ? `${req.protocol}://${req.get('host')}${item.image}`
-      : null
+    imageURL: item.image || null // Cloudinary URLs are already full URLs
   }));
 }
 
@@ -124,19 +117,15 @@ function addImageURLs(items, req) {
  */
 exports.getAllItems = async (req, res) => {
   try {
-    // console.log('📋 GET /items - Fetching all items');
-    
     let userData = null;
     try {
       userData = verifyToken(req);
-      // console.log(`👤 User authenticated: ${userData.id} (${userData.role})`);
     } catch (err) {
-      console.log('👤 No user authenticated');
+      // Not authenticated - this is fine
     }
     
     // Build query based on user role
     const query = buildItemQuery(userData);
-    // console.log('🔍 Query:', query);
     
     // Get items with pagination
     const { page = 1, limit = 20, category, condition, minPrice, maxPrice, sort = '-createdAt' } = req.query;
@@ -158,10 +147,8 @@ exports.getAllItems = async (req, res) => {
     // Get total count for pagination
     const total = await Item.countDocuments(query);
     
-    // Add image URLs
-    const itemsWithURL = addImageURLs(items, req);
-    
-    // console.log(`✅ Found ${items.length} items`);
+    // Add image URLs (Cloudinary URLs are already full)
+    const itemsWithURL = addImageURLs(items);
     
     res.json({
       success: true,
@@ -193,10 +180,7 @@ exports.getAllItems = async (req, res) => {
  */
 exports.getMyItems = async (req, res) => {
   try {
-    // console.log('📋 GET /items/my - Fetching user items');
-    
     const userData = verifyToken(req);
-    // console.log(`👤 User: ${userData.id}`);
     
     const { page = 1, limit = 20, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -220,9 +204,7 @@ exports.getMyItems = async (req, res) => {
     const total = await Item.countDocuments(query);
     
     // Add image URLs
-    const itemsWithURL = addImageURLs(items, req);
-    
-    // console.log(`✅ Found ${items.length} items for user ${userData.id}`);
+    const itemsWithURL = addImageURLs(items);
     
     res.json({
       success: true,
@@ -256,55 +238,44 @@ exports.getMyItems = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Error fetching your items', 
-      error: err.message 
+      message: 'Error fetching your items'
     });
   }
 };
 
 /**
- * Get single item by ID - FIXED VERSION (403 Issue Resolved)
+ * Get single item by ID
  */
 exports.getItemById = async (req, res) => {
   try {
     const { id } = req.params;
-    //console.log(`📋 GET /items/${id} - Fetching item details`);
     
     const item = await Item.findById(id)
       .populate('owner', 'name email profilePicture phone');
     
     if (!item) {
-      console.log(`❌ Item ${id} not found`);
       return res.status(404).json({ 
         success: false,
         message: 'Item not found' 
       });
     }
     
-    // FIXED: Check if user can view the item
+    // Check if user can view the item
     let canView = true;
     let userData = null;
     
     try {
       userData = verifyToken(req);
-      //console.log(`👤 Authenticated user: ${userData.id} (${userData.role})`);
       
-      // User is authenticated - can view if:
-      // 1. They are admin OR
-      // 2. They are the owner OR  
-      // 3. The item is approved and not flagged
       canView = userData.role === 'admin' || 
                 userData.id === item.owner._id.toString() || 
                 (item.isApproved && !item.isFlagged);
     } catch (err) {
       // Not logged in - can only view approved, non-flagged items
-      console.log('👤 Not authenticated - checking public access');
       canView = item.isApproved && !item.isFlagged;
     }
     
     if (!canView) {
-      console.log(`⛔ Access denied for item ${id}`);
-      console.log(`   Item status: approved=${item.isApproved}, flagged=${item.isFlagged}`);
       return res.status(403).json({ 
         success: false,
         message: item.isApproved === false 
@@ -315,42 +286,14 @@ exports.getItemById = async (req, res) => {
       });
     }
     
-    // Add image URL
+    // Cloudinary URL is already full URL
     const itemWithURL = {
-  ...item.toObject ? item.toObject() : item, // Ensure we get plain object
-  imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null,
-  canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
-  canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
-};
+      ...item.toObject ? item.toObject() : item,
+      imageURL: item.image || null,
+      canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
+      canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
+    };
     
-//     console.log(`✅ Item ${id} fetched successfully:`, {
-//   title: itemWithURL.title,
-//   isApproved: itemWithURL.isApproved,
-//   imageURL: itemWithURL.imageURL
-// });
-    // Add this debugging code BEFORE the res.json()
-// console.log('🔍 DEBUG - Item data structure:', {
-//   itemId: item._id,
-//   title: item.title,
-//   isApproved: item.isApproved,
-//   isFlagged: item.isFlagged,
-//   image: item.image,
-//   imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null,
-//   itemWithURL: {
-//     ...item.toObject(),
-//     imageURL: item.image ? `${req.protocol}://${req.get('host')}${item.image}` : null
-//   }
-// });
-
-// console.log('🔍 DEBUG - Final response data structure:', {
-//   success: true,
-//   message: 'Item fetched successfully',
-//   data: {
-//     ...itemWithURL,
-//     canEdit: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false,
-//     canDelete: userData ? (userData.role === 'admin' || userData.id === item.owner._id.toString()) : false
-//   }
-// });
     res.json({
       success: true,
       message: 'Item fetched successfully',
@@ -369,34 +312,22 @@ exports.getItemById = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Error fetching item', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error fetching item'
     });
   }
 };
 
 /**
- * Create new item with image upload
+ * Create new item with Cloudinary image upload
  */
 exports.createItem = async (req, res) => {
   try {
-    console.log('📋 POST /items - Creating new item');
-    
     const userData = verifyToken(req);
-    console.log(`👤 Creating item for user: ${userData.id} (${userData.role})`);
-    
     const { title, description, price, category, condition = 'good' } = req.body;
-    
-    console.log('📦 Request data:', {
-      hasFile: !!req.file,
-      file: req.file ? req.file.originalname : 'none',
-      body: { title, category, price, condition }
-    });
     
     // Validate required fields
     const validationErrors = validateItemData({ title, description, price, category, condition });
     if (validationErrors.length > 0) {
-      console.log('❌ Validation errors:', validationErrors);
       return res.status(400).json({ 
         success: false,
         message: 'Validation failed',
@@ -406,59 +337,37 @@ exports.createItem = async (req, res) => {
     
     // Check for uploaded image
     if (!req.file) {
-      console.log('❌ No image uploaded');
       return res.status(400).json({ 
         success: false,
         message: 'Please upload an image of the item' 
       });
     }
     
-    // Log file details
-    const file = req.file;
-    console.log('📸 File uploaded:', {
-      filename: file.filename,
-      originalname: file.originalname,
-      size: `${(file.size / 1024).toFixed(2)}KB`,
-      mimetype: file.mimetype
-    });
-    
-    // Create image path
-    const imagePath = `/uploads/${file.filename}`;
+    // Cloudinary provides the URL in req.file.path
+    const cloudinaryUrl = req.file.path;
     const isAutoApproved = userData.role === 'admin';
     
-    console.log('💾 Creating item with data:', {
-      title: title.trim(),
-      price: parseFloat(price),
-      category,
-      condition,
-      imagePath,
-      owner: userData.id,
-      isApproved: isAutoApproved
-    });
-    
-    // Create item in database
+    // Create item in database with Cloudinary URL
     const newItem = await Item.create({
       title: title.trim(),
       description: description.trim(),
       price: parseFloat(price),
       category,
       condition,
-      image: imagePath,
+      image: cloudinaryUrl, // Cloudinary URL
       owner: userData.id,
       isApproved: isAutoApproved,
       isFlagged: false,
       approvedAt: isAutoApproved ? new Date() : null
     });
     
-    // Add image URL
+    // Add image URL (already full URL from Cloudinary)
     const itemWithURL = {
       ...newItem.toObject(),
-      imageURL: `${req.protocol}://${req.get('host')}${newItem.image}`
+      imageURL: cloudinaryUrl
     };
     
-    console.log(`✅ Item created: ${newItem._id} - "${newItem.title}"`);
-    
-    // Send notification if auto-approved (for admins)
+    // Send notification if auto-approved
     if (isAutoApproved && NotificationService) {
       try {
         await NotificationService.notifyItemApproved(
@@ -466,12 +375,9 @@ exports.createItem = async (req, res) => {
           newItem._id,
           newItem.title
         );
-        console.log(`📨 Sent approval notification for item ${newItem._id}`);
       } catch (notifError) {
         console.error('Failed to send notification:', notifError);
       }
-    } else if (!isAutoApproved) {
-      console.log(`📋 Item ${newItem._id} is pending admin approval`);
     }
     
     res.status(201).json({
@@ -485,7 +391,6 @@ exports.createItem = async (req, res) => {
   } catch (err) {
     console.error('❌ Error creating item:', err);
     
-    // Handle specific errors
     if (err.message === 'Missing token') {
       return res.status(401).json({ 
         success: false,
@@ -493,36 +398,147 @@ exports.createItem = async (req, res) => {
       });
     }
     
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ 
-        success: false,
-        message: 'File size must be less than 5MB' 
-      });
-    }
-    
-    if (err.message && err.message.includes('Only image files')) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Only image files (JPG, PNG, GIF, WEBP) are allowed' 
-      });
-    }
-    
     res.status(500).json({ 
       success: false,
-      message: 'Error creating item', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error creating item'
     });
   }
 };
 
 /**
- * Update existing item
+ * Admin: Approve item
+ */
+exports.approveItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const userData = verifyToken(req);
+    
+    // Check if user is admin
+    if (userData.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const item = await Item.findByIdAndUpdate(
+      id,
+      { 
+        isApproved: true,
+        isFlagged: false,
+        approvedAt: new Date(),
+        flagReason: null
+      },
+      { new: true }
+    ).populate('owner', 'name email');
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+    
+    // Send notification to owner
+    if (NotificationService) {
+      try {
+        await NotificationService.notifyItemApproved(
+          item.owner._id,
+          item._id,
+          item.title
+        );
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Item approved successfully',
+      data: item
+    });
+    
+  } catch (err) {
+    console.error('❌ Error approving item:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error approving item'
+    });
+  }
+};
+
+/**
+ * Admin: Reject/Flag item
+ */
+exports.rejectItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    const userData = verifyToken(req);
+    
+    // Check if user is admin
+    if (userData.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const item = await Item.findByIdAndUpdate(
+      id,
+      { 
+        isApproved: false,
+        isFlagged: true,
+        flagReason: reason,
+        approvedAt: null
+      },
+      { new: true }
+    ).populate('owner', 'name email');
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+    
+    // Send notification to owner
+    if (NotificationService) {
+      try {
+        await NotificationService.notifyItemRejected(
+          item.owner._id,
+          item._id,
+          item.title,
+          reason || 'No reason provided'
+        );
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Item rejected successfully',
+      data: item
+    });
+    
+  } catch (err) {
+    console.error('❌ Error rejecting item:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting item'
+    });
+  }
+};
+
+/**
+ * Update existing item with Cloudinary image handling
  */
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`📋 PUT /items/${id} - Updating item`);
-    
     const userData = verifyToken(req);
     const { title, description, price, category, condition } = req.body;
     
@@ -540,14 +556,11 @@ exports.updateItem = async (req, res) => {
     const isAdmin = userData.role === 'admin';
     
     if (!isOwner && !isAdmin) {
-      console.log(`⛔ User ${userData.id} not authorized to update item ${id}`);
       return res.status(403).json({ 
         success: false,
         message: 'Not authorized to update this item' 
       });
     }
-    
-    console.log(`👤 User ${userData.id} authorized to update (owner: ${isOwner}, admin: ${isAdmin})`);
     
     // Validate data
     const validationErrors = validateItemData({ 
@@ -567,15 +580,15 @@ exports.updateItem = async (req, res) => {
     }
     
     // Handle image update if new file uploaded
-    let imagePath = item.image;
+    let imageUrl = item.image;
     if (req.file) {
-      console.log('📸 New image uploaded:', req.file.filename);
+      // Delete old Cloudinary image if exists
+      if (item.image && item.image.includes('cloudinary.com')) {
+        await deleteCloudinaryImage(item.image);
+      }
       
-      // Delete old image
-      await deleteImageFile(item.image);
-      
-      // Set new image path
-      imagePath = `/uploads/${req.file.filename}`;
+      // Set new Cloudinary URL
+      imageUrl = req.file.path;
     }
     
     // Update item
@@ -585,7 +598,7 @@ exports.updateItem = async (req, res) => {
       price: price ? parseFloat(price) : item.price,
       category: category || item.category,
       condition: condition || item.condition,
-      image: imagePath,
+      image: imageUrl,
       // Reset approval if non-admin user updates the item
       ...(userData.role !== 'admin' && { 
         isApproved: false,
@@ -599,19 +612,11 @@ exports.updateItem = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('owner', 'name email');
     
-    // Add image URL
+    // Add image URL (already full URL from Cloudinary)
     const itemWithURL = {
       ...updatedItem.toObject(),
-      imageURL: updatedItem.image ? `${req.protocol}://${req.get('host')}${updatedItem.image}` : null
+      imageURL: updatedItem.image || null
     };
-    
-    console.log(`✅ Item ${id} updated successfully`);
-    
-    // Send notification if item needs re-approval
-    if (userData.role !== 'admin') {
-      console.log(`📋 Item ${id} needs admin re-approval`);
-      // You could send a notification to admins here
-    }
     
     res.json({
       success: true,
@@ -633,21 +638,18 @@ exports.updateItem = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Error updating item', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error updating item'
     });
   }
 };
 
 /**
- * Update item status (Available/Sold/Under Negotiation/Unavailable)
+ * Update item status
  */
 exports.updateItemStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    
-    console.log(`📋 PATCH /items/${id}/status - Updating status to: ${status}`);
     
     const userData = verifyToken(req);
     
@@ -665,14 +667,11 @@ exports.updateItemStatus = async (req, res) => {
     const isAdmin = userData.role === 'admin';
     
     if (!isOwner && !isAdmin) {
-      console.log(`⛔ User ${userData.id} not authorized to update status of item ${id}`);
       return res.status(403).json({ 
         success: false,
         message: 'Not authorized to update status of this item' 
       });
     }
-    
-    console.log(`👤 User ${userData.id} authorized (owner: ${isOwner}, admin: ${isAdmin})`);
     
     // Validate status
     const validStatuses = ['Available', 'Sold', 'Under Negotiation', 'Unavailable'];
@@ -691,21 +690,12 @@ exports.updateItemStatus = async (req, res) => {
     if (status === 'Sold' && item.isApproved) {
       item.isApproved = false;
       item.approvedAt = null;
-      console.log(`📝 Item ${id} marked as sold - auto-unapproved`);
-    }
-    
-    // If item becomes available again and is not flagged, keep approval status
-    // (admin might need to re-approve if it was sold before)
-    if (status === 'Available' && !item.isFlagged) {
-      // Keep current approval status
     }
     
     await item.save();
     
     // Populate owner info for response
     const updatedItem = await Item.findById(id).populate('owner', 'name email');
-    
-    console.log(`✅ Item ${id} status updated to: ${status}`);
     
     res.json({
       success: true,
@@ -725,27 +715,22 @@ exports.updateItemStatus = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Error updating item status', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error updating item status'
     });
   }
 };
 
 /**
- * Delete item
+ * Delete item with Cloudinary image cleanup
  */
 exports.deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`📋 DELETE /items/${id} - Deleting item`);
-    
     const userData = verifyToken(req);
-    console.log(`👤 User: ${userData.id} (${userData.role})`);
     
     // Find item
     const item = await Item.findById(id);
     if (!item) {
-      console.log(`❌ Item ${id} not found`);
       return res.status(404).json({ 
         success: false,
         message: 'Item not found' 
@@ -757,30 +742,24 @@ exports.deleteItem = async (req, res) => {
     const isAdmin = userData.role === 'admin';
     
     if (!isOwner && !isAdmin) {
-      console.log(`⛔ User ${userData.id} not authorized to delete item ${id}`);
       return res.status(403).json({ 
         success: false,
         message: 'Not authorized to delete this item' 
       });
     }
     
-    console.log(`👤 Authorization: owner=${isOwner}, admin=${isAdmin}`);
-    
-    // Delete image file
-    const imageDeleted = await deleteImageFile(item.image);
+    // Delete image from Cloudinary if it exists there
+    if (item.image && item.image.includes('cloudinary.com')) {
+      await deleteCloudinaryImage(item.image);
+    }
     
     // Delete item from database
     await Item.findByIdAndDelete(id);
     
-    console.log(`✅ Item ${id} deleted successfully (image deleted: ${imageDeleted})`);
-    
     res.json({
       success: true,
       message: 'Item deleted successfully',
-      data: {
-        deletedId: id,
-        imageDeleted
-      }
+      data: { deletedId: id }
     });
     
   } catch (err) {
@@ -802,8 +781,7 @@ exports.deleteItem = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Error deleting item', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error deleting item'
     });
   }
 };
@@ -815,14 +793,16 @@ exports.searchItems = async (req, res) => {
   try {
     const { q, category, minPrice, maxPrice, condition, sort = 'relevance' } = req.query;
     
-    console.log('🔍 Searching items:', { q, category, minPrice, maxPrice, condition });
-    
     // Build search query
     const query = { isApproved: true, isFlagged: false };
     
     // Text search
     if (q) {
-      query.$text = { $search: q };
+      query.$or = [
+        { title: { $regex: q, $options: "i" } },
+        { description: { $regex: q, $options: "i" } },
+        { category: { $regex: q, $options: "i" } }
+      ];
     }
     
     // Filters
@@ -850,7 +830,7 @@ exports.searchItems = async (req, res) => {
         sortOption = { createdAt: 1 };
         break;
       default:
-        sortOption = q ? { score: { $meta: 'textScore' } } : { createdAt: -1 };
+        sortOption = { createdAt: -1 };
     }
     
     // Execute search
@@ -860,9 +840,7 @@ exports.searchItems = async (req, res) => {
       .limit(50);
     
     // Add image URLs
-    const itemsWithURL = addImageURLs(items, req);
-    
-    console.log(`✅ Found ${items.length} items matching search`);
+    const itemsWithURL = addImageURLs(items);
     
     res.json({
       success: true,
@@ -878,8 +856,7 @@ exports.searchItems = async (req, res) => {
     console.error('❌ Error searching items:', err);
     res.status(500).json({ 
       success: false,
-      message: 'Error searching items', 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Error searching items'
     });
   }
 };

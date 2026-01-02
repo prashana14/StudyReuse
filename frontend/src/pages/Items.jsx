@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import API from "../services/api";
+import apiService from "../services/api"; // CHANGED: Import apiService
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ItemCard from "../components/ItemCard";
 
@@ -45,27 +45,40 @@ const Items = () => {
       setLoading(true);
       setError("");
       
-      const res = await API.get("/items");
+      // 🔥 CHANGED: Use apiService.items.getAll()
+      const response = await apiService.items.getAll();
+      console.log("Items API Response:", response.data);
       
       // Extract items from response
       let itemsArray = [];
       
-      if (res.data?.data?.items && Array.isArray(res.data.data.items)) {
-        itemsArray = res.data.data.items;
-      } else if (Array.isArray(res.data)) {
-        itemsArray = res.data;
-      } else if (res.data?.items && Array.isArray(res.data.items)) {
-        itemsArray = res.data.items;
-      } else if (res.data?.data && Array.isArray(res.data.data)) {
-        itemsArray = res.data.data;
+      if (response.data?.data?.items && Array.isArray(response.data.data.items)) {
+        itemsArray = response.data.data.items;
+      } else if (Array.isArray(response.data)) {
+        itemsArray = response.data;
+      } else if (response.data?.items && Array.isArray(response.data.items)) {
+        itemsArray = response.data.items;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        itemsArray = response.data.data;
+      } else if (response.data && Array.isArray(response.data)) {
+        itemsArray = response.data;
       }
       
-      setItems(itemsArray);
-      setFilteredItems(itemsArray);
+      console.log(`Found ${itemsArray.length} items`);
+      
+      // 🔥 FIX: Ensure Cloudinary URLs are available
+      const itemsWithImageURL = itemsArray.map(item => ({
+        ...item,
+        // Ensure we have the Cloudinary URL
+        imageURL: item.imageURL || item.image || null
+      }));
+      
+      setItems(itemsWithImageURL);
+      setFilteredItems(itemsWithImageURL);
       
     } catch (err) {
-      console.error("Error fetching all items:", err);
-      setError("Could not load items. Please try again.");
+      console.error("❌ Error fetching all items:", err);
+      setError(err.response?.data?.message || "Could not load items. Please try again.");
       setItems([]);
       setFilteredItems([]);
     } finally {
@@ -76,62 +89,57 @@ const Items = () => {
   // Get unique categories
   const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
   
-  // Get unique conditions - FIXED VERSION WITH ERROR HANDLING
-// ===== REPLACE ALL CONDITIONS CODE WITH THIS =====
-
-// Get condition options for filter dropdown
-const conditionOptions = (() => {
-  // Try to extract conditions from items data
-  const conditionsFromData = items
-    .map(item => item.condition)
-    .filter(condition => condition && typeof condition === 'string' && condition.trim() !== '')
-    .map(condition => {
-      const normalized = condition.trim().toLowerCase();
-      
-      // Standardize common variations
-      const conditionMap = {
-        'new': 'New',
-        'like-new': 'Like New',
-        'like new': 'Like New',
-        'like_new': 'Like New',
-        'good': 'Good',
-        'fair': 'Fair',
-        'poor': 'Poor',
-        'excellent': 'Excellent',
-        'very good': 'Very Good',
-        'very_good': 'Very Good',
-        'mint': 'Mint',
-        'used': 'Used',
-        'refurbished': 'Refurbished'
-      };
-      
-      return conditionMap[normalized] || 
-             (normalized.charAt(0).toUpperCase() + normalized.slice(1));
-    });
-  
-  // Get unique values
-  const uniqueConditions = [...new Set(conditionsFromData)];
-  
-  // If no conditions found in data, return defaults
-  if (uniqueConditions.length === 0) {
-    return ['New', 'Like New', 'Good', 'Fair', 'Poor'];
-  }
-  
-  // Sort in logical order
-  const sortOrder = ['New', 'Like New', 'Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Used', 'Refurbished'];
-  
-  return uniqueConditions.sort((a, b) => {
-    const indexA = sortOrder.indexOf(a);
-    const indexB = sortOrder.indexOf(b);
+  // Get condition options for filter dropdown
+  const conditionOptions = (() => {
+    // Try to extract conditions from items data
+    const conditionsFromData = items
+      .map(item => item.condition)
+      .filter(condition => condition && typeof condition === 'string' && condition.trim() !== '')
+      .map(condition => {
+        const normalized = condition.trim().toLowerCase();
+        
+        // Standardize common variations
+        const conditionMap = {
+          'new': 'New',
+          'like-new': 'Like New',
+          'like new': 'Like New',
+          'like_new': 'Like New',
+          'good': 'Good',
+          'fair': 'Fair',
+          'poor': 'Poor',
+          'excellent': 'Excellent',
+          'very good': 'Very Good',
+          'very_good': 'Very Good',
+          'mint': 'Mint',
+          'used': 'Used',
+          'refurbished': 'Refurbished'
+        };
+        
+        return conditionMap[normalized] || 
+               (normalized.charAt(0).toUpperCase() + normalized.slice(1));
+      });
     
-    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-    if (indexA !== -1) return -1;
-    if (indexB !== -1) return 1;
-    return a.localeCompare(b);
-  });
-})();
-
-console.log('Available conditions for filter:', conditionOptions);
+    // Get unique values
+    const uniqueConditions = [...new Set(conditionsFromData)];
+    
+    // If no conditions found in data, return defaults
+    if (uniqueConditions.length === 0) {
+      return ['New', 'Like New', 'Good', 'Fair', 'Poor'];
+    }
+    
+    // Sort in logical order
+    const sortOrder = ['New', 'Like New', 'Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Used', 'Refurbished'];
+    
+    return uniqueConditions.sort((a, b) => {
+      const indexA = sortOrder.indexOf(a);
+      const indexB = sortOrder.indexOf(b);
+      
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  })();
 
   // Apply filters
   useEffect(() => {
@@ -154,7 +162,27 @@ console.log('Available conditions for filter:', conditionOptions);
     
     // Apply condition filter
     if (conditionFilter) {
-      result = result.filter(item => item.condition === conditionFilter);
+      result = result.filter(item => {
+        const itemCondition = item.condition?.toString().toLowerCase() || '';
+        const filterCondition = conditionFilter.toLowerCase();
+        
+        // Handle variations
+        const conditionVariations = {
+          'new': ['new'],
+          'like new': ['like new', 'like-new', 'like_new'],
+          'good': ['good'],
+          'fair': ['fair'],
+          'poor': ['poor']
+        };
+        
+        if (conditionVariations[filterCondition]) {
+          return conditionVariations[filterCondition].some(variation => 
+            itemCondition.includes(variation)
+          );
+        }
+        
+        return itemCondition.includes(filterCondition);
+      });
     }
     
     // Apply price range filter
@@ -320,6 +348,7 @@ console.log('Available conditions for filter:', conditionOptions);
               fontSize: "18px",
               color: "#4361ee"
             }}>
+              🔍
             </span>
           </div>
           
@@ -351,7 +380,7 @@ console.log('Available conditions for filter:', conditionOptions);
               e.target.style.borderColor = "#e0e0e0";
             }}
           >
-          Reset All Filters
+            🔄 Reset All Filters
           </button>
         </div>
 
@@ -490,6 +519,7 @@ console.log('Available conditions for filter:', conditionOptions);
                 minWidth: "24px",
                 textAlign: "center"
               }}>
+                →
               </span>
               <input
                 type="number"
@@ -541,7 +571,6 @@ console.log('Available conditions for filter:', conditionOptions);
                 fontSize: "14px",
                 backgroundColor: "white",
                 appearance: "none",
-                backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
                 backgroundRepeat: "no-repeat",
                 backgroundPosition: "right 16px center",
                 backgroundSize: "16px",
@@ -558,7 +587,6 @@ console.log('Available conditions for filter:', conditionOptions);
                 e.target.style.boxShadow = "none";
               }}
             >
-              {/* ✅ CORRECT - No duplicates */}
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="price-low">Price: Low to High</option>
@@ -653,6 +681,7 @@ console.log('Available conditions for filter:', conditionOptions);
             marginBottom: "20px", 
             color: "#e63946"
           }}>
+            ❌
           </div>
           <h2 style={{ 
             marginBottom: "15px", 
@@ -715,6 +744,7 @@ console.log('Available conditions for filter:', conditionOptions);
             color: "#4361ee",
             opacity: 0.7
           }}>
+            📚
           </div>
           <h3 style={{ 
             marginBottom: "16px", 
@@ -761,7 +791,7 @@ console.log('Available conditions for filter:', conditionOptions);
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-            Reset Filters
+              🔄 Reset Filters
             </button>
             <Link 
               to="/add-item"
@@ -963,7 +993,7 @@ console.log('Available conditions for filter:', conditionOptions);
           }
           
           .items-grid {
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)) !important;
+            grid-templateColumns: repeat(auto-fill, minmax(250px, 1fr)) !important;
             gap: 20px !important;
           }
         }
