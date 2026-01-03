@@ -181,6 +181,14 @@ const adminAPI = {
   rejectItem: (itemId, reason) => API.put(`/admin/items/${itemId}/reject`, { reason }),
   deleteItem: (itemId) => API.delete(`/admin/items/${itemId}`),
   sendNotification: (data) => API.post('/admin/notifications/send', data),
+   // NEW: Admin Auth Methods
+  checkAdminLimit: () => API.get('/admin/admin/check-limit'),
+  registerAdmin: (data) => API.post('/admin/admin/register', data),
+  loginAdmin: (data) => API.post('/admin/admin/login', data),
+  getAdminProfile: () => API.get('/admin/profile'),
+
+  getAllOrders: (params) => API.get('/admin/orders', { params }),
+  updateOrderStatus: (orderId, status) => API.put(`/admin/orders/${orderId}/status`, { status }),
 };
 
 // ======================

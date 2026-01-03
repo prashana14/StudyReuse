@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import API from "../../services/api";
-import "./admin.css";
 
 const ItemManagement = () => {
   const [items, setItems] = useState([]);
@@ -121,172 +120,185 @@ const ItemManagement = () => {
 
   const getStatusBadge = (item) => {
     if (!item.isApproved) {
-      return <span className="badge badge-pending">Pending Approval</span>;
+      return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Pending Approval</span>;
     }
     if (item.isFlagged) {
-      return <span className="badge badge-flagged">Flagged</span>;
+      return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Flagged</span>;
     }
-    return <span className="badge badge-approved">Approved</span>;
+    return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Approved</span>;
   };
 
   if (loading && items.length === 0) {
     return (
-      <div className="loading-container">
-        Loading items...
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="p-6">
       {/* Page Header */}
-      <div className="page-header">
-        <h1>Item Management</h1>
-        <p className="page-description">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">Item Management</h1>
+        <p className="text-gray-600 mt-2">
           Review, approve, reject, or delete items posted by users
         </p>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="error-message">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
           {error}
         </div>
       )}
       
       {success && (
-        <div className="success-message">
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
           {success}
         </div>
       )}
 
       {/* Search and Filters */}
-      <div className="search-filter-container">
-        <form onSubmit={handleSearch} style={{ flex: 1, display: "flex", gap: "12px" }}>
-          <input
-            type="text"
-            placeholder="Search items by title or description..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="search-input"
-          />
-          <button type="submit" className="btn btn-primary">
-            Search
-          </button>
-          <button 
-            type="button" 
-            onClick={clearFilters}
-            className="btn btn-outline"
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <form onSubmit={handleSearch} className="flex-1 flex gap-3">
+            <input
+              type="text"
+              placeholder="Search items by title or description..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Search
+            </button>
+            <button 
+              type="button" 
+              onClick={clearFilters}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Clear Filters
+            </button>
+          </form>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
-            Clear Filters
-          </button>
-        </form>
-        
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="filter-select"
-        >
-          <option value="">All Items</option>
-          <option value="pending">Pending Approval</option>
-          <option value="approved">Approved</option>
-          <option value="flagged">Flagged</option>
-        </select>
+            <option value="">All Items</option>
+            <option value="pending">Pending Approval</option>
+            <option value="approved">Approved</option>
+            <option value="flagged">Flagged</option>
+          </select>
+        </div>
       </div>
 
       {/* Items Table */}
-      <div className="card">
-        <div className="card-header">
-          <h3>Items ({totalItems} total)</h3>
-          <div style={{ fontSize: "14px", color: "#64748b" }}>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+        <div className="p-5 border-b flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Items ({totalItems} total)</h3>
+          </div>
+          <div className="text-sm text-gray-500">
             Page {currentPage} of {totalPages}
           </div>
         </div>
         
-        <div className="card-content">
+        <div className="p-5">
           {items.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon"></div>
-              <h3>No Items Found</h3>
-              <p>{search ? "Try a different search term" : "No items posted yet"}</p>
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3">📦</div>
+              <h3 className="text-gray-700 font-medium text-lg mb-2">No Items Found</h3>
+              <p className="text-gray-500">
+                {search ? "Try a different search term" : "No items posted yet"}
+              </p>
             </div>
           ) : (
             <>
-              <div style={{ overflowX: "auto" }}>
-                <table className="data-table">
+              <div className="overflow-x-auto">
+                <table className="w-full">
                   <thead>
-                    <tr>
-                      <th>Item Details</th>
-                      <th>Owner</th>
-                      <th>Price</th>
-                      <th>Status</th>
-                      <th>Posted</th>
-                      <th>Actions</th>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Item Details</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Owner</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Price</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Posted</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item) => (
-                      <tr key={item._id}>
-                        <td>
-                          <div style={{ maxWidth: "300px" }}>
-                            <div style={{ fontWeight: "500", color: "#1e293b", marginBottom: "4px" }}>
+                      <tr key={item._id} className="border-b hover:bg-gray-50">
+                        <td className="py-4 px-4">
+                          <div className="max-w-xs">
+                            <div className="font-medium text-gray-800 mb-1">
                               {item.title}
                             </div>
-                            <div style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.4" }}>
+                            <div className="text-sm text-gray-600 leading-relaxed">
                               {item.description?.length > 100 
                                 ? `${item.description.substring(0, 100)}...`
                                 : item.description
                               }
                             </div>
-                            <div style={{ fontSize: "12px", color: "#8b5cf6", marginTop: "4px" }}>
+                            <div className="text-xs text-purple-600 mt-1">
                               {item.category}
                             </div>
                           </div>
                         </td>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <div className="user-avatar" style={{ width: "28px", height: "28px", fontSize: "12px" }}>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
                               {item.owner?.name?.charAt(0).toUpperCase() || "U"}
                             </div>
                             <div>
-                              <div style={{ fontWeight: "500", color: "#1e293b", fontSize: "13px" }}>
+                              <div className="font-medium text-gray-800 text-sm">
                                 {item.owner?.name || "Unknown"}
                               </div>
-                              <div style={{ fontSize: "11px", color: "#64748b" }}>
+                              <div className="text-xs text-gray-500">
                                 {item.owner?.email || ""}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ fontWeight: "600", color: "#1e293b" }}>
-                          ₹{item.price}
+                        <td className="py-4 px-4">
+                          <div className="font-semibold text-gray-800">
+                            ₹{item.price}
+                          </div>
                         </td>
-                        <td>
-                          {getStatusBadge(item)}
-                          {item.flagReason && (
-                            <div style={{ fontSize: "11px", color: "#991b1b", marginTop: "4px" }}>
-                              Reason: {item.flagReason}
-                            </div>
-                          )}
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-1">
+                            {getStatusBadge(item)}
+                            {item.flagReason && (
+                              <div className="text-xs text-red-600 mt-1">
+                                Reason: {item.flagReason}
+                              </div>
+                            )}
+                          </div>
                         </td>
-                        <td style={{ color: "#64748b", fontSize: "14px" }}>
+                        <td className="py-4 px-4 text-gray-600 text-sm">
                           {new Date(item.createdAt).toLocaleDateString()}
                         </td>
-                        <td>
-                          <div className="table-actions">
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-2">
                             {!item.isApproved && (
                               <button
                                 onClick={() => handleApproveItem(item._id, item.title)}
                                 disabled={actionLoading === `approve-${item._id}`}
-                                className="btn btn-success btn-sm"
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {actionLoading === `approve-${item._id}` ? (
-                                  <>Approving...</>
+                                  "Approving..."
                                 ) : (
-                                  <>Approve</>
+                                  "Approve"
                                 )}
                               </button>
                             )}
@@ -295,12 +307,12 @@ const ItemManagement = () => {
                               <button
                                 onClick={() => handleRejectItem(item._id, item.title)}
                                 disabled={actionLoading === `reject-${item._id}`}
-                                className="btn btn-warning btn-sm"
+                                className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {actionLoading === `reject-${item._id}` ? (
-                                  <>Rejecting...</>
+                                  "Rejecting..."
                                 ) : (
-                                  <>Reject</>
+                                  "Reject"
                                 )}
                               </button>
                             )}
@@ -308,12 +320,12 @@ const ItemManagement = () => {
                             <button
                               onClick={() => handleDeleteItem(item._id, item.title)}
                               disabled={actionLoading === `delete-${item._id}`}
-                              className="btn btn-danger btn-sm"
+                              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {actionLoading === `delete-${item._id}` ? (
-                                <>Deleting...</>
+                                "Deleting..."
                               ) : (
-                                <>Delete</>
+                                "Delete"
                               )}
                             </button>
                           </div>
@@ -326,11 +338,11 @@ const ItemManagement = () => {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="pagination">
+                <div className="flex justify-center items-center gap-2 mt-6">
                   <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="pagination-btn"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Previous
                   </button>
@@ -351,7 +363,11 @@ const ItemManagement = () => {
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`pagination-btn ${currentPage === pageNum ? "active" : ""}`}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                          currentPage === pageNum 
+                            ? "bg-blue-600 text-white" 
+                            : "border border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </button>
@@ -361,7 +377,7 @@ const ItemManagement = () => {
                   <button
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="pagination-btn"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next
                   </button>
@@ -373,33 +389,29 @@ const ItemManagement = () => {
       </div>
 
       {/* Statistics Card */}
-      <div className="card" style={{ marginTop: "24px" }}>
-        <div className="card-header">
-          <h3>Item Statistics</h3>
-        </div>
-        <div className="card-content">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Total Items</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>{totalItems}</div>
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Item Statistics</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Total Items</div>
+            <div className="text-2xl font-bold text-gray-800">{totalItems}</div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Pending Approval</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {items.filter(i => !i.isApproved).length}
             </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Pending Approval</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#f59e0b" }}>
-                {items.filter(i => !i.isApproved).length}
-              </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Approved</div>
+            <div className="text-2xl font-bold text-green-600">
+              {items.filter(i => i.isApproved && !i.isFlagged).length}
             </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Approved</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981" }}>
-                {items.filter(i => i.isApproved && !i.isFlagged).length}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Flagged/Rejected</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444" }}>
-                {items.filter(i => i.isFlagged).length}
-              </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Flagged/Rejected</div>
+            <div className="text-2xl font-bold text-red-600">
+              {items.filter(i => i.isFlagged).length}
             </div>
           </div>
         </div>

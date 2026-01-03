@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import API from "../../services/api";
-import "./admin.css";
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -105,170 +104,175 @@ const UserManagement = () => {
 
   if (loading && users.length === 0) {
     return (
-      <div className="loading-container">
-        Loading users...
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="p-6">
       {/* Page Header */}
-      <div className="page-header">
-        <h1>User Management</h1>
-        <p className="page-description">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">User Management</h1>
+        <p className="text-gray-600 mt-2">
           Manage user accounts, view status, and block/unblock users
         </p>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="error-message">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
           {error}
         </div>
       )}
       
       {success && (
-        <div className="success-message">
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
           {success}
         </div>
       )}
 
       {/* Search and Filters */}
-      <div className="search-filter-container">
-        <form onSubmit={handleSearch} style={{ flex: 1, display: "flex", gap: "12px" }}>
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="search-input"
-          />
-          <button type="submit" className="btn btn-primary">
-            Search
-          </button>
-          <button 
-            type="button" 
-            onClick={clearFilters}
-            className="btn btn-outline"
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <form onSubmit={handleSearch} className="flex-1 flex gap-3">
+            <input
+              type="text"
+              placeholder="Search users by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Search
+            </button>
+            <button 
+              type="button" 
+              onClick={clearFilters}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Clear Filters
+            </button>
+          </form>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
-            Clear Filters
-          </button>
-        </form>
-        
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="filter-select"
-        >
-          <option value="">All Users</option>
-          <option value="blocked">Blocked Only</option>
-        </select>
+            <option value="">All Users</option>
+            <option value="blocked">Blocked Only</option>
+          </select>
+        </div>
       </div>
 
       {/* Users Table */}
-      <div className="card">
-        <div className="card-header">
-          <h3>Users ({totalUsers} total)</h3>
-          <div style={{ fontSize: "14px", color: "#64748b" }}>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+        <div className="p-5 border-b flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Users ({totalUsers} total)</h3>
+          </div>
+          <div className="text-sm text-gray-500">
             Page {currentPage} of {totalPages}
           </div>
         </div>
         
-        <div className="card-content">
+        <div className="p-5">
           {users.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">👥</div>
-              <h3>No Users Found</h3>
-              <p>{search ? "Try a different search term" : "No users registered yet"}</p>
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3">👥</div>
+              <h3 className="text-gray-700 font-medium text-lg mb-2">No Users Found</h3>
+              <p className="text-gray-500">
+                {search ? "Try a different search term" : "No users registered yet"}
+              </p>
             </div>
           ) : (
             <>
-              <div style={{ overflowX: "auto" }}>
-                <table className="data-table">
+              <div className="overflow-x-auto">
+                <table className="w-full">
                   <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Email</th>
-                      <th>Status</th>
-                      <th>Joined</th>
-                      <th>Actions</th>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">User</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Email</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Joined</th>
+                      <th className="text-left py-3 px-4 text-gray-600 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((user) => (
-                      <tr key={user._id}>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            <div className="user-avatar">
+                      <tr key={user._id} className="border-b hover:bg-gray-50">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
                               {user.name?.charAt(0).toUpperCase() || "U"}
                             </div>
                             <div>
-                              <div style={{ fontWeight: "500", color: "#1e293b" }}>
+                              <div className="font-medium text-gray-800">
                                 {user.name}
                               </div>
-                              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                              <div className="text-xs text-gray-500">
                                 ID: {user._id.substring(0, 8)}...
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ color: "#475569" }}>{user.email}</td>
-                        <td>
-                          {user.isBlocked ? (
-                            <span className="badge badge-blocked">
-                            Blocked
-                            </span>
-                          ) : (
-                            <span className="badge badge-active">
-                             Active
-                            </span>
-                          )}
-                          {user.role === "admin" && (
-                            <span style={{ 
-                              marginLeft: "8px",
-                              padding: "2px 8px",
-                              borderRadius: "10px",
-                              fontSize: "10px",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              fontWeight: "500"
-                            }}>
-                              Admin
-                            </span>
-                          )}
+                        <td className="py-4 px-4 text-gray-600">
+                          {user.email}
                         </td>
-                        <td style={{ color: "#64748b", fontSize: "14px" }}>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            {user.isBlocked ? (
+                              <span className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full">
+                                Blocked
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                                Active
+                              </span>
+                            )}
+                            {user.role === "admin" && (
+                              <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-gray-600 text-sm">
                           {new Date(user.createdAt).toLocaleDateString()}
                         </td>
-                        <td>
-                          <div className="table-actions">
+                        <td className="py-4 px-4">
+                          <div className="flex gap-2">
                             {user.isBlocked ? (
                               <button
                                 onClick={() => handleUnblockUser(user._id, user.name)}
                                 disabled={unblockingUserId === user._id}
-                                className="btn btn-success btn-sm"
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {unblockingUserId === user._id ? (
-                                  <>Unblocking...</>
+                                  "Unblocking..."
                                 ) : (
-                                  <>Unblock</>
+                                  "Unblock"
                                 )}
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleBlockUser(user._id, user.name)}
                                 disabled={blockingUserId === user._id || user.role === "admin"}
-                                className="btn btn-danger btn-sm"
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={user.role === "admin" ? "Cannot block admin users" : ""}
                               >
                                 {blockingUserId === user._id ? (
-                                  <>Blocking...</>
+                                  "Blocking..."
                                 ) : (
-                                  <>Block</>
+                                  "Block"
                                 )}
                               </button>
                             )}
@@ -282,11 +286,11 @@ const UserManagement = () => {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="pagination">
+                <div className="flex justify-center items-center gap-2 mt-6">
                   <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="pagination-btn"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Previous
                   </button>
@@ -307,7 +311,11 @@ const UserManagement = () => {
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`pagination-btn ${currentPage === pageNum ? "active" : ""}`}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                          currentPage === pageNum 
+                            ? "bg-blue-600 text-white" 
+                            : "border border-gray-300 hover:bg-gray-50"
+                        }`}
                       >
                         {pageNum}
                       </button>
@@ -317,7 +325,7 @@ const UserManagement = () => {
                   <button
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="pagination-btn"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next
                   </button>
@@ -329,34 +337,44 @@ const UserManagement = () => {
       </div>
 
       {/* Statistics Card */}
-      <div className="card" style={{ marginTop: "24px" }}>
-        <div className="card-header">
-          <h3>User Statistics</h3>
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">User Statistics</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Total Users</div>
+            <div className="text-2xl font-bold text-gray-800">{totalUsers}</div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Active Users</div>
+            <div className="text-2xl font-bold text-green-600">
+              {users.filter(u => !u.isBlocked).length}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Blocked Users</div>
+            <div className="text-2xl font-bold text-red-600">
+              {users.filter(u => u.isBlocked).length}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-2">Admin Users</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {users.filter(u => u.role === "admin").length}
+            </div>
+          </div>
         </div>
-        <div className="card-content">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Total Users</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#1e293b" }}>{totalUsers}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Active Users</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981" }}>
-                {users.filter(u => !u.isBlocked).length}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Blocked Users</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444" }}>
-                {users.filter(u => u.isBlocked).length}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Admin Users</div>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#8b5cf6" }}>
-                {users.filter(u => u.role === "admin").length}
-              </div>
-            </div>
+      </div>
+
+      {/* Admin Safety Notice */}
+      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="flex items-start">
+          <div className="text-yellow-500 mr-3 text-xl">⚠️</div>
+          <div>
+            <h4 className="font-semibold text-yellow-800">Important Notice</h4>
+            <p className="text-yellow-700 text-sm mt-1">
+              Admin users cannot be blocked from this interface for security reasons. 
+              Admin accounts must be managed through direct database access or by another admin.
+            </p>
           </div>
         </div>
       </div>
