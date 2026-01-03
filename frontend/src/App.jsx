@@ -57,20 +57,29 @@ function App() {
     <AdminAuthProvider>
       <CartProvider>
         <BrowserRouter>
-          {/* Only show Navbar & Footer for non-admin routes */}
           <Routes>
-            {/* Admin routes don't show main Navbar/Footer */}
-            <Route path="/admin/*" element={
-              <Routes>
-                <Route path="login" element={<AdminLogin />} />
-                <Route path="register" element={<AdminRegister />} />
-                <Route path="*" element={
-                  <AdminProtectedRoute>
-                    <AdminLayout />
-                  </AdminProtectedRoute>
-                } />
-              </Routes>
-            } />
+            {/* Admin Routes - No Navbar/Footer */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/register" element={<AdminRegister />} />
+            
+            {/* Admin Protected Routes with Layout */}
+            <Route 
+              path="/admin" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminLayout />
+                </AdminProtectedRoute>
+              }
+            >
+              {/* These will render in AdminLayout's Outlet */}
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="items" element={<ItemManagement />} />
+              <Route path="orders" element={<OrderManagement />} />
+              <Route path="notifications" element={<SendNotification />} />
+              <Route path="settings" element={<AdminSettings />} />
+            </Route>
             
             {/* All other routes show normal Navbar/Footer */}
             <Route path="*" element={
@@ -97,6 +106,7 @@ function MainRoutes({ user }) {
       <Route path="/" element={<Home />} />
       <Route path="/item/:id" element={<ItemDetails />} />
       <Route path="/search" element={<SearchResults />} />
+      <Route path="/items" element={<Items />} />
       
       {/* Login/Register */}
       <Route 
@@ -116,7 +126,6 @@ function MainRoutes({ user }) {
       <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/my-items" element={<ProtectedRoute><MyItems /></ProtectedRoute>} />  
-      <Route path="/items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
       <Route path="/edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
       
       {/* Cart & Checkout Routes */}
@@ -134,25 +143,6 @@ function MainRoutes({ user }) {
               <ChatBox />
             </ErrorBoundary>
           </ProtectedRoute>
-        } 
-      />
-      
-      {/* Admin Routes inside AdminLayout */}
-      <Route 
-        path="/admin-layout-test" 
-        element={
-          <AdminProtectedRoute>
-            <AdminLayout>
-              <Routes>
-                <Route index element={<AdminDashboard />} />
-                <Route path="users" element={<UserManagement />} />
-                <Route path="items" element={<ItemManagement />} />
-                <Route path="orders" element={<OrderManagement />} />
-                <Route path="notifications" element={<SendNotification />} />
-                <Route path="settings" element={<AdminSettings />} />
-              </Routes>
-            </AdminLayout>
-          </AdminProtectedRoute>
         } 
       />
       

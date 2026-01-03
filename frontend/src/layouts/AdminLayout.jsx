@@ -14,14 +14,14 @@ const AdminLayout = () => {
     navigate('/admin/login');
   };
 
-  const menuItems = [
-    { path: '/admin', label: 'Dashboard', icon: '📊' },
-    { path: '/admin/users', label: 'Users', icon: '👥' },
-    { path: '/admin/items', label: 'Items', icon: '📦' },
-    { path: '/admin/orders', label: 'Orders', icon: '📋' },
-    { path: '/admin/notifications', label: 'Send Notifications', icon: '🔔' },
-    { path: '/admin/settings', label: 'Settings', icon: '⚙️' },
-  ];
+ const menuItems = [
+  { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' }, // Changed from '/admin'
+  { path: '/admin/users', label: 'Users', icon: '👥' },
+  { path: '/admin/items', label: 'Items', icon: '📦' },
+  { path: '/admin/orders', label: 'Orders', icon: '📋' },
+  { path: '/admin/notifications', label: 'Send Notifications', icon: '🔔' },
+  { path: '/admin/settings', label: 'Settings', icon: '⚙️' },
+];
 
   return (
     <div className="flex min-h-screen bg-gray-50">

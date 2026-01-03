@@ -343,6 +343,57 @@ const Login = () => {
             </a>
           </p>
         </div>
+        
+        {/* ADD THIS NEW SECTION FOR ADMIN ACCESS */}
+        <div style={{
+          marginTop: "30px",
+          paddingTop: "20px",
+          borderTop: "1px solid #eee",
+          textAlign: "center"
+        }}>
+          <p style={{ color: "#666", marginBottom: "10px", fontSize: "14px" }}>
+            Are you an administrator?
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.href = "/admin/login"}
+            style={{
+              padding: "10px 24px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "500",
+              cursor: "pointer",
+              transition: "all 0.3s",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "#c82333";
+              e.target.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = "#dc3545";
+              e.target.style.transform = "translateY(0)";
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+            </svg>
+            Login as Admin
+          </button>
+          <p style={{ 
+            marginTop: "10px", 
+            color: "#888", 
+            fontSize: "12px",
+            fontStyle: "italic"
+          }}>
+            Admin access requires special credentials
+          </p>
+        </div>
       </form>
 
       <style>{`

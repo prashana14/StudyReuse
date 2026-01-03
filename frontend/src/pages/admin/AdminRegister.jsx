@@ -9,10 +9,13 @@ const AdminRegister = () => {
     password: '',
     confirmPassword: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const [registrationOpen, setRegistrationOpen] = useState(true);
   const [limitInfo, setLimitInfo] = useState(null);
-  const { registerAdmin, checkAdminLimit, error } = useAdminAuth();
+  const { registerAdmin, checkAdminLimit } = useAdminAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,66 +33,193 @@ const AdminRegister = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+    if (error) setError('');
+  };
+
+  const validateRIADomain = (email) => {
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+    return domainRegex.test(email);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     
-    if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      setError("All fields are required");
       return;
     }
     
-    if (!formData.email.endsWith('@ria.edu.np')) {
-      alert('Only RIA email addresses are allowed for admin registration');
+    if (!validateRIADomain(formData.email)) {
+      setError("Only RIA email addresses are allowed for admin registration");
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
     
     setIsLoading(true);
-    
-    const result = await registerAdmin(
-      formData.name,
-      formData.email,
-      formData.password
-    );
-    
-    if (result.success) {
-      navigate('/admin');
+
+    try {
+      const result = await registerAdmin(
+        formData.name,
+        formData.email,
+        formData.password
+      );
+      
+      if (result.success) {
+        console.log("Admin registration successful");
+        navigate('/admin/dashboard');
+      } else {
+        setError(result.message || "Admin registration failed");
+      }
+    } catch (err) {
+      console.error("Admin registration error:", err);
+      if (err.message === "Network Error") {
+        setError("Cannot connect to server. Please check if backend is running.");
+      } else {
+        setError("Admin registration failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   if (!registrationOpen && limitInfo) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-800">Admin Registration Closed</h2>
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="text-yellow-800 text-4xl mb-3">⚠️</div>
-              <p className="font-semibold text-yellow-800">Maximum admin limit reached</p>
-              <p className="text-yellow-700 mt-2">
-                Current Admins: <span className="font-bold">{limitInfo.currentCount}/{limitInfo.maxAllowed}</span>
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #1a237e 0%, #283593 100%)",
+        padding: "20px"
+      }}>
+        <div style={{
+          width: "100%",
+          maxWidth: "450px",
+          backgroundColor: "white",
+          borderRadius: "16px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            background: "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
+            padding: "30px 20px",
+            textAlign: "center",
+            color: "white"
+          }}>
+            <h1 style={{ 
+              margin: 0, 
+              fontSize: "28px", 
+              fontWeight: "700",
+              letterSpacing: "1px"
+            }}>
+              Admin Registration Closed
+            </h1>
+          </div>
+
+          <div style={{ padding: "40px 30px" }}>
+            <div style={{
+              padding: "25px",
+              backgroundColor: "#fff8e1",
+              border: "2px solid #ffd54f",
+              borderRadius: "12px",
+              textAlign: "center",
+              marginBottom: "30px"
+            }}>
+              <div style={{ 
+                fontSize: "48px",
+                marginBottom: "15px",
+                color: "#ff9800"
+              }}>
+                ⚠️
+              </div>
+              <h3 style={{
+                color: "#f57c00",
+                fontSize: "18px",
+                fontWeight: "600",
+                marginBottom: "10px"
+              }}>
+                Maximum Admin Limit Reached
+              </h3>
+              <p style={{ 
+                color: "#5d4037",
+                marginBottom: "15px",
+                lineHeight: "1.5"
+              }}>
+                Current Admins: <span style={{ fontWeight: "700" }}>{limitInfo.currentCount}/{limitInfo.maxAllowed}</span>
               </p>
-              <p className="text-yellow-600 text-sm mt-3 italic">
-                Only 2 administrators are allowed for security reasons.
+              <p style={{ 
+                color: "#795548",
+                fontSize: "13px",
+                fontStyle: "italic",
+                marginBottom: "0"
+              }}>
+                Only 2 administrators are allowed for security reasons
               </p>
             </div>
-          </div>
-          <div className="space-y-4 text-center">
-            <Link 
-              to="/admin/login" 
-              className="inline-block w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Go to Admin Login
-            </Link>
-            <Link 
-              to="/" 
-              className="text-gray-500 hover:text-gray-700 text-sm"
-            >
-              ← Back to main site
-            </Link>
+
+            <div style={{ textAlign: "center", marginBottom: "25px" }}>
+              <button
+                onClick={() => window.location.href = "/admin/login"}
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  backgroundColor: "#303f9f",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  marginBottom: "15px",
+                  boxShadow: "0 4px 15px rgba(48, 63, 159, 0.3)"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = "#1a237e";
+                  e.target.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = "#303f9f";
+                  e.target.style.transform = "translateY(0)";
+                }}
+              >
+                Go to Admin Login
+              </button>
+              
+              <Link 
+                to="/" 
+                style={{ 
+                  color: "#666", 
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.3s"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#303f9f";
+                  e.target.style.gap = "8px";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "#666";
+                  e.target.style.gap = "6px";
+                }}
+              >
+                <span style={{ fontSize: "18px" }}>←</span>
+                Back to StudyReuse Home
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -97,136 +227,607 @@ const AdminRegister = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-800">Admin Registration</h2>
-          <p className="text-gray-600 mt-2">Register as a StudyReuse administrator</p>
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "linear-gradient(135deg, #1a237e 0%, #283593 100%)",
+      padding: "20px"
+    }}>
+      <div style={{
+        width: "100%",
+        maxWidth: "450px",
+        backgroundColor: "white",
+        borderRadius: "16px",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        overflow: "hidden"
+      }}>
+        {/* Header with gradient */}
+        <div style={{
+          background: "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
+          padding: "30px 20px",
+          textAlign: "center",
+          color: "white"
+        }}>
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center",
+            gap: "15px"
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="StudyReuse Logo"
+              style={{ 
+                height: "50px",
+                borderRadius: "8px",
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                padding: "5px"
+              }}
+            />
+            <h1 style={{ 
+              margin: 0, 
+              fontSize: "32px", 
+              fontWeight: "800",
+              letterSpacing: "1px",
+              color: "white",
+              textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)"
+            }}>
+              StudyReuse
+            </h1>
+          </div>
+          <p style={{ 
+            margin: "10px 0 0 0", 
+            opacity: 0.9,
+            fontSize: "18px",
+            fontWeight: "500"
+          }}>
+            Admin Portal - Registration
+          </p>
           {limitInfo && (
-            <div className="mt-4 inline-block px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+            <div style={{
+              display: "inline-block",
+              marginTop: "15px",
+              padding: "8px 20px",
+              backgroundColor: "rgba(255, 255, 255, 0.15)",
+              color: "white",
+              borderRadius: "20px",
+              fontSize: "14px",
+              fontWeight: "500",
+              backdropFilter: "blur(10px)"
+            }}>
               Admin slots available: {limitInfo.maxAllowed - limitInfo.currentCount}/{limitInfo.maxAllowed}
             </div>
           )}
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 mb-6 flex items-center">
-            <span className="mr-2">⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Full Name
-            </label>
-            <input
-              type="text"
-              name="name"
-              placeholder="John Doe"
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              RIA Email Address
-            </label>
-            <input
-              type="email"
-              name="email"
-              placeholder="admin@ria.edu.np"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              required
-            />
-            <p className="text-gray-500 text-xs mt-1 italic">
-              Only @ria.edu.np emails allowed
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              name="password"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              required
-              minLength="6"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              placeholder="••••••••"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              required
-            />
-          </div>
-
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <label className="flex items-start space-x-3 cursor-pointer">
-              <input 
-                type="checkbox" 
-                required 
-                className="mt-1"
+        <div style={{ padding: "40px 30px" }}>
+          <h2 style={{ 
+            textAlign: "center", 
+            marginBottom: "30px", 
+            color: "#1a237e",
+            fontSize: "24px",
+            fontWeight: "600"
+          }}>
+            Administrator Registration
+          </h2>
+          
+          {error && (
+            <div style={{
+              color: "#d32f2f",
+              backgroundColor: "#ffebee",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              marginBottom: "25px",
+              border: "1px solid #ffcdd2",
+              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "16px" }}>⚠️</span>
+                <span>{error}</span>
+              </div>
+              <button
+                onClick={() => setError("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#d32f2f",
+                  cursor: "pointer",
+                  padding: "0",
+                  fontSize: "18px"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: "22px" }}>
+              <label style={{ 
+                display: "block", 
+                marginBottom: "10px", 
+                fontWeight: "500",
+                color: "#555",
+                fontSize: "14px"
+              }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="name"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                style={{
+                  width: "100%",
+                  padding: "14px 16px",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "16px",
+                  boxSizing: "border-box",
+                  transition: "all 0.3s",
+                  outline: "none"
+                }}
+                onFocus={(e) => e.target.style.borderColor = "#303f9f"}
+                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
               />
-              <span className="text-gray-700 text-sm">
-                I understand that as an admin, I have full access to user data and system controls
-              </span>
-            </label>
-          </div>
+            </div>
+            
+            <div style={{ marginBottom: "22px" }}>
+              <label style={{ 
+                display: "block", 
+                marginBottom: "10px", 
+                fontWeight: "500",
+                color: "#555",
+                fontSize: "14px"
+              }}>
+                RIA Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                placeholder="admin@ria.edu.np"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                style={{
+                  width: "100%",
+                  padding: "14px 16px",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: "10px",
+                  fontSize: "16px",
+                  boxSizing: "border-box",
+                  transition: "all 0.3s",
+                  outline: "none"
+                }}
+                onFocus={(e) => e.target.style.borderColor = "#303f9f"}
+                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+              />
+              <div style={{ 
+                fontSize: "12px", 
+                color: "#666", 
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center"
+              }}>
+                <span>Only @ria.edu.np emails allowed for admin access</span>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: "22px" }}>
+              <label style={{ 
+                display: "block", 
+                marginBottom: "10px", 
+                fontWeight: "500",
+                color: "#555",
+                fontSize: "14px"
+              }}>
+                Password
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a secure password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  minLength="6"
+                  style={{
+                    width: "100%",
+                    padding: "14px 50px 14px 16px",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "16px",
+                    boxSizing: "border-box",
+                    transition: "all 0.3s",
+                    outline: "none"
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#303f9f"}
+                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "16px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0",
+                    color: "#666",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    transition: "all 0.3s"
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {showPassword ? (
+                      <>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
+              <p style={{ 
+                marginTop: "8px", 
+                fontSize: "12px", 
+                color: "#888",
+                marginBottom: "0"
+              }}>
+                Use at least 6 characters with strong security
+              </p>
+            </div>
 
-          <button 
-            type="submit" 
-            disabled={isLoading || !registrationOpen}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
-          >
-            {isLoading ? (
-              <>
-                <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <div style={{ marginBottom: "30px" }}>
+              <label style={{ 
+                display: "block", 
+                marginBottom: "10px", 
+                fontWeight: "500",
+                color: "#555",
+                fontSize: "14px"
+              }}>
+                Confirm Password
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "14px 50px 14px 16px",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "10px",
+                    fontSize: "16px",
+                    boxSizing: "border-box",
+                    transition: "all 0.3s",
+                    outline: "none"
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#303f9f"}
+                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "16px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0",
+                    color: "#666",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    transition: "all 0.3s"
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {showConfirmPassword ? (
+                      <>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div style={{
+              backgroundColor: "#f5f5f5",
+              padding: "16px",
+              borderRadius: "10px",
+              marginBottom: "30px",
+              border: "1px solid #e0e0e0"
+            }}>
+              <label style={{ 
+                display: "flex", 
+                alignItems: "flex-start", 
+                gap: "12px",
+                cursor: "pointer"
+              }}>
+                <input 
+                  type="checkbox" 
+                  required 
+                  style={{
+                    marginTop: "4px",
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer"
+                  }}
+                />
+                <span style={{ 
+                  color: "#333", 
+                  fontSize: "13px",
+                  lineHeight: "1.5"
+                }}>
+                  I understand that as an administrator, I will have access to all user data, 
+                  system controls, and administrative privileges. I agree to use these powers 
+                  responsibly and only for StudyReuse management purposes.
+                </span>
+              </label>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isLoading || !registrationOpen}
+              style={{
+                width: "100%",
+                padding: "16px",
+                background: isLoading || !registrationOpen
+                  ? "#ccc" 
+                  : "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "10px",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: isLoading || !registrationOpen ? "not-allowed" : "pointer",
+                transition: "all 0.3s",
+                letterSpacing: "0.5px",
+                marginBottom: "25px",
+                boxShadow: "0 4px 15px rgba(48, 63, 159, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px"
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading && registrationOpen) {
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 6px 20px rgba(48, 63, 159, 0.4)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoading && registrationOpen) {
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "0 4px 15px rgba(48, 63, 159, 0.3)";
+                }
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <span style={{
+                    width: "16px",
+                    height: "16px",
+                    border: "2px solid white",
+                    borderTop: "2px solid transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite"
+                  }}></span>
+                  Creating Admin Account...
+                </>
+              ) : (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.9 }}>
+                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm4 12h-4v3l-5-5 5-5v3h4v4z"/>
+                  </svg>
+                  Register as Administrator
+                </>
+              )}
+            </button>
+            
+            <div style={{ 
+              textAlign: "center", 
+              paddingTop: "20px",
+              borderTop: "1px solid #eee",
+              marginBottom: "25px"
+            }}>
+              <p style={{ color: "#666", marginBottom: "8px" }}>
+                Already have admin access?
+              </p>
+              <Link 
+                to="/admin/login" 
+                style={{ 
+                  color: "#303f9f", 
+                  textDecoration: "none",
+                  fontWeight: "600",
+                  fontSize: "15px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.3s"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#1a237e";
+                  e.target.style.gap = "8px";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "#303f9f";
+                  e.target.style.gap = "6px";
+                }}
+              >
+                Login to Admin Panel
+                <span style={{ fontSize: "18px" }}>→</span>
+              </Link>
+            </div>
+            
+            {/* User Registration Link */}
+            <div style={{
+              marginTop: "30px",
+              paddingTop: "25px",
+              borderTop: "1px solid #eee",
+              textAlign: "center"
+            }}>
+              <p style={{ 
+                color: "#666", 
+                marginBottom: "12px", 
+                fontSize: "14px",
+                fontWeight: "500"
+              }}>
+                User Registration
+              </p>
+              <p style={{ 
+                color: "#888", 
+                marginBottom: "15px", 
+                fontSize: "13px",
+                lineHeight: "1.5"
+              }}>
+                Are you a student? Register for regular user access.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.href = "/register"}
+                style={{
+                  padding: "10px 24px",
+                  backgroundColor: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = "#388E3C";
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 6px 18px rgba(76, 175, 80, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = "#4CAF50";
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
-                Registering...
-              </>
-            ) : (
-              'Register as Admin'
-            )}
-          </button>
-        </form>
+                Register as User
+              </button>
+            </div>
+          </form>
+        </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200 text-center space-y-4">
-          <p className="text-gray-600">
-            Already have an admin account?{' '}
-            <Link to="/admin/login" className="text-blue-600 font-semibold hover:text-blue-800">
-              Login here
-            </Link>
-          </p>
-          <p>
-            <Link to="/" className="text-gray-500 hover:text-gray-700 text-sm">
-              ← Back to main site
-            </Link>
+        {/* Footer */}
+        <div style={{
+          padding: "20px",
+          textAlign: "center",
+          backgroundColor: "#f8f9fa",
+          borderTop: "1px solid #eee"
+        }}>
+          <Link 
+            to="/" 
+            style={{ 
+              color: "#666", 
+              textDecoration: "none",
+              fontSize: "14px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.3s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.color = "#303f9f";
+              e.target.style.gap = "8px";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.color = "#666";
+              e.target.style.gap = "6px";
+            }}
+          >
+            <span style={{ fontSize: "18px" }}>←</span>
+            Back to StudyReuse Home
+          </Link>
+          <p style={{ 
+            margin: "10px 0 0 0", 
+            color: "#888", 
+            fontSize: "11px",
+            fontStyle: "italic"
+          }}>
+            Administrator registration requires special authorization
           </p>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

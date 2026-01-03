@@ -403,7 +403,8 @@ const Register = () => {
             <div style={{ 
               textAlign: "center", 
               paddingTop: "20px",
-              borderTop: "1px solid #eee"
+              borderTop: "1px solid #eee",
+              marginBottom: "25px"
             }}>
               <p style={{ color: "#666", marginBottom: "8px" }}>
                 Already have a RIA account?
@@ -432,6 +433,64 @@ const Register = () => {
                 Sign in to your account
                 <span style={{ fontSize: "18px" }}>→</span>
               </Link>
+            </div>
+            
+            {/* ADD THIS NEW SECTION FOR ADMIN ACCESS */}
+            <div style={{
+              paddingTop: "25px",
+              borderTop: "1px solid #eee",
+              textAlign: "center"
+            }}>
+              <p style={{ 
+                color: "#666", 
+                marginBottom: "12px", 
+                fontSize: "14px",
+                fontWeight: "500"
+              }}>
+                Admin Registration
+              </p>
+              <p style={{ 
+                color: "#888", 
+                marginBottom: "15px", 
+                fontSize: "13px",
+                lineHeight: "1.5"
+              }}>
+                Need to create an administrator account? Use the admin portal for special access.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.href = "/admin/register"}
+                style={{
+                  padding: "12px 28px",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = "#218838";
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 6px 18px rgba(40, 167, 69, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = "#28a745";
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(40, 167, 69, 0.3)";
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                Register as Admin
+              </button>
             </div>
           </form>
         </div>
