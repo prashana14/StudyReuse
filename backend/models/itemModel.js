@@ -36,5 +36,18 @@ const itemSchema = mongoose.Schema(
     timestamps: true,
   }
 );
+// Add this at the end of backend/models/itemModel.js, before the export
+itemSchema.post('save', async function(doc, next) {
+  try {
+    // Only notify for new pending items (not when updating)
+    if (doc.isNew && !doc.isApproved && !doc.isFlagged) {
+      const adminController = require('../controller/adminController');
+      await adminController.notifyNewItem(doc._id);
+    }
+  } catch (error) {
+    console.error('Error in item post-save hook:', error);
+  }
+  next();
+});
 
 module.exports = mongoose.model('Item', itemSchema);

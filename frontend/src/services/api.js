@@ -21,27 +21,38 @@ const API_MULTIPART = axios.create({
   headers: {
     'Content-Type': 'multipart/form-data',
   },
-  timeout: 30000, // Longer timeout for uploads
+  timeout: 30000,
 });
 
 // ======================
 // 2. Request Interceptors
 // ======================
 
-// Helper to add auth token
-const addAuthToken = (config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Helper to add correct auth token based on route
+const addCorrectAuthToken = (config) => {
+  const isAdminRoute = config.url.includes('/admin/');
+  
+  if (isAdminRoute) {
+    // Use admin token for admin routes
+    const adminToken = localStorage.getItem('adminToken');
+    if (adminToken) {
+      config.headers.Authorization = `Bearer ${adminToken}`;
+    }
+  } else {
+    // Use user token for regular routes
+    const userToken = localStorage.getItem('token');
+    if (userToken) {
+      config.headers.Authorization = `Bearer ${userToken}`;
+    }
   }
+  
   return config;
 };
 
 // Regular API interceptor
 API.interceptors.request.use(
   (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
-    return addAuthToken(config);
+    return addCorrectAuthToken(config);
   },
   (error) => {
     console.error('Request setup error:', error);
@@ -52,8 +63,7 @@ API.interceptors.request.use(
 // Multipart API interceptor
 API_MULTIPART.interceptors.request.use(
   (config) => {
-    console.log('Multipart API Request:', config.method?.toUpperCase(), config.url);
-    return addAuthToken(config);
+    return addCorrectAuthToken(config);
   },
   (error) => {
     console.error('Multipart request error:', error);
@@ -75,38 +85,35 @@ const handleResponseError = (error) => {
   
   // Handle 401 Unauthorized
   if (error.response?.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    const isAdminRoute = error.config?.url?.includes('/admin/');
     
-    // Redirect to login if not already there
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
+    if (isAdminRoute) {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminData');
+      
+      if (!window.location.pathname.includes('/admin/login')) {
+        window.location.href = '/admin/login';
+      }
+    } else {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
-  }
-  
-  // Handle upload errors
-  if (error.response?.data?.code === 'FILE_TOO_LARGE') {
-    error.message = 'Image too large (max 5MB)';
-  } else if (error.response?.data?.code === 'INVALID_FILE_TYPE') {
-    error.message = 'Invalid image format. Use JPG, PNG, GIF, or WEBP';
   }
   
   return Promise.reject(error);
 };
 
 API.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', response.status, response.config.url);
-    return response;
-  },
+  (response) => response,
   handleResponseError
 );
 
 API_MULTIPART.interceptors.response.use(
-  (response) => {
-    console.log('Multipart API Response:', response.status, response.config.url);
-    return response;
-  },
+  (response) => response,
   handleResponseError
 );
 
@@ -114,23 +121,15 @@ API_MULTIPART.interceptors.response.use(
 // 4. Helper Functions
 // ======================
 
-/**
- * Create FormData for item uploads
- * @param {Object} itemData - Item details
- * @param {File} imageFile - Image file
- * @returns {FormData}
- */
 export const createItemFormData = (itemData, imageFile) => {
   const formData = new FormData();
   
-  // Append text fields (MUST match backend field names)
-  formData.append('title', itemData.title.trim());
-  formData.append('description', itemData.description.trim());
-  formData.append('price', parseFloat(itemData.price));
-  formData.append('category', itemData.category);
+  formData.append('title', itemData.title?.trim() || '');
+  formData.append('description', itemData.description?.trim() || '');
+  formData.append('price', parseFloat(itemData.price) || 0);
+  formData.append('category', itemData.category || 'books');
   formData.append('condition', itemData.condition || 'good');
   
-  // Append image file (MUST be named 'image' for multer.single('image'))
   if (imageFile) {
     formData.append('image', imageFile);
   }
@@ -138,11 +137,6 @@ export const createItemFormData = (itemData, imageFile) => {
   return formData;
 };
 
-/**
- * Validate image file before upload
- * @param {File} file - Image file
- * @returns {Object} Validation result
- */
 export const validateImageFile = (file) => {
   const errors = [];
   
@@ -150,14 +144,12 @@ export const validateImageFile = (file) => {
     return { valid: false, errors: ['No file selected'] };
   }
   
-  // Check file type
   const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
   if (!validTypes.includes(file.type)) {
     errors.push('Invalid file type. Use JPG, PNG, GIF, or WEBP');
   }
   
-  // Check file size (5MB max)
-  const maxSize = 5 * 1024 * 1024; // 5MB
+  const maxSize = 5 * 1024 * 1024;
   if (file.size > maxSize) {
     errors.push('File too large (max 5MB)');
   }
@@ -169,191 +161,391 @@ export const validateImageFile = (file) => {
 };
 
 // ======================
-// 5. ADMIN API Methods
+// 5. COMPLETE ADMIN API METHODS
 // ======================
 const adminAPI = {
-  getDashboardStats: () => API.get('/admin/dashboard/stats'),
-  getUsers: (params) => API.get('/admin/users', { params }),
-  blockUser: (userId, reason) => API.put(`/admin/users/${userId}/block`, { reason }),
-  unblockUser: (userId) => API.put(`/admin/users/${userId}/unblock`),
-  getItems: (params) => API.get('/admin/items', { params }),
-  approveItem: (itemId) => API.put(`/admin/items/${itemId}/approve`),
-  rejectItem: (itemId, reason) => API.put(`/admin/items/${itemId}/reject`, { reason }),
-  deleteItem: (itemId) => API.delete(`/admin/items/${itemId}`),
-  sendNotification: (data) => API.post('/admin/notifications/send', data),
-   // NEW: Admin Auth Methods
-  checkAdminLimit: () => API.get('/admin/admin/check-limit'),
-  registerAdmin: (data) => API.post('/admin/admin/register', data),
-  loginAdmin: (data) => API.post('/admin/admin/login', data),
+  // ✅ Admin Auth
+  checkAdminLimit: () => API.get('/admin/check-limit'),
+  loginAdmin: (email, password) => API.post('/admin/login', { email, password }),
+  registerAdmin: (data) => API.post('/admin/register', data),
+  verifyAdmin: () => API.get('/admin/verify'),
   getAdminProfile: () => API.get('/admin/profile'),
-
-  getAllOrders: (params) => API.get('/admin/orders', { params }),
-  updateOrderStatus: (orderId, status) => API.put(`/admin/orders/${orderId}/status`, { status }),
+  
+  // ✅ Dashboard & Stats
+  getDashboardStats: () => API.get('/admin/stats'),
+  
+  // ✅ User Management
+  getAllUsers: (params) => API.get('/admin/users', { params }),
+  blockUser: (userId, reason) => API.patch(`/admin/users/${userId}/block`, { reason }),
+  unblockUser: (userId) => API.patch(`/admin/users/${userId}/unblock`),
+  
+  // ✅ Item Management
+  getAllItems: (params) => API.get('/admin/items', { params }),
+  approveItem: (itemId) => API.patch(`/admin/items/${itemId}/approve`),
+  rejectItem: (itemId, reason) => API.patch(`/admin/items/${itemId}/reject`, { reason }),
+  deleteItem: (itemId, reason) => API.delete(`/admin/items/${itemId}`, { data: { reason } }),
+  
+  // ✅ Notification Management
+  sendNotification: (notificationData) => API.post('/admin/notifications/send', notificationData),
+  
+  // ✅ Admin Notifications (Clickable notifications)
+  getAdminNotifications: (params) => API.get('/admin/notifications', { params }),
+  getAdminUnreadCount: () => API.get('/admin/notifications/unread/count'),
+  markAdminNotificationAsRead: (notificationId) => API.put(`/admin/notifications/${notificationId}/read`),
+  markAllAdminNotificationsAsRead: () => API.put('/admin/notifications/read/all'),
+  deleteAdminNotification: (notificationId) => API.delete(`/admin/notifications/${notificationId}`),
+  clearAllAdminNotifications: () => API.delete('/admin/notifications'),
+  sendAdminNotification: (data) => API.post('/admin/notifications/send-to-admin', data),
+  getNotificationTypes: () => API.get('/admin/notifications/types'),
+  
+  // ✅ Order Management (Admin)
+  getAllOrders: (params = {}) => API.get('/admin/orders', { params }),
 };
 
 // ======================
-// 6. ORDER API Methods
+// 6. USER API Methods
+// ======================
+const userAPI = {
+  // Auth
+  login: (email, password) => API.post('/users/login', { email, password }),
+  register: (data) => API.post('/users/register', data),
+  
+  // Profile
+  getProfile: () => API.get('/users/profile'),
+  updateProfile: (data) => API.put('/users/profile', data),
+};
+
+// ======================
+// 7. ITEM API Methods
+// ======================
+const itemAPI = {
+  getAll: (params = {}) => API.get('/items', { params }),
+  getById: (id) => API.get(`/items/${id}`),
+  search: (query, params = {}) => API.get('/items/search', { params: { q: query, ...params } }),
+  getByCategory: (category, params = {}) => API.get(`/items/category/${category}`, { params }),
+  
+  // User-specific
+  getMyItems: (params = {}) => API.get('/items/my', { params }),
+  create: async (itemData, imageFile) => {
+    const formData = createItemFormData(itemData, imageFile);
+    return API_MULTIPART.post('/items', formData);
+  },
+  update: async (id, itemData, imageFile = null) => {
+    const formData = createItemFormData(itemData, imageFile);
+    return API_MULTIPART.put(`/items/${id}`, formData);
+  },
+  delete: (id) => API.delete(`/items/${id}`),
+};
+
+// ======================
+// 8. ORDER API Methods
 // ======================
 const orderAPI = {
-  // Create order from cart
   create: (orderData) => API.post('/orders', orderData),
+  getMyOrders: (params = {}) => API.get('/orders/my', { params }),
+  getOrderById: (id) => API.get(`/orders/${id}`),
+  cancelOrder: (id) => API.put(`/orders/${id}/cancel`),
   
-  // Get user's orders
-  getUserOrders: (params) => API.get('/orders/my', { params }),
-  
-  // Get order by ID
-  getById: (id) => API.get(`/orders/${id}`),
-  
-  // Update order status (admin only)
+  // Admin endpoints (also available through adminAPI)
+  getAll: (params = {}) => API.get('/orders', { params }),
   updateStatus: (id, status) => API.put(`/orders/${id}/status`, { status }),
-  
-  // Cancel order
-  cancel: (id) => API.put(`/orders/${id}/cancel`),
-  
-  // Get all orders (admin only)
-  getAll: (params) => API.get('/orders', { params }),
 };
 
 // ======================
-// 7. CART API Methods (Optional - for saving cart to DB)
+// 9. NOTIFICATION API Methods (User)
 // ======================
-const cartAPI = {
-  // Save cart to database
-  save: (cartData) => API.post('/cart', cartData),
-  
-  // Get saved cart
-  getSaved: () => API.get('/cart'),
-  
-  // Clear saved cart
-  clear: () => API.delete('/cart'),
-  
-  // Update cart item
-  updateItem: (itemId, quantity) => API.put(`/cart/items/${itemId}`, { quantity }),
-  
-  // Remove item from cart
-  removeItem: (itemId) => API.delete(`/cart/items/${itemId}`),
+const notificationAPI = {
+  getAll: (params = {}) => API.get('/notifications', { params }),
+  getUnreadCount: () => API.get('/notifications/unread/count'),
+  markAsRead: (id) => API.put(`/notifications/${id}/read`),
+  markAllAsRead: () => API.put('/notifications/read/all'),
+  delete: (id) => API.delete(`/notifications/${id}`),
+  deleteAll: () => API.delete('/notifications'),
 };
 
 // ======================
-// 8. API Services Object
+// 10. REVIEW API Methods
+// ======================
+const reviewAPI = {
+  create: (itemId, rating, comment) => API.post(`/items/${itemId}/reviews`, { rating, comment }),
+  getItemReviews: (itemId, params = {}) => API.get(`/items/${itemId}/reviews`, { params }),
+  getMyReviews: (params = {}) => API.get('/reviews/my', { params }),
+  updateReview: (reviewId, rating, comment) => API.put(`/reviews/${reviewId}`, { rating, comment }),
+  deleteReview: (reviewId) => API.delete(`/reviews/${reviewId}`),
+};
+
+// ======================
+// 11. BARTER API Methods
+// ======================
+const barterAPI = {
+  create: (data) => API.post('/barter', data),
+  getMyBarters: (params = {}) => API.get('/barter/my', { params }),
+  getBarterById: (id) => API.get(`/barter/${id}`),
+  acceptBarter: (id) => API.put(`/barter/${id}/accept`),
+  rejectBarter: (id, reason = '') => API.put(`/barter/${id}/reject`, { reason }),
+};
+
+// ======================
+// 12. CHAT API Methods
+// ======================
+const chatAPI = {
+  getConversations: () => API.get('/chat/conversations'),
+  getConversation: (userId) => API.get(`/chat/conversations/${userId}`),
+  getMessages: (conversationId, params = {}) => API.get(`/chat/conversations/${conversationId}/messages`, { params }),
+  sendMessage: (conversationId, message) => API.post(`/chat/conversations/${conversationId}/messages`, { message }),
+};
+
+// ======================
+// 13. UPLOAD API Methods
+// ======================
+const uploadAPI = {
+  image: (file, fieldName = 'image') => {
+    const formData = new FormData();
+    formData.append(fieldName, file);
+    return API_MULTIPART.post('/upload', formData);
+  },
+  
+  validateFile: (file, maxSize = 5242880, allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']) => {
+    const errors = [];
+    
+    if (!file) {
+      return { valid: false, errors: ['No file selected'] };
+    }
+    
+    if (!allowedTypes.includes(file.type)) {
+      errors.push(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`);
+    }
+    
+    if (file.size > maxSize) {
+      errors.push(`File too large. Maximum size: ${maxSize / 1024 / 1024}MB`);
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  },
+};
+
+// ======================
+// 14. MAIN API SERVICE OBJECT
 // ======================
 const apiService = {
-  // Regular HTTP methods
+  // Direct HTTP methods
   get: (url, config) => API.get(url, config),
   post: (url, data, config) => API.post(url, data, config),
   put: (url, data, config) => API.put(url, data, config),
   patch: (url, data, config) => API.patch(url, data, config),
   delete: (url, config) => API.delete(url, config),
   
-  // ITEMS API
-  items: {
-    // Get all items (public)
-    getAll: (params) => API.get('/items', { params }),
-    
-    // Get item by ID
-    getById: (id) => API.get(`/items/${id}`),
-    
-    // Get current user's items
-    getMyItems: (params) => API.get('/items/my', { params }),
-    
-    // Search items
-    search: (query, params) => API.get('/items/search', { params: { q: query, ...params } }),
-    
-    // Create item WITH IMAGE UPLOAD (CLOUDINARY)
-    create: async (itemData, imageFile) => {
-      const formData = createItemFormData(itemData, imageFile);
-      return API_MULTIPART.post('/items', formData);
-    },
-    
-    // Update item WITH OPTIONAL IMAGE
-    update: async (id, itemData, imageFile = null) => {
-      const formData = createItemFormData(itemData, imageFile);
-      return API_MULTIPART.put(`/items/${id}`, formData);
-    },
-    
-    // Update item status (no image)
-    updateStatus: (id, status) => API.put(`/items/${id}/status`, { status }),
-    
-    // Delete item
-    delete: (id) => API.delete(`/items/${id}`),
-  },
-  
-  // USERS API
-  users: {
-    login: (data) => API.post('/users/login', data),
-    register: (data) => API.post('/users/register', data),
-    profile: () => API.get('/users/profile'),
-    updateProfile: (data) => API.put('/users/profile', data),
-    
-    // Optional: Profile picture upload
-    uploadProfilePicture: (imageFile) => {
-      const formData = new FormData();
-      formData.append('profilePicture', imageFile);
-      return API_MULTIPART.put('/users/profile/picture', formData);
-    },
-  },
-  
-  // ADMIN API
+  // Admin API (Matches your adminService.js exactly)
   admin: adminAPI,
   
-  // ORDER API - ADDED
+  // User API
+  users: userAPI,
+  
+  // Items API
+  items: itemAPI,
+  
+  // Orders API
   orders: orderAPI,
   
-  // CART API - ADDED (Optional)
-  cart: cartAPI,
+  // Notifications API
+  notifications: notificationAPI,
   
-  // NOTIFICATIONS API
-  notifications: {
-    getAll: (params) => API.get('/notifications', { params }),
-    markAsRead: (id) => API.put(`/notifications/${id}/read`),
-    markAllAsRead: () => API.put('/notifications/read/all'),
-    delete: (id) => API.delete(`/notifications/${id}`),
-    getUnreadCount: () => API.get('/notifications/unread/count'),
-  },
+  // Reviews API
+  reviews: reviewAPI,
   
-  // BARTER API
-  barter: {
-    create: (data) => API.post('/barter', data),
-    getMy: () => API.get('/barter/my'),
-    update: (id, data) => API.put(`/barter/${id}`, data),
-  },
+  // Barter API
+  barter: barterAPI,
   
-  // UPLOAD UTILITIES
-  upload: {
-    // Generic image upload
-    image: (file, fieldName = 'image') => {
-      const formData = new FormData();
-      formData.append(fieldName, file);
-      return API_MULTIPART.post('/upload', formData);
-    },
-    
-    // Multiple files upload
-    multiple: (files, fieldName = 'files') => {
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append(fieldName, file);
-      });
-      return API_MULTIPART.post('/upload/multiple', formData);
-    },
-  },
+  // Chat API
+  chat: chatAPI,
   
-  // DIRECT AXIOS INSTANCES
+  // Upload API
+  upload: uploadAPI,
+  
+  // Direct axios instances
   axios: API,
   axiosMultipart: API_MULTIPART,
   
-  // HELPER FUNCTIONS
+  // Helper functions
   helpers: {
     createItemFormData,
     validateImageFile,
+    
+    formatPrice: (price) => {
+      if (!price && price !== 0) return '₹0';
+      return `₹${parseFloat(price).toLocaleString('en-IN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      })}`;
+    },
+    
+    formatDate: (dateString) => {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    },
+    
+    truncateText: (text, maxLength = 100) => {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      return text.substring(0, maxLength) + '...';
+    },
+    
+    getStatusColor: (status) => {
+      const statusColors = {
+        'pending': 'bg-yellow-100 text-yellow-800',
+        'approved': 'bg-green-100 text-green-800',
+        'rejected': 'bg-red-100 text-red-800',
+        'active': 'bg-green-100 text-green-800',
+        'blocked': 'bg-red-100 text-red-800',
+        'completed': 'bg-green-100 text-green-800',
+        'cancelled': 'bg-red-100 text-red-800',
+        'processing': 'bg-blue-100 text-blue-800',
+        'delivered': 'bg-green-100 text-green-800',
+        'flagged': 'bg-red-100 text-red-800'
+      };
+      
+      return statusColors[status] || 'bg-gray-100 text-gray-800';
+    },
+    
+    getNotificationIcon: (type) => {
+      switch (type) {
+        case 'item_approved':
+        case 'item_approved':
+          return '✅';
+        case 'item_rejected':
+          return '❌';
+        case 'user_blocked':
+          return '🚫';
+        case 'new_user':
+          return '👤';
+        case 'new_item':
+          return '📦';
+        case 'item_flag':
+          return '🚩';
+        case 'system':
+        case 'admin_alert':
+          return '📢';
+        case 'barter':
+          return '🔄';
+        case 'trade':
+          return '🤝';
+        case 'new_order':
+          return '🛒';
+        default:
+          return '🔔';
+      }
+    },
+    
+    getNotificationColor: (type) => {
+      switch (type) {
+        case 'item_approved':
+          return 'bg-green-100 text-green-800 border-green-200';
+        case 'item_rejected':
+          return 'bg-red-100 text-red-800 border-red-200';
+        case 'user_blocked':
+          return 'bg-orange-100 text-orange-800 border-orange-200';
+        case 'new_user':
+          return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'new_item':
+          return 'bg-purple-100 text-purple-800 border-purple-200';
+        case 'item_flag':
+          return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        case 'system':
+        case 'admin_alert':
+          return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        default:
+          return 'bg-gray-100 text-gray-800 border-gray-200';
+      }
+    },
+    
+    getCategoryIcon: (category) => {
+      const icons = {
+        'books': '📚',
+        'notes': '📝',
+        'lab equipment': '🧪',
+        'electronics': '💻',
+        'stationery': '✏️',
+        'furniture': '🪑',
+        'clothing': '👕',
+        'other': '📦'
+      };
+      return icons[category?.toLowerCase()] || '📦';
+    }
   },
+  
+  // Configuration
+  config: {
+    baseURL: API_BASE_URL,
+    setBaseURL: (url) => {
+      API.defaults.baseURL = url;
+      API_MULTIPART.defaults.baseURL = url;
+    },
+    
+    setToken: (token, isAdmin = false) => {
+      if (isAdmin) {
+        localStorage.setItem('adminToken', token);
+      } else {
+        localStorage.setItem('token', token);
+      }
+    },
+    
+    clearTokens: () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('adminData');
+    },
+    
+    getToken: (isAdmin = false) => {
+      return isAdmin ? localStorage.getItem('adminToken') : localStorage.getItem('token');
+    },
+    
+    isAuthenticated: (isAdmin = false) => {
+      return !!apiService.config.getToken(isAdmin);
+    },
+    
+    getUser: () => {
+      const userStr = localStorage.getItem('user');
+      try {
+        return userStr ? JSON.parse(userStr) : null;
+      } catch {
+        return null;
+      }
+    },
+    
+    getAdminUser: () => {
+      const adminUserStr = localStorage.getItem('adminData');
+      try {
+        return adminUserStr ? JSON.parse(adminUserStr) : null;
+      } catch {
+        return null;
+      }
+    }
+  }
 };
 
-// Export both default and named exports
+// Export everything
 export default apiService;
 export { 
   API, 
-  API_MULTIPART, 
-  adminAPI, 
-  orderAPI, 
-  cartAPI 
+  API_MULTIPART,
+  adminAPI,
+  userAPI,
+  itemAPI,
+  orderAPI,
+  notificationAPI,
+  reviewAPI,
+  barterAPI,
+  chatAPI,
+  uploadAPI
 };

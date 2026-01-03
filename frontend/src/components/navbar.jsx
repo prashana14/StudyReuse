@@ -743,7 +743,6 @@ const Navbar = () => {
                       </Link>
                       <Link to="/orders" style={{ textDecoration: 'none', color: 'inherit' }}>
                           <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span>📦</span>
                             <span>My Orders</span>
                           </div>
                         </Link>

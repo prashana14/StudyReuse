@@ -173,12 +173,31 @@ const orderLimiter = rateLimit({
   }
 });
 
+// Admin endpoints rate limiter (separate for admin panel)
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 100, // 100 requests per minute for admin
+  message: {
+    success: false,
+    message: 'Too many admin requests, please slow down',
+    code: 'ADMIN_RATE_LIMIT'
+  },
+  skip: (req) => !req.path.startsWith('/api/admin'),
+  keyGenerator: (req) => {
+    if (req.user?._id) {
+      return `admin:${req.user._id}`;
+    }
+    return ipKeyGenerator(req);
+  }
+});
+
 // Apply rate limiters
 app.use('/api/', apiLimiter);
 app.use('/api/users/login', authLimiter);
 app.use('/api/users/register', authLimiter);
 app.use('/api/chat', chatLimiter);
-app.use('/api/orders', orderLimiter); // ADD THIS LINE
+app.use('/api/orders', orderLimiter);
+app.use('/api/admin', adminLimiter);
 
 // ======================
 // 4. Body Parsers & Security
@@ -312,7 +331,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/orders', orderRoutes); // ADD THIS LINE
+app.use('/api/orders', orderRoutes);
 
 // ======================
 // 9. Health & Info Routes
@@ -342,7 +361,8 @@ app.get('/health', (req, res) => {
       general: '500 requests per 15 minutes',
       auth: '20 requests per 15 minutes',
       chat: '60 requests per minute',
-      orders: '10 requests per minute' // ADD THIS LINE
+      orders: '10 requests per minute',
+      admin: '100 requests per minute'
     },
     routes: {
       users: '/api/users',
@@ -352,7 +372,7 @@ app.get('/health', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
-      orders: '/api/orders' // ADD THIS LINE
+      orders: '/api/orders'
     }
   });
 });
@@ -369,7 +389,7 @@ app.get('/', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
-      orders: '/api/orders', // ADD THIS LINE
+      orders: '/api/orders',
       health: '/health'
     },
     status: 'operational',
@@ -490,6 +510,24 @@ app.use((err, req, res, next) => {
     });
   }
   
+  // Admin-specific errors
+  if (err.message && err.message.includes('Admin only')) {
+    return res.status(403).json({
+      success: false,
+      message: err.message,
+      code: 'ADMIN_ACCESS_REQUIRED'
+    });
+  }
+  
+  // Notification errors
+  if (err.message && err.message.includes('notification')) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: 'NOTIFICATION_ERROR'
+    });
+  }
+  
   // Default error
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal server error';
@@ -515,7 +553,11 @@ app.use('*', (req, res) => {
       items: '/api/items',
       users: '/api/users',
       admin: '/api/admin',
-      orders: '/api/orders' // ADD THIS LINE
+      orders: '/api/orders',
+      notifications: '/api/notifications',
+      chat: '/api/chat',
+      barter: '/api/barter',
+      reviews: '/api/reviews'
     }
   });
 });
@@ -595,7 +637,11 @@ const startServer = async () => {
       console.log(`🩺 Health:   http://localhost:${PORT}/health`);
       console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('🔒 Rate Limiting: Enabled');
-      console.log('   - Orders: 10 requests per minute'); // ADD THIS LINE
+      console.log('   - General: 500 requests per 15 minutes');
+      console.log('   - Auth: 20 requests per 15 minutes');
+      console.log('   - Chat: 60 requests per minute');
+      console.log('   - Orders: 10 requests per minute');
+      console.log('   - Admin: 100 requests per minute');
       console.log('🌍 CORS: Configured for frontend origins');
       console.log('='.repeat(50));
       console.log('\n✅ Ready to accept connections\n');

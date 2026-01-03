@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom"; // Removed BrowserRouter
 import { useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
+import { useAdminAuth } from "./context/AdminAuthContext";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -27,25 +28,28 @@ import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
 
 // Import Admin Components
-import { AdminAuthProvider } from "./context/AdminAuthContext";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminRegister from "./pages/admin/AdminRegister";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import UserManagement from "./pages/admin/UserManagement";
-import ItemManagement from "./pages/admin/ItemManagement";
-import OrderManagement from "./pages/admin/orderManagement";
-import SendNotification from "./pages/admin/SendNotification";
-import AdminSettings from "./pages/admin/AdminSettings";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import UsersPage from "./pages/admin/UsersPage";
+import ItemsPage from "./pages/admin/ItemsPage";
+import OrdersPage from "./pages/admin/OrdersPage";
+import AnalyticsPage from "./pages/admin/AnalyticsPage";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 
-// Import CartProvider
+// Import Providers
 import { CartProvider } from "./context/CartContext";
+import { NotificationProvider } from "./context/NotificationContext";
 
 function App() {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading: userLoading } = useContext(AuthContext);
+  const { admin, loading: adminLoading } = useAdminAuth?.() || {};
 
-  if (loading) {
+  const isLoading = userLoading || adminLoading;
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -54,47 +58,52 @@ function App() {
   }
 
   return (
-    <AdminAuthProvider>
+    <NotificationProvider>
       <CartProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Admin Routes - No Navbar/Footer */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/register" element={<AdminRegister />} />
-            
-            {/* Admin Protected Routes with Layout */}
-            <Route 
-              path="/admin" 
-              element={
-                <AdminProtectedRoute>
-                  <AdminLayout />
-                </AdminProtectedRoute>
-              }
-            >
-              {/* These will render in AdminLayout's Outlet */}
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="users" element={<UserManagement />} />
-              <Route path="items" element={<ItemManagement />} />
-              <Route path="orders" element={<OrderManagement />} />
-              <Route path="notifications" element={<SendNotification />} />
-              <Route path="settings" element={<AdminSettings />} />
-            </Route>
-            
-            {/* All other routes show normal Navbar/Footer */}
-            <Route path="*" element={
-              <>
-                <Navbar />
-                <div className="min-h-[calc(100vh-140px)]">
-                  <MainRoutes user={user} />
-                </div>
-                <Footer />
-              </>
-            } />
-          </Routes>
-        </BrowserRouter>
+        {/* REMOVED BrowserRouter wrapper - it's already in main.jsx */}
+        <Routes>
+          {/* Admin Routes - No Navbar/Footer */}
+          <Route 
+            path="/admin/login" 
+            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />} 
+          />
+          <Route 
+            path="/admin/register" 
+            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminRegister />} 
+          />
+          
+          {/* Admin Protected Routes with Layout */}
+          <Route 
+            path="/admin" 
+            element={
+              <AdminProtectedRoute>
+                <AdminLayout />
+              </AdminProtectedRoute>
+            }
+          >
+            {/* These will render in AdminLayout's Outlet */}
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="items" element={<ItemsPage />} />
+            <Route path="orders" element={<OrdersPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+          </Route>
+          
+          {/* All other routes show normal Navbar/Footer */}
+          <Route path="*" element={
+            <>
+              <Navbar />
+              <div className="min-h-[calc(100vh-140px)]">
+                <MainRoutes user={user} />
+              </div>
+              <Footer />
+            </>
+          } />
+        </Routes>
       </CartProvider>
-    </AdminAuthProvider>
+    </NotificationProvider>
   );
 }
 

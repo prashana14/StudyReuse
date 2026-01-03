@@ -47,4 +47,17 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Add this at the end of backend/models/userModel.js, before the export
+userSchema.post('save', async function(doc, next) {
+  try {
+    // Only notify for new users (not admins) and not when updating
+    if (doc.role === 'user' && doc.isNew) {
+      const adminController = require('../controller/adminController');
+      await adminController.notifyNewUser(doc._id);
+    }
+  } catch (error) {
+    console.error('Error in user post-save hook:', error);
+  }
+  next();
+});
 module.exports = mongoose.model("User", userSchema);

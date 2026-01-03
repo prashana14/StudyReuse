@@ -1,46 +1,61 @@
+// backend/middleware/adminMiddleware.js
 const jwt = require('jsonwebtoken');
 
-const adminMiddleware = (req, res, next) => {
+const adminMiddleware = async (req, res, next) => {
   try {
+    // Get token from header
     const authHeader = req.headers.authorization;
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 
         success: false,
         message: 'No token provided' 
       });
     }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ 
+    const token = authHeader.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
         success: false,
-        message: 'Admin access only' 
+        message: 'No token provided' 
       });
     }
     
-    req.user = decoded;
-    req.userId = decoded.id;
-    req.userRole = decoded.role;
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     
+    // Check if user is admin
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied. Admin only.' 
+      });
+    }
+    
+    // Add user to request
+    req.user = decoded;
     next();
   } catch (error) {
+    console.error('Admin middleware error:', error);
+    
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ 
         success: false,
         message: 'Invalid token' 
       });
     }
+    
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ 
         success: false,
-        message: 'Token expired' 
+        message: 'Token expired, please login again' 
       });
     }
-    return res.status(500).json({ 
+    
+    res.status(500).json({ 
       success: false,
-      message: 'Server error: ' + error.message 
+      message: 'Server error in authentication' 
     });
   }
 };

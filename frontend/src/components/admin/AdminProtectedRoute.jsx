@@ -1,9 +1,41 @@
-import React from 'react';
+// src/components/admin/AdminProtectedRoute.jsx
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAdminAuth } from '../../context/AdminAuthContext';
+// CHANGE THIS:
+// import { verifyAdmin } from "../services/adminService";
+// TO THIS:
+import apiService from "../../services/api"; // or apiService
 
 const AdminProtectedRoute = ({ children }) => {
-  const { admin, loading } = useAdminAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        
+        if (!token) {
+          setIsAuthenticated(false);
+          setLoading(false);
+          return;
+        }
+
+        // USE apiService INSTEAD:
+        await apiService.admin.verifyAdmin();
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Admin auth check failed:', error);
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminData');
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   if (loading) {
     return (
@@ -13,7 +45,7 @@ const AdminProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!admin) {
+  if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
   }
 
