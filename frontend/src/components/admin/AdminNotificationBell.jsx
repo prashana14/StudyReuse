@@ -1,8 +1,7 @@
 // src/components/admin/AdminNotificationBell.jsx
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { BellIcon, XMarkIcon, CheckIcon, TrashIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useRef } from 'react';
 import { useNotification } from '../../context/NotificationContext';
-import apiService from '../../services/api'; // Use apiService, NOT adminService
+import apiService from '../../services/api';
 
 const AdminNotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
@@ -39,7 +38,6 @@ const AdminNotificationBell = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      // Use apiService.admin.getAdminNotifications
       const data = await apiService.admin.getAdminNotifications({ 
         limit: 10, 
         isRead: false,
@@ -55,7 +53,6 @@ const AdminNotificationBell = () => {
 
   const fetchUnreadCount = async () => {
     try {
-      // Use apiService.admin.getAdminUnreadCount
       const data = await apiService.admin.getAdminUnreadCount();
       setUnreadCount(data.count || 0);
     } catch (error) {
@@ -66,7 +63,6 @@ const AdminNotificationBell = () => {
   const handleMarkAsRead = async (notificationId, event) => {
     event.stopPropagation();
     try {
-      // Use apiService.admin.markAdminNotificationAsRead
       await apiService.admin.markAdminNotificationAsRead(notificationId);
       setNotifications(prev => 
         prev.map(notif => 
@@ -83,7 +79,6 @@ const AdminNotificationBell = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      // Use apiService.admin.markAllAdminNotificationsAsRead
       await apiService.admin.markAllAdminNotificationsAsRead();
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, isRead: true }))
@@ -97,7 +92,6 @@ const AdminNotificationBell = () => {
   const handleDeleteNotification = async (notificationId, event) => {
     event.stopPropagation();
     try {
-      // Use apiService.admin.deleteAdminNotification
       await apiService.admin.deleteAdminNotification(notificationId);
       setNotifications(prev => 
         prev.filter(notif => notif._id !== notificationId)
@@ -116,67 +110,101 @@ const AdminNotificationBell = () => {
   };
 
   const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'item_approved':
-        return '✅';
-      case 'item_rejected':
-        return '❌';
-      case 'user_blocked':
-        return '🚫';
-      case 'user_verified':
-      case 'new_user':
-        return '👤';
-      case 'new_item':
-        return '📦';
-      case 'item_flag':
-        return '🚩';
-      case 'system':
-      case 'admin_alert':
-        return '📢';
-      case 'barter':
-        return '🔄';
-      case 'trade':
-        return '🤝';
-      case 'new_order':
-        return '🛒';
-      default:
-        return '🔔';
-    }
+    const emojis = {
+      'item_approved': '✅',
+      'item_rejected': '❌',
+      'user_blocked': '🚫',
+      'user_verified': '👤',
+      'new_user': '👤',
+      'new_item': '📦',
+      'item_flag': '🚩',
+      'system': '⚙️',
+      'admin_alert': '📢',
+      'barter': '🔄',
+      'trade': '🤝',
+      'new_order': '🛒',
+      'default': '🔔'
+    };
+    return emojis[type] || emojis.default;
   };
 
   const getNotificationColor = (type) => {
-    switch (type) {
-      case 'item_approved':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'item_rejected':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'user_blocked':
-        return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'new_user':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'new_item':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'item_flag':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'system':
-      case 'admin_alert':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+    const colors = {
+      'item_approved': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
+      'item_rejected': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
+      'user_blocked': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
+      'new_user': { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
+      'new_item': { bg: '#f3e8ff', text: '#7c3aed', border: '#e9d5ff' },
+      'item_flag': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
+      'system': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
+      'admin_alert': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
+      'default': { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' }
+    };
+    return colors[type] || colors.default;
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div style={{ position: 'relative' }} ref={dropdownRef}>
       {/* Notification Bell */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+        style={{
+          position: 'relative',
+          padding: '0.5rem',
+          color: '#6b7280',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          borderRadius: '9999px',
+          transition: 'all 0.2s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = '#1f2937';
+          e.currentTarget.style.backgroundColor = '#f3f4f6';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = '#6b7280';
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
         aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
       >
-        <BellIcon className="h-6 w-6" />
+        <span style={{ fontSize: '1.5rem' }}>🔔</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+          <span style={{
+            position: 'absolute',
+            top: '0',
+            right: '0',
+            height: '1.25rem',
+            width: '1.25rem',
+            backgroundColor: '#ef4444',
+            color: '#ffffff',
+            fontSize: '0.75rem',
+            borderRadius: '9999px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+            animation: 'pulse 1.5s infinite',
+            border: '2px solid #ffffff',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -184,137 +212,422 @@ const AdminNotificationBell = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
+        <div style={{
+          position: 'absolute',
+          right: 0,
+          top: '100%',
+          marginTop: '0.5rem',
+          width: '24rem',
+          backgroundColor: '#ffffff',
+          borderRadius: '0.75rem',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          border: '1px solid #e5e7eb',
+          zIndex: 50,
+          overflow: 'hidden'
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '1rem',
+            borderBottom: '1px solid #e5e7eb',
+            backgroundColor: '#f9fafb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
               <div>
-                <h3 className="font-semibold text-gray-800">Notifications</h3>
-                <p className="text-xs text-gray-500 mt-1">
+                <h3 style={{
+                  fontWeight: 600,
+                  color: '#1f2937',
+                  margin: 0,
+                  fontSize: '1rem'
+                }}>
+                  <span style={{ marginRight: '0.5rem' }}>📢</span>
+                  Notifications
+                </h3>
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: '#6b7280',
+                  margin: '0.25rem 0 0 0'
+                }}>
                   {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllAsRead}
-                    className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#2563eb',
+                      padding: '0.375rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#1e40af';
+                      e.currentTarget.style.backgroundColor = '#eff6ff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = '#2563eb';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
+                    <span style={{ marginRight: '0.25rem' }}>✅</span>
                     Mark all read
                   </button>
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                  style={{
+                    color: '#9ca3af',
+                    padding: '0.375rem',
+                    borderRadius: '9999px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#6b7280';
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#9ca3af';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                   aria-label="Close notifications"
                 >
-                  <XMarkIcon className="h-5 w-5" />
+                  <span style={{ fontSize: '1.25rem' }}>✖️</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          {/* Notifications List */}
+          <div style={{ maxHeight: '24rem', overflowY: 'auto' }}>
             {loading ? (
-              <div className="flex justify-center items-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '2rem'
+              }}>
+                <div style={{
+                  animation: 'spin 1s linear infinite',
+                  borderRadius: '9999px',
+                  height: '2rem',
+                  width: '2rem',
+                  borderBottom: '2px solid #2563eb',
+                  borderLeft: '2px solid transparent',
+                  borderRight: '2px solid transparent',
+                  borderTop: '2px solid transparent'
+                }}></div>
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <BellIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No notifications</p>
-                <p className="text-sm text-gray-400 mt-1">All caught up!</p>
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <span style={{ 
+                  fontSize: '3rem', 
+                  opacity: 0.3,
+                  display: 'block',
+                  marginBottom: '0.75rem'
+                }}>🔔</span>
+                <p style={{ 
+                  color: '#6b7280',
+                  margin: 0,
+                  fontSize: '0.875rem'
+                }}>No notifications</p>
+                <p style={{ 
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  margin: '0.25rem 0 0 0'
+                }}>All caught up! 🎉</p>
               </div>
             ) : (
               <div>
-                {notifications.map((notification) => (
-                  <div
-                    key={notification._id}
-                    onClick={() => handleNotificationClickLocal(notification)}
-                    className={`p-4 border-b border-gray-100 cursor-pointer transition-all duration-200 hover:bg-blue-50 group ${
-                      !notification.isRead ? 'bg-blue-50/50' : ''
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      {/* Notification Icon */}
-                      <div className={`flex-shrink-0 h-10 w-10 rounded-lg ${getNotificationColor(notification.type)} flex items-center justify-center text-lg`}>
-                        {getNotificationIcon(notification.type)}
-                      </div>
-                      
-                      {/* Notification Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-gray-800 text-sm truncate">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                              {notification.message}
-                            </p>
-                          </div>
-                          
-                          {/* Action Label */}
-                          <span className="flex items-center text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {getActionLabel(notification)}
-                            <ChevronRightIcon className="h-3 w-3 ml-1" />
-                          </span>
+                {notifications.map((notification) => {
+                  const colors = getNotificationColor(notification.type);
+                  return (
+                    <div
+                      key={notification._id}
+                      onClick={() => handleNotificationClickLocal(notification)}
+                      style={{
+                        padding: '1rem',
+                        borderBottom: '1px solid #f3f4f6',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        backgroundColor: !notification.isRead ? '#eff6ff' : '#ffffff',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = !notification.isRead ? '#e0f2fe' : '#f9fafb';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = !notification.isRead ? '#eff6ff' : '#ffffff';
+                      }}
+                    >
+                      {/* Unread indicator */}
+                      {!notification.isRead && (
+                        <div style={{
+                          position: 'absolute',
+                          left: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: '0.5rem',
+                          height: '0.5rem',
+                          backgroundColor: '#2563eb',
+                          borderRadius: '9999px'
+                        }}></div>
+                      )}
+
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'flex-start', 
+                        gap: '0.75rem'
+                      }}>
+                        {/* Notification Icon */}
+                        <div style={{
+                          flexShrink: 0,
+                          width: '2.5rem',
+                          height: '2.5rem',
+                          backgroundColor: colors.bg,
+                          color: colors.text,
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${colors.border}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.25rem'
+                        }}>
+                          {getNotificationIcon(notification.type)}
                         </div>
                         
-                        {/* Metadata and Actions */}
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center space-x-3">
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${getNotificationColor(notification.type)}`}>
-                              {notification.type.replace('_', ' ')}
+                        {/* Notification Content */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'flex-start',
+                            gap: '0.5rem'
+                          }}>
+                            <div>
+                              <p style={{ 
+                                fontWeight: 500, 
+                                color: '#1f2937', 
+                                fontSize: '0.875rem',
+                                margin: 0,
+                                lineHeight: 1.4
+                              }}>
+                                {notification.title || 'Notification'}
+                              </p>
+                              <p style={{ 
+                                fontSize: '0.75rem',
+                                color: '#6b7280',
+                                margin: '0.25rem 0 0 0',
+                                lineHeight: 1.4
+                              }}>
+                                {notification.message || 'No message provided'}
+                              </p>
+                            </div>
+                            
+                            {/* Action Label */}
+                            <span style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              fontSize: '0.75rem',
+                              color: '#2563eb',
+                              opacity: 0,
+                              transition: 'opacity 0.2s ease',
+                              flexShrink: 0
+                            }}>
+                              {getActionLabel(notification)}
+                              <span style={{ marginLeft: '0.125rem' }}>➡️</span>
                             </span>
-                            <p className="text-xs text-gray-500">
-                              {notification.timeAgo}
-                            </p>
                           </div>
                           
-                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!notification.isRead && (
-                              <button
-                                onClick={(e) => handleMarkAsRead(notification._id, e)}
-                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded"
-                                title="Mark as read"
-                                aria-label="Mark as read"
-                              >
-                                <CheckIcon className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => handleDeleteNotification(notification._id, e)}
-                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded"
-                              title="Delete notification"
-                              aria-label="Delete notification"
+                          {/* Metadata and Actions */}
+                          <div style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '0.5rem'
+                          }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.5rem',
+                              flexWrap: 'wrap'
+                            }}>
+                              <span style={{
+                                padding: '0.125rem 0.5rem',
+                                fontSize: '0.625rem',
+                                fontWeight: 500,
+                                borderRadius: '9999px',
+                                backgroundColor: colors.bg,
+                                color: colors.text,
+                                border: `1px solid ${colors.border}`
+                              }}>
+                                {notification.type ? notification.type.replace(/_/g, ' ') : 'Notification'}
+                              </span>
+                              <span style={{
+                                fontSize: '0.625rem',
+                                color: '#9ca3af'
+                              }}>
+                                {notification.createdAt ? formatTimeAgo(notification.createdAt) : 'Recently'}
+                              </span>
+                            </div>
+                            
+                            <div style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              opacity: 0,
+                              transition: 'opacity 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.opacity = '1';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.opacity = '0';
+                            }}
                             >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
+                              {!notification.isRead && (
+                                <button
+                                  onClick={(e) => handleMarkAsRead(notification._id, e)}
+                                  style={{
+                                    padding: '0.25rem',
+                                    color: '#2563eb',
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    borderRadius: '0.25rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#dbeafe';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="Mark as read"
+                                  aria-label="Mark as read"
+                                >
+                                  <span>✅</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleDeleteNotification(notification._id, e)}
+                                style={{
+                                  padding: '0.25rem',
+                                  color: '#dc2626',
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  borderRadius: '0.25rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="Delete notification"
+                                aria-label="Delete notification"
+                              >
+                                <span>🗑️</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="p-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
-            <div className="flex justify-between items-center">
+          <div style={{
+            padding: '0.75rem 1rem',
+            borderTop: '1px solid #e5e7eb',
+            backgroundColor: '#f9fafb'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
               <a
                 href="/admin/notifications"
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#2563eb',
+                  textDecoration: 'none',
+                  padding: '0.375rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#1e40af';
+                  e.currentTarget.style.backgroundColor = '#eff6ff';
+                  e.currentTarget.style.textDecoration = 'underline';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#2563eb';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.textDecoration = 'none';
+                }}
               >
+                <span style={{ marginRight: '0.25rem' }}>👁️</span>
                 View all notifications
               </a>
-              <span className="text-xs text-gray-500">
+              <span style={{
+                fontSize: '0.625rem',
+                color: '#6b7280',
+                fontStyle: 'italic'
+              }}>
                 Click notifications to take action
               </span>
             </div>
           </div>
         </div>
       )}
+
+      {/* Add CSS animations */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .group:hover .group-hover\\:opacity-100 {
+          opacity: 1 !important;
+        }
+      `}</style>
     </div>
   );
 };

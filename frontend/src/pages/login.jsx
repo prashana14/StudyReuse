@@ -52,51 +52,143 @@ const Login = () => {
       return;
     }
 
-    console.log("Login attempt with:", { email, password });
+    console.log("Login attempt with:", { email: email.substring(0, 3) + '...' });
 
     try {
       console.log("Calling API endpoint: /users/login");
       
       const res = await API.post("/users/login", { email, password });
-      console.log("Login response:", res.data);
+      console.log("Full login response:", res);
       
-      if (res.data.token && res.data.user) {
-        // Save to localStorage FIRST
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-        
-        console.log("Saved to localStorage:", {
-          token: res.data.token,
-          user: res.data.user
-        });
-        
-        // Then update AuthContext
-        login(res.data);
-        
-        console.log("Login successful, redirecting to dashboard");
-        navigate("/dashboard");
-      } else {
-        setError("Login response missing token or user data");
+      // ✅ Check if response exists
+      if (!res) {
+        throw new Error("No response received from server");
       }
-    } catch (err) {
-      console.error("Login error:", err);
-      console.error("Error response data:", err.response?.data);
       
-      if (err.response?.status === 400) {
-        if (err.response?.data?.message === "Invalid credentials") {
-          setError("Invalid email or password. Please check your credentials.");
-        } else if (err.response?.data?.message === "User not found") {
-          setError("No account found with this email. Please register first.");
-        } else {
-          setError(err.response?.data?.message || "Invalid credentials");
-        }
-      } else if (err.message === "Network Error") {
-        setError("Cannot connect to server. Please check if backend is running on port 4000.");
+      // ✅ Handle different response structures
+      let token, user;
+      
+      // Check various possible response structures
+      if (res.data && res.data.token && res.data.user) {
+        // Structure 1: { data: { token, user } }
+        token = res.data.token;
+        user = res.data.user;
+      } else if (res.data && res.data.data && res.data.data.token) {
+        // Structure 2: { data: { data: { token, user } } }
+        token = res.data.data.token;
+        user = res.data.data.user;
+      } else if (res.data && res.data.accessToken) {
+        // Structure 3: { data: { accessToken, user } }
+        token = res.data.accessToken;
+        user = res.data.user;
+      } else if (res.token) {
+        // Structure 4: Direct { token, user } (rare)
+        token = res.token;
+        user = res.user;
       } else {
-        setError("Login failed. Please try again.");
+        // Check for error messages in response
+        const errorMsg = res.data?.message || res.data?.error || "Invalid response format";
+        throw new Error(errorMsg);
+      }
+      
+      // ✅ Validate token and user
+      if (!token) {
+        throw new Error("Authentication token not received");
+      }
+      
+      if (!user) {
+        console.warn("User data not received, using minimal user object");
+        user = { email: email };
+      }
+      
+      console.log("Login successful. Token received:", token ? "Yes" : "No");
+      console.log("User data:", user);
+      
+      // Save to localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      
+      console.log("Saved to localStorage:", {
+        token: token.substring(0, 10) + '...',
+        userEmail: user.email
+      });
+      
+      // Update AuthContext
+      login({ token, user });
+      
+      console.log("Login successful, redirecting to dashboard");
+      navigate("/dashboard");
+      
+    } catch (err) {
+      console.error("Login error details:", {
+        name: err.name,
+        message: err.message,
+        response: err.response,
+        request: err.request
+      });
+      
+      // Handle different error types
+      if (err.response) {
+        // Server responded with error status
+        const status = err.response.status;
+        const serverError = err.response.data?.message || 
+                          err.response.data?.error || 
+                          err.response.data?.details ||
+                          "Login failed";
+        
+        switch(status) {
+          case 400:
+            setError(serverError.includes("Invalid") ? 
+              "Invalid email or password" : 
+              serverError);
+            break;
+          case 401:
+            setError("Unauthorized. Please check your credentials.");
+            break;
+          case 404:
+            setError("User not found. Please register first.");
+            break;
+          case 422:
+            setError("Validation error: " + serverError);
+            break;
+          case 429:
+            setError("Too many attempts. Please try again later.");
+            break;
+          case 500:
+            setError("Server error. Please try again later.");
+            break;
+          default:
+            setError(serverError);
+        }
+      } else if (err.request) {
+        // Request was made but no response
+        console.error("No response received. Request:", err.request);
+        setError("Cannot connect to server. Please check if backend is running on port 4000.");
+        
+        // Add helpful debugging info
+        if (process.env.NODE_ENV === 'development') {
+          console.info("Backend should be running on: http://localhost:4000");
+          console.info("Check: 1) Is backend running? 2) CORS configured?");
+        }
+      } else if (err.message.includes("Network Error")) {
+        setError("Network error. Please check your internet connection.");
+      } else if (err.message.includes("timeout")) {
+        setError("Request timeout. Server is taking too long to respond.");
+      } else {
+        // Other errors
+        setError(err.message || "Login failed. Please try again.");
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Safely get base URL for debug info
+  const getBaseURL = () => {
+    try {
+      return API.defaults?.baseURL || "Not configured";
+    } catch (err) {
+      return "Error retrieving base URL";
     }
   };
 
@@ -109,49 +201,87 @@ const Login = () => {
       borderRadius: "10px",
       boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)"
     }}>
-      <h2 style={{ textAlign: "center", marginBottom: "30px" }}>Login to StudyReuse</h2>
+      <h2 style={{ 
+        textAlign: "center", 
+        marginBottom: "20px",
+        color: "#1890ff",
+        fontSize: "28px",
+        fontWeight: "600"
+      }}>Login to StudyReuse</h2>
+      
+      <p style={{
+        textAlign: "center",
+        color: "#666",
+        marginBottom: "30px",
+        fontSize: "14px"
+      }}>
+        Access your RIA Study Materials Repository
+      </p>
       
       <div style={{ textAlign: "center", marginBottom: "30px" }}>
         <img 
           src="/logo.png" 
           alt="StudyReuse Logo"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "https://via.placeholder.com/150/1890ff/ffffff?text=SR";
+          }}
           style={{ 
-            height: "150px",
-            marginBottom: "20px",
-            borderRadius: "10px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+            height: "120px",
+            width: "120px",
+            marginBottom: "15px",
+            borderRadius: "50%",
+            boxShadow: "0 4px 12px rgba(24, 144, 255, 0.3)",
+            objectFit: "cover",
+            border: "3px solid #1890ff"
           }}
         />
       </div>
 
-      {/* ERROR MESSAGE DISPLAY - ADD THIS SECTION */}
+      {/* ERROR MESSAGE DISPLAY */}
       {error && (
         <div style={{
           marginBottom: "20px",
-          padding: "12px",
+          padding: "12px 15px",
           backgroundColor: "#ffebee",
-          borderLeft: "4px solid #d32f2f",
-          borderRadius: "4px",
+          border: "1px solid #ffcdd2",
+          borderRadius: "8px",
           color: "#d32f2f",
           fontSize: "14px",
           display: "flex",
-          alignItems: "center",
-          gap: "8px",
+          alignItems: "flex-start",
+          gap: "10px",
           animation: "fadeIn 0.3s ease"
         }}>
-          <span style={{ fontSize: "16px" }}></span>
-          <span>{error}</span>
+          <span style={{ 
+            fontSize: "18px",
+            flexShrink: 0,
+            marginTop: "1px"
+          }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ display: "block", marginBottom: "4px" }}>Login Error</strong>
+            <span>{error}</span>
+          </div>
           <button
             onClick={() => setError("")}
             style={{
-              marginLeft: "auto",
               background: "none",
               border: "none",
               color: "#d32f2f",
               cursor: "pointer",
               padding: "0",
-              fontSize: "18px"
+              fontSize: "16px",
+              width: "24px",
+              height: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              transition: "all 0.2s"
             }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#ffcdd2"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+            title="Dismiss error"
           >
             ✕
           </button>
@@ -160,48 +290,88 @@ const Login = () => {
       
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: "20px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>
+          <label style={{ 
+            display: "block", 
+            marginBottom: "8px", 
+            fontWeight: "500",
+            color: "#333",
+            fontSize: "14px"
+          }}>
             Email Address
+            <span style={{ color: "#ff4d4f", marginLeft: "4px" }}>*</span>
           </label>
           <input
             type="email"
-            placeholder="Enter your email"
+            placeholder="username@ria.edu.np"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={loading}
             style={{
               width: "100%",
-              padding: "12px",
-              border: error.includes("email") ? "1px solid #d32f2f" : "1px solid #ccc",
-              borderRadius: "6px",
-              fontSize: "16px",
+              padding: "12px 15px",
+              border: error.includes("email") ? "1px solid #ff4d4f" : "1px solid #d9d9d9",
+              borderRadius: "8px",
+              fontSize: "15px",
               boxSizing: "border-box",
-              transition: "all 0.3s"
+              transition: "all 0.3s",
+              backgroundColor: loading ? "#f5f5f5" : "white"
             }}
             onFocus={(e) => {
-              e.target.style.borderColor = "#1890ff";
-              e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+              if (!loading) {
+                e.target.style.borderColor = "#1890ff";
+                e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+              }
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = error.includes("email") ? "#d32f2f" : "#ccc";
+              e.target.style.borderColor = error.includes("email") ? "#ff4d4f" : "#d9d9d9";
               e.target.style.boxShadow = "none";
             }}
           />
           <div style={{ 
             fontSize: "12px", 
             color: "#666", 
-            marginTop: "4px",
+            marginTop: "6px",
             display: "flex",
             alignItems: "center",
             gap: "4px"
           }}>
+            <span>📧</span>
+            <span>Use your RIA College email</span>
           </div>
         </div>
         
         <div style={{ marginBottom: "25px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>
-            Password
-          </label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <label style={{ 
+              display: "block", 
+              fontWeight: "500",
+              color: "#333",
+              fontSize: "14px"
+            }}>
+              Password
+              <span style={{ color: "#ff4d4f", marginLeft: "4px" }}>*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#1890ff",
+                cursor: "pointer",
+                padding: "0",
+                fontSize: "12px",
+                fontWeight: "500",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+              onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+              disabled={loading}
+            >
+              {showPassword ? "Hide password" : "Show password"}
+            </button>
+          </div>
           <div style={{ position: "relative" }}>
             <input
               type={showPassword ? "text" : "password"}
@@ -209,21 +379,25 @@ const Login = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={loading}
               style={{
                 width: "100%",
-                padding: "12px 45px 12px 12px",
-                border: error.includes("password") ? "1px solid #d32f2f" : "1px solid #ccc",
-                borderRadius: "6px",
-                fontSize: "16px",
+                padding: "12px 45px 12px 15px",
+                border: error.includes("password") ? "1px solid #ff4d4f" : "1px solid #d9d9d9",
+                borderRadius: "8px",
+                fontSize: "15px",
                 boxSizing: "border-box",
-                transition: "all 0.3s"
+                transition: "all 0.3s",
+                backgroundColor: loading ? "#f5f5f5" : "white"
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = "#1890ff";
-                e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+                if (!loading) {
+                  e.target.style.borderColor = "#1890ff";
+                  e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+                }
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = error.includes("password") ? "#d32f2f" : "#ccc";
+                e.target.style.borderColor = error.includes("password") ? "#ff4d4f" : "#d9d9d9";
                 e.target.style.boxShadow = "none";
               }}
             />
@@ -246,43 +420,38 @@ const Login = () => {
                 width: "30px",
                 height: "30px",
                 borderRadius: "50%",
-                transition: "all 0.3s"
+                transition: "all 0.3s",
+                opacity: loading ? 0.5 : 1
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+              onMouseEnter={(e) => {
+                if (!loading) e.target.style.backgroundColor = "#f0f0f0";
+              }}
               onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              disabled={loading}
+              title={showPassword ? "Hide password" : "Show password"}
             >
-              <svg 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {showPassword ? (
-                  <>
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </>
-                ) : (
-                  <>
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </>
-                )}
-              </svg>
+              {showPassword ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              )}
             </button>
           </div>
           <div style={{ 
             fontSize: "12px", 
             color: "#666", 
-            marginTop: "4px",
+            marginTop: "6px",
             display: "flex",
             alignItems: "center",
             gap: "4px"
           }}>
+            <span>🔒</span>
             <span>Password must be at least 6 characters</span>
           </div>
         </div>
@@ -293,10 +462,10 @@ const Login = () => {
           style={{
             width: "100%",
             padding: "14px",
-            backgroundColor: loading ? "#ccc" : "#1890ff",
+            backgroundColor: loading ? "#bae0ff" : "#1890ff",
             color: "white",
             border: "none",
-            borderRadius: "6px",
+            borderRadius: "8px",
             fontSize: "16px",
             fontWeight: "600",
             cursor: loading ? "not-allowed" : "pointer",
@@ -304,55 +473,131 @@ const Login = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "8px"
+            gap: "10px",
+            boxShadow: loading ? "none" : "0 2px 0 rgba(5, 145, 255, 0.1)"
           }}
           onMouseEnter={(e) => {
-            if (!loading) e.target.style.backgroundColor = "#096dd9";
+            if (!loading) {
+              e.target.style.backgroundColor = "#096dd9";
+              e.target.style.transform = "translateY(-1px)";
+              e.target.style.boxShadow = "0 4px 12px rgba(24, 144, 255, 0.4)";
+            }
           }}
           onMouseLeave={(e) => {
-            if (!loading) e.target.style.backgroundColor = "#1890ff";
+            if (!loading) {
+              e.target.style.backgroundColor = "#1890ff";
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 2px 0 rgba(5, 145, 255, 0.1)";
+            }
           }}
         >
           {loading ? (
             <>
               <span style={{
-                width: "16px",
-                height: "16px",
+                width: "18px",
+                height: "18px",
                 border: "2px solid white",
                 borderTop: "2px solid transparent",
                 borderRadius: "50%",
                 animation: "spin 1s linear infinite"
               }}></span>
-              Logging in...
+              Authenticating...
             </>
           ) : (
-            "Login"
+            <>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+              Login
+            </>
           )}
         </button>
         
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
-          <p style={{ color: "#666" }}>
+        <div style={{ textAlign: "center", marginTop: "25px" }}>
+          <p style={{ color: "#666", fontSize: "14px" }}>
             Don't have an account?{" "}
             <a 
               href="/register" 
-              style={{ color: "#1890ff", textDecoration: "none", fontWeight: "500" }}
-              onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
-              onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+              style={{ 
+                color: "#1890ff", 
+                textDecoration: "none", 
+                fontWeight: "600",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.textDecoration = "underline";
+                e.target.style.color = "#096dd9";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.textDecoration = "none";
+                e.target.style.color = "#1890ff";
+              }}
             >
-              Register here
+              Create Account
             </a>
           </p>
         </div>
         
-        {/* ADD THIS NEW SECTION FOR ADMIN ACCESS */}
+        {/* FORGOT PASSWORD SECTION */}
+        <div style={{ 
+          textAlign: "center", 
+          marginTop: "20px",
+          paddingTop: "20px",
+          borderTop: "1px solid #f0f0f0"
+        }}>
+          <a 
+            href="/forgot-password" 
+            style={{ 
+              color: "#666", 
+              textDecoration: "none", 
+              fontSize: "14px",
+              transition: "all 0.2s",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.color = "#1890ff";
+              e.target.style.textDecoration = "underline";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.color = "#666";
+              e.target.style.textDecoration = "none";
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Forgot Password?
+          </a>
+        </div>
+        
+        {/* ADMIN ACCESS SECTION */}
         <div style={{
           marginTop: "30px",
-          paddingTop: "20px",
-          borderTop: "1px solid #eee",
+          padding: "20px",
+          backgroundColor: "#fafafa",
+          borderRadius: "8px",
+          border: "1px solid #f0f0f0",
           textAlign: "center"
         }}>
-          <p style={{ color: "#666", marginBottom: "10px", fontSize: "14px" }}>
-            Are you an administrator?
+          <p style={{ 
+            color: "#666", 
+            marginBottom: "15px", 
+            fontSize: "14px",
+            fontWeight: "500"
+          }}>
+            <span style={{ 
+              backgroundColor: "#1890ff", 
+              color: "white",
+              padding: "2px 8px",
+              borderRadius: "12px",
+              fontSize: "12px",
+              marginRight: "8px"
+            }}>ADMIN</span>
+            Administrator Access
           </p>
           <button
             type="button"
@@ -362,28 +607,31 @@ const Login = () => {
               backgroundColor: "#dc3545",
               color: "white",
               border: "none",
-              borderRadius: "6px",
+              borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "500",
               cursor: "pointer",
               transition: "all 0.3s",
               display: "inline-flex",
               alignItems: "center",
-              gap: "8px"
+              gap: "8px",
+              boxShadow: "0 2px 0 rgba(220, 53, 69, 0.1)"
             }}
             onMouseEnter={(e) => {
               e.target.style.backgroundColor = "#c82333";
-              e.target.style.transform = "translateY(-2px)";
+              e.target.style.transform = "translateY(-1px)";
+              e.target.style.boxShadow = "0 4px 12px rgba(220, 53, 69, 0.3)";
             }}
             onMouseLeave={(e) => {
               e.target.style.backgroundColor = "#dc3545";
               e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 2px 0 rgba(220, 53, 69, 0.1)";
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
             </svg>
-            Login as Admin
+            Admin Portal
           </button>
           <p style={{ 
             marginTop: "10px", 
@@ -391,10 +639,33 @@ const Login = () => {
             fontSize: "12px",
             fontStyle: "italic"
           }}>
-            Admin access requires special credentials
+            Restricted access for authorized personnel only
           </p>
         </div>
       </form>
+
+      {/* DEBUG INFO - Only show in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{
+          marginTop: "30px",
+          padding: "15px",
+          backgroundColor: "#f8f9fa",
+          borderRadius: "6px",
+          fontSize: "12px",
+          color: "#666",
+          border: "1px dashed #ddd"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <span>🔧</span>
+            <strong>Development Info</strong>
+          </div>
+          <div>Backend URL: {getBaseURL()}</div>
+          <div>Current endpoint: /users/login</div>
+          <div style={{ marginTop: "8px", color: "#999", fontSize: "11px" }}>
+            Check browser console for detailed logs
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin {
@@ -404,6 +675,23 @@ const Login = () => {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Better focus styles for accessibility */
+        *:focus {
+          outline: 2px solid #1890ff;
+          outline-offset: 2px;
+        }
+        
+        /* Smooth transitions */
+        input, button {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Disabled state */
+        input:disabled, button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

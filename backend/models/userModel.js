@@ -19,7 +19,6 @@ const userSchema = new mongoose.Schema(
       required: true 
     },
 
-    // ✅ ADD THESE TWO
     role: {
       type: String,
       enum: ["user", "admin"],
@@ -29,6 +28,16 @@ const userSchema = new mongoose.Schema(
     isBlocked: {
       type: Boolean,
       default: false
+    },
+    
+    blockedReason: {
+      type: String,
+      default: null
+    },
+    
+    blockedAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }
@@ -60,4 +69,5 @@ userSchema.post('save', async function(doc, next) {
   }
   next();
 });
+
 module.exports = mongoose.model("User", userSchema);

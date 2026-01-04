@@ -1,13 +1,19 @@
 import { createContext, useState, useContext, useEffect } from 'react';
-import API from '../services/api';
+import apiService from '../services/api';
 
+// Create the context
 const AdminAuthContext = createContext();
 
+// Custom hook
 export const useAdminAuth = () => {
   const context = useContext(AdminAuthContext);
+  if (!context) {
+    throw new Error('useAdminAuth must be used within AdminAuthProvider');
+  }
   return context;
 };
 
+// Provider component
 export const AdminAuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,39 +28,42 @@ export const AdminAuthProvider = ({ children }) => {
         const parsedAdmin = JSON.parse(adminData);
         if (parsedAdmin && parsedAdmin.role === 'admin') {
           setAdmin(parsedAdmin);
-        } else {
-          localStorage.removeItem('adminToken');
-          localStorage.removeItem('adminUser');
         }
       } catch (err) {
         console.error('Error parsing admin data:', err);
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminUser');
       }
     }
-    
     setLoading(false);
   }, []);
 
   const loginAdmin = async (email, password) => {
     try {
       setError(null);
-      const res = await API.post('/admin/login', { email, password });
+      console.log('🚀 [AdminAuthContext] Attempting admin login:', { email });
       
-      if (res.data.success && res.data.token && res.data.admin) {
-        localStorage.setItem('adminToken', res.data.token);
-        localStorage.setItem('adminUser', JSON.stringify(res.data.admin));
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setAdmin(res.data.admin);
+      // ✅ FIX: Use apiService.admin.loginAdmin
+      const res = await apiService.admin.loginAdmin(email, password);
+      
+      console.log('✅ [AdminAuthContext] Login response:', res);
+      
+      if (res.success && res.token && res.admin) {
+        localStorage.setItem('adminToken', res.token);
+        localStorage.setItem('adminUser', JSON.stringify(res.admin));
+        setAdmin(res.admin);
         return { success: true };
       } else {
-        const message = res.data.message || 'Admin login failed';
+        const message = res.message || 'Admin login failed';
         setError(message);
+        console.error('❌ [AdminAuthContext] Login failed:', message);
         return { success: false, message };
       }
     } catch (err) {
-      const message = err.response?.data?.message || 'Admin login failed';
+      console.error('🔥 [AdminAuthContext] Login catch error:', err);
+      console.error('📡 Error response:', err.response?.data);
+      
+      const message = err.response?.data?.message || 
+                     err.message || 
+                     'Admin login failed';
       setError(message);
       return { success: false, message };
     }
@@ -70,20 +79,31 @@ export const AdminAuthProvider = ({ children }) => {
   const registerAdmin = async (name, email, password) => {
     try {
       setError(null);
-      const res = await API.post('/admin/register', { name, email, password });
+      console.log('🚀 [AdminAuthContext] Attempting admin registration:', { name, email });
       
-      if (res.data.success && res.data.token && res.data.admin) {
-        localStorage.setItem('adminToken', res.data.token);
-        localStorage.setItem('adminUser', JSON.stringify(res.data.admin));
-        setAdmin(res.data.admin);
+      // ✅ FIX: Use apiService.admin.registerAdmin
+      const res = await apiService.admin.registerAdmin({ name, email, password });
+      
+      console.log('✅ [AdminAuthContext] Registration response:', res);
+      
+      if (res.success && res.token && res.admin) {
+        localStorage.setItem('adminToken', res.token);
+        localStorage.setItem('adminUser', JSON.stringify(res.admin));
+        setAdmin(res.admin);
         return { success: true };
       } else {
-        const message = res.data.message || 'Admin registration failed';
+        const message = res.message || 'Admin registration failed';
         setError(message);
+        console.error('❌ [AdminAuthContext] Registration failed:', message);
         return { success: false, message };
       }
     } catch (err) {
-      const message = err.response?.data?.message || 'Registration failed';
+      console.error('🔥 [AdminAuthContext] Registration catch error:', err);
+      console.error('📡 Error response:', err.response?.data);
+      
+      const message = err.response?.data?.message || 
+                     err.message || 
+                     'Registration failed';
       setError(message);
       return { success: false, message };
     }
@@ -91,11 +111,16 @@ export const AdminAuthProvider = ({ children }) => {
 
   const checkAdminLimit = async () => {
     try {
-      const res = await API.get('/admin/check-limit');
-      return res.data;
+      const res = await apiService.admin.checkAdminLimit();
+      return res;
     } catch (err) {
       console.error('Error checking admin limit:', err);
-      return { allowed: false, currentCount: 0, maxAllowed: 2 };
+      return { 
+        allowed: false, 
+        currentCount: 0, 
+        maxAllowed: 2,
+        message: "Error checking admin limit"
+      };
     }
   };
 
@@ -120,3 +145,6 @@ export const AdminAuthProvider = ({ children }) => {
     </AdminAuthContext.Provider>
   );
 };
+
+// Export both as default and named for flexibility
+export default AdminAuthProvider;

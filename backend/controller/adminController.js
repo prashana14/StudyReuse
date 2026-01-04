@@ -1,4 +1,3 @@
-// backend/controller/adminController.js
 const User = require('../models/userModel');
 const Item = require('../models/itemModel');
 const Notification = require('../models/notificationModel');
@@ -41,6 +40,7 @@ exports.checkAdminLimit = async (req, res) => {
     const adminCount = await User.countDocuments({ role: "admin" });
     
     res.json({
+      success: true,
       allowed: adminCount < 2,
       currentCount: adminCount,
       maxAllowed: 2
@@ -48,6 +48,7 @@ exports.checkAdminLimit = async (req, res) => {
   } catch (error) {
     console.error('Check admin limit error:', error);
     res.status(500).json({ 
+      success: false,
       allowed: false,
       currentCount: 0,
       maxAllowed: 2,
@@ -56,10 +57,12 @@ exports.checkAdminLimit = async (req, res) => {
   }
 };
 
-// ✅ Admin Register
+// ✅ Admin Register - FIXED (Removed manual hashing)
 exports.registerAdmin = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    
+    console.log('Admin registration attempt:', { name, email });
     
     // Validate input
     if (!name || !email || !password) {
@@ -99,17 +102,15 @@ exports.registerAdmin = async (req, res) => {
       });
     }
     
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // Create admin user
+    // ✅ FIX: Create admin with plain password - model will hash it automatically
     const admin = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password,  // Pass plain password
       role: "admin"
     });
+    
+    console.log('Admin created successfully:', admin._id);
     
     // Generate token
     const token = jwt.sign(
@@ -143,7 +144,7 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-// ✅ Admin Login
+// ✅ Admin Login - FIXED (Using model's matchPassword)
 exports.loginAdmin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -162,6 +163,7 @@ exports.loginAdmin = async (req, res) => {
     const user = await User.findOne({ email });
     
     if (!user) {
+      console.log('User not found:', email);
       return res.status(401).json({ 
         success: false,
         message: "Invalid admin credentials" 
@@ -170,15 +172,19 @@ exports.loginAdmin = async (req, res) => {
     
     // Check if user is admin
     if (user.role !== 'admin') {
+      console.log('User is not admin:', user.role);
       return res.status(403).json({ 
         success: false,
         message: "Access denied. Admin only." 
       });
     }
     
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // ✅ FIX: Use the model's matchPassword method
+    const isPasswordValid = await user.matchPassword(password);
+    console.log('Password validation result:', isPasswordValid);
+    
     if (!isPasswordValid) {
+      console.log('Invalid password for user:', email);
       return res.status(401).json({ 
         success: false,
         message: "Invalid admin credentials" 
@@ -205,6 +211,8 @@ exports.loginAdmin = async (req, res) => {
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
+    
+    console.log('Admin login successful:', user._id);
     
     res.json({
       success: true,

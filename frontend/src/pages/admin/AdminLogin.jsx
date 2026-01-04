@@ -32,15 +32,18 @@ export function AdminLogin() {
 
     try {
       const result = await loginAdmin(email, password);
+      console.log("Login result:", result);
       
       if (result.success) {
         console.log("Admin login successful");
         navigate('/admin/dashboard');
       } else {
+        console.log("Login failed with message:", result.message);
         setError(result.message || "Admin login failed");
       }
     } catch (err) {
       console.error("Admin login error:", err);
+      console.error("Error details:", err.response);
       if (err.message === "Network Error") {
         setError("Cannot connect to server. Please check if backend is running.");
       } else {
