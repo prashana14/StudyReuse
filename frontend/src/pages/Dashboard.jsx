@@ -107,7 +107,7 @@ const Dashboard = () => {
         
         // Fetch barter requests
         try {
-          const barterResponse = await apiService.barter.getMy();
+          const barterResponse = await apiService.barter.getMyBarters();
           console.log("Barter API Response:", barterResponse.data);
           
           const barters = barterResponse.data?.data || 
