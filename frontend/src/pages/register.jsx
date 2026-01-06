@@ -32,7 +32,7 @@ const Register = () => {
     setError("");
     setLoading(true);
 
-    // ✅ NEW: Validate RIA domain before submission
+    // ✅ Validate RIA domain before submission
     if (!validateRIADomain(formData.email)) {
       setError("Only RIA students are allowed");
       setLoading(false);
@@ -57,26 +57,34 @@ const Register = () => {
     try {
       console.log("Calling API endpoint: /users/register");
       
-      const res = await api.post("/users/register", formData);
-      console.log("Registration response:", res.data);
+      // ✅ FIXED: Using the correct API method from your apiService
+      // Option 1: Using direct API.post (which already extracts response.data)
+      const response = await api.post("/users/register", formData);
+      console.log("Registration response:", response);
       
-      if (res.data.token && res.data.user) {
-        // Save to localStorage and context
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
+      // ✅ FIXED: The response is already the data object (because of interceptor)
+      // So we access response.token and response.user directly (not response.data.token)
+      if (response && response.token && response.user) {
+        // Save to localStorage
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.user));
         
+        // Call login from context if it exists
         if (login) {
-          login(res.data);
+          login(response); // ✅ Pass the full response object
         }
         
         alert("Registration successful!");
         navigate("/dashboard");
       } else {
-        setError("Registration response missing data");
+        console.error("Invalid response structure:", response);
+        setError("Registration response missing data. Please contact support.");
       }
     } catch (err) {
-      console.error("Registration error:", err);
+      console.error("Full registration error:", err);
+      console.error("Error message:", err.message);
       console.error("Error response data:", err.response?.data);
+      console.error("Error response status:", err.response?.status);
       
       if (err.response?.status === 400) {
         if (err.response?.data?.message === "User already exists") {
@@ -86,6 +94,9 @@ const Register = () => {
         }
       } else if (err.message === "Network Error") {
         setError("Cannot connect to server. Please check if backend is running on port 4000.");
+        console.log("Make sure your backend server is running: 'npm start' in backend folder");
+      } else if (err.response?.status === 500) {
+        setError("Server error. Please try again later.");
       } else {
         setError("Registration failed. Please try again.");
       }
@@ -130,7 +141,7 @@ const Register = () => {
           style={{ 
             height: "50px",
             borderRadius: "8px",
-            backgroundColor: "rgba(248, 208, 208, 0.2)", // Optional background
+            backgroundColor: "rgba(248, 208, 208, 0.2)",
             padding: "5px"
           }}
         />
@@ -307,7 +318,6 @@ const Register = () => {
                 onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
                 onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
               >
-                {/* Eye icon from your photo - simplified design */}
                 <svg 
                   width="20" 
                   height="20" 
@@ -319,13 +329,11 @@ const Register = () => {
                   strokeLinejoin="round"
                 >
                   {showPassword ? (
-                    /* When password is visible - show eye closed or crossed */
                     <>
                       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
                       <line x1="1" y1="1" x2="23" y2="23"></line>
                     </>
                   ) : (
-                    /* When password is hidden - show simple eye */
                     <>
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                       <circle cx="12" cy="12" r="3"></circle>
@@ -435,7 +443,6 @@ const Register = () => {
               </Link>
             </div>
             
-            {/* ADD THIS NEW SECTION FOR ADMIN ACCESS */}
             <div style={{
               paddingTop: "25px",
               borderTop: "1px solid #eee",
@@ -495,7 +502,6 @@ const Register = () => {
           </form>
         </div>
 
-        {/* Footer */}
         <div style={{
           padding: "20px",
           textAlign: "center",
