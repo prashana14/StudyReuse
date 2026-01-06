@@ -6,6 +6,11 @@ const barterSchema = new mongoose.Schema({
     ref: "Item",
     required: true
   },
+  offerItem: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Item",
+    required: true
+  },
   requester: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -20,7 +25,13 @@ const barterSchema = new mongoose.Schema({
     type: String,
     enum: ["pending", "accepted", "rejected"],
     default: "pending"
+  },
+  message: {
+    type: String,
+    default: ""
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true 
+});
 
 module.exports = mongoose.model("Barter", barterSchema);
