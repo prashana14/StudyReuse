@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";  
-import apiService from "../services/api"; // CHANGED: Import apiService instead of API
+import apiService from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 const AddItem = () => {
@@ -11,34 +11,51 @@ const AddItem = () => {
     price: "",
     description: "",
     category: "",
-    condition: ""  
+    condition: "",
+    faculty: ""
   });
   
-  const [imageFile, setImageFile] = useState(null); // CHANGED: Renamed from image to imageFile
+  const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   
-  const [categories] = useState([
-    "Textbooks",
-    "Notes",
-    "Lab Equipment",
-    "Stationery",
-    "Electronics",
-    "Study Guides",
-    "Reference Books",
-    "Other"
-  ]);
+  // 🔥 UPDATED: Match backend enum exactly
+  const categoryOptions = [
+    { value: "", label: "Select a category" },
+    { value: "books", label: "Books/Textbooks" },
+    { value: "notes", label: "Notes" },
+    { value: "electronics", label: "Electronics" },
+    { value: "stationery", label: "Stationery" },
+    { value: "furniture", label: "Furniture" },
+    { value: "other", label: "Other" }
+  ];
 
-  const [conditions] = useState([
+  // 🔥 UPDATED: Match backend enum exactly
+  const conditionOptions = [
     { value: "", label: "Select item condition" },
     { value: "new", label: "New" },
     { value: "like-new", label: "Like New" },
     { value: "good", label: "Good" },
     { value: "fair", label: "Fair" },
     { value: "poor", label: "Poor" }
-  ]);
+  ];
+
+  // Faculty options - match backend enum
+  const facultyOptions = [
+    { value: "", label: "Select Faculty (Optional)" },
+    { value: "BBA", label: "BBA" },
+    { value: "BITM", label: "BITM" },
+    { value: "BBS", label: "BBS" },
+    { value: "BBM", label: "BBM" },
+    { value: "BBA-F", label: "BBA-F" },
+    { value: "MBS", label: "MBS" },
+    { value: "MBA", label: "MBA" },
+    { value: "MITM", label: "MITM" },
+    { value: "MBA-F", label: "MBA-F" },
+    { value: "Other", label: "Other" }
+  ];
 
   // Clean up localStorage when component mounts
   useEffect(() => {
@@ -86,7 +103,7 @@ const AddItem = () => {
       return;
     }
     
-    // 🔥 PREVENT SAME FILE UPLOAD
+    // Prevent same file upload
     if (imageFile && 
         imageFile.name === file.name && 
         imageFile.size === file.size &&
@@ -101,7 +118,7 @@ const AddItem = () => {
       URL.revokeObjectURL(imagePreview);
     }
     
-    setImageFile(file); // CHANGED: Set imageFile instead of image
+    setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
     setError("");
     
@@ -113,7 +130,7 @@ const AddItem = () => {
     if (imagePreview) {
       URL.revokeObjectURL(imagePreview);
     }
-    setImageFile(null); // CHANGED
+    setImageFile(null);
     setImagePreview(null);
     
     // Clear the file input
@@ -126,13 +143,13 @@ const AddItem = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // 🔥 CRITICAL FIX: Prevent multiple submissions
+    // Prevent multiple submissions
     if (loading || formSubmitted.current) {
       console.log("Already submitting or submitted, please wait...");
       return;
     }
     
-    // 🔥 FIX: SMARTER COOLDOWN CHECK
+    // Cooldown check
     const now = Date.now();
     const lastSubmitTime = localStorage.getItem('lastItemSubmitTime');
     const timeSinceLastSubmit = lastSubmitTime ? now - parseInt(lastSubmitTime) : 0;
@@ -160,6 +177,7 @@ const AddItem = () => {
     setLoading(true);
 
     console.log("Starting item submission...");
+    console.log("Form data:", formData);
 
     // Validation
     const validationErrors = [];
@@ -184,7 +202,7 @@ const AddItem = () => {
       validationErrors.push("Please enter a description (minimum 10 characters)");
     }
 
-    if (!imageFile) { // CHANGED
+    if (!imageFile) {
       validationErrors.push("Please upload an image of the item");
     }
     
@@ -199,16 +217,27 @@ const AddItem = () => {
       console.log("Creating item with:", {
         ...formData,
         price: parseFloat(formData.price),
-        imageFile: imageFile?.name
+        imageFile: imageFile?.name,
+        faculty: formData.faculty || 'Other'
       });
 
-      // 🔥 UPDATED: Use apiService.items.create() with FormData
-      // This automatically handles multipart/form-data and Cloudinary upload
-      const response = await apiService.items.create(formData, imageFile);
-      
-      console.log("✅ Cloudinary upload successful:", response.data);
+      // 🔥 FIX: Send data exactly as backend expects
+      const itemData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        price: parseFloat(formData.price),
+        category: formData.category, // Already matches backend enum
+        condition: formData.condition, // Already matches backend enum
+        faculty: formData.faculty || 'Other'
+      };
 
-      // 🔥 FIX: Set cooldown only on success
+      console.log("Sending to backend:", itemData);
+
+      const response = await apiService.items.create(itemData, imageFile);
+      
+      console.log("✅ Item created successfully:", response.data);
+
+      // Set cooldown only on success
       localStorage.setItem('lastItemSubmitTime', now.toString());
       setSuccess(response.data.message || "Item added successfully!");
       
@@ -219,14 +248,15 @@ const AddItem = () => {
           price: "",
           description: "",
           category: "",
-          condition: ""
+          condition: "",
+          faculty: ""
         });
         
         // Clean up image preview
         if (imagePreview) {
           URL.revokeObjectURL(imagePreview);
         }
-        setImageFile(null); // CHANGED
+        setImageFile(null);
         setImagePreview(null);
         
         // Clear the file input
@@ -244,8 +274,13 @@ const AddItem = () => {
       
     } catch (err) {
       console.error("❌ Error adding item:", err);
+      console.error("Full error details:", {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
       
-      // 🔥 FIX: Clear cooldown on error
+      // Clear cooldown on error
       localStorage.removeItem('lastItemSubmitTime');
       formSubmitted.current = false;
       
@@ -268,6 +303,11 @@ const AddItem = () => {
         } else {
           setError("Bad Request. Please check all fields.");
         }
+        
+        // Log detailed validation errors
+        if (errorData?.errors) {
+          console.error("Validation errors from backend:", errorData.errors);
+        }
       } else if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else if (err.response?.data?.errors) {
@@ -285,8 +325,6 @@ const AddItem = () => {
       setLoading(false);
     }
   };
-
-  // ... [REST OF THE JSX REMAINS THE SAME, just update variable names] ...
 
   return (
     <div className="container" style={{ maxWidth: "900px", margin: "40px auto" }}>
@@ -464,13 +502,56 @@ const AddItem = () => {
                   onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
                   onBlur={(e) => !loading && (e.target.style.borderColor = formData.category ? "#e0e0e0" : "#ff6b6b")}
                 >
-                  <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {categoryOptions.map(cat => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
                   ))}
                 </select>
               </div>
 
+              {/* Faculty Selection */}
+              <div className="form-group" style={{ marginBottom: "24px" }}>
+                <label className="form-label" style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#212529" }}>
+                  Faculty (Optional)
+                </label>
+                <select
+                  name="faculty"
+                  value={formData.faculty}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  style={{ 
+                    width: "100%",
+                    padding: "14px 40px 14px 16px",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    backgroundColor: loading ? "#f8f9fa" : "white",
+                    appearance: "none",
+                    backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    backgroundSize: "16px",
+                    transition: "all 0.3s",
+                    cursor: loading ? "not-allowed" : "pointer"
+                  }}
+                  onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = "#e0e0e0")}
+                >
+                  {facultyOptions.map(faculty => (
+                    <option key={faculty.value} value={faculty.value}>
+                      {faculty.label}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ fontSize: "12px", color: "#6c757d", marginTop: "4px" }}>
+                  Select your faculty to help students find relevant items
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div>
               <div className="form-group" style={{ marginBottom: "24px" }}>
                 <label className="form-label" style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#212529" }}>
                   Condition *
@@ -498,24 +579,22 @@ const AddItem = () => {
                   onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
                   onBlur={(e) => !loading && (e.target.style.borderColor = formData.condition ? "#e0e0e0" : "#ff6b6b")}
                 >
-                  {conditions.map(cond => (
+                  {conditionOptions.map(cond => (
                     <option key={cond.value} value={cond.value}>
                       {cond.label}
                     </option>
                   ))}
                 </select>
               </div>
-            </div>
 
-            {/* Right Column - Image Upload */}
-            <div>
+              {/* Image Upload Section */}
               <div className="form-group">
                 <label className="form-label" style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#212529" }}>
                   Item Image *
                 </label>
                 <div
                   style={{
-                    border: !imageFile ? "2px dashed #ff6b6b" : "2px dashed #e0e0e0", // CHANGED
+                    border: !imageFile ? "2px dashed #ff6b6b" : "2px dashed #e0e0e0",
                     borderRadius: "12px",
                     padding: "30px",
                     textAlign: "center",
@@ -537,7 +616,7 @@ const AddItem = () => {
                   }}
                   onDragLeave={(e) => {
                     if (!loading) {
-                      e.currentTarget.style.borderColor = !imageFile ? "#ff6b6b" : "#e0e0e0"; // CHANGED
+                      e.currentTarget.style.borderColor = !imageFile ? "#ff6b6b" : "#e0e0e0";
                       e.currentTarget.style.background = imagePreview ? 
                         `url(${imagePreview}) center/cover no-repeat, #f8f9fa` : "#f8f9fa";
                     }
@@ -608,7 +687,7 @@ const AddItem = () => {
                 </div>
               </div>
               
-              {imagePreview && imageFile && ( // CHANGED
+              {imagePreview && imageFile && (
                 <div style={{ 
                   textAlign: "center", 
                   marginTop: "10px",
@@ -624,7 +703,7 @@ const AddItem = () => {
                     alignItems: "center", 
                     gap: "6px" 
                   }}>
-                    <span>✅</span> Image selected: {imageFile.name} {/* CHANGED */}
+                    <span>✅</span> Image selected: {imageFile.name}
                   </span>
                   {!loading && (
                     <button
@@ -649,15 +728,15 @@ const AddItem = () => {
                 </div>
               )}
               
-              {imagePreview && imageFile && ( // CHANGED
+              {imagePreview && imageFile && (
                 <p style={{ 
                   fontSize: "12px", 
                   color: "#6c757d", 
                   textAlign: "center",
                   marginTop: "4px" 
                 }}>
-                  Size: {(imageFile.size / 1024 / 1024).toFixed(2)} MB • {/* CHANGED */}
-                  Type: {imageFile.type.split('/')[1].toUpperCase()} {/* CHANGED */}
+                  Size: {(imageFile.size / 1024 / 1024).toFixed(2)} MB • 
+                  Type: {imageFile.type.split('/')[1].toUpperCase()}
                 </p>
               )}
             </div>
@@ -839,6 +918,12 @@ const AddItem = () => {
               Research similar items to set a competitive price. Consider item condition.
             </p>
           </div>
+          <div style={{ background: "white", padding: "20px", borderRadius: "8px" }}>
+            <h4 style={{ fontSize: "16px", marginBottom: "8px", color: "#4361ee" }}>Accurate Category</h4>
+            <p style={{ fontSize: "14px", color: "#6c757d" }}>
+              Choose the correct category so students can easily find your item.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -852,6 +937,36 @@ const AddItem = () => {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 768px) {
+          .container {
+            padding: 0 15px;
+          }
+          
+          .card {
+            padding: 20px !important;
+          }
+          
+          .form-grid {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+          }
+          
+          .tips-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          h1 {
+            font-size: 2rem !important;
+          }
+          
+          .form-actions {
+            flex-direction: column;
+            gap: 10px !important;
+          }
         }
       `}</style>
     </div>

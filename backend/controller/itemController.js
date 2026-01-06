@@ -25,7 +25,7 @@ function verifyToken(req) {
 }
 
 /**
- * Validate item data
+ * Validate item data - UPDATED
  */
 function validateItemData(data) {
   const errors = [];
@@ -46,9 +46,16 @@ function validateItemData(data) {
     errors.push('Category is required');
   }
   
-  const validConditions = ['new', 'like_new', 'good', 'fair', 'needs_repair'];
-  if (data.condition && !validConditions.includes(data.condition)) {
-    errors.push(`Condition must be one of: ${validConditions.join(', ')}`);
+  // UPDATED: Accept more condition variations
+  const validConditions = [
+    'new', 'like-new', 'like new', 'like_new', 
+    'good', 'fair', 'poor', 'excellent', 'mint', 'used', 'refurbished'
+  ];
+  if (data.condition) {
+    const normalizedCondition = data.condition.toLowerCase().replace(' ', '-');
+    if (!validConditions.some(cond => normalizedCondition.includes(cond.replace('-', '')))) {
+      errors.push(`Condition must be one of: New, Like New, Good, Fair, Poor, Excellent, Mint, Used, Refurbished`);
+    }
   }
   
   return errors;
@@ -128,14 +135,31 @@ exports.getAllItems = async (req, res) => {
     const query = buildItemQuery(userData);
     
     // Get items with pagination
-    const { page = 1, limit = 20, category, condition, minPrice, maxPrice, sort = '-createdAt' } = req.query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      category, 
+      condition, 
+      faculty,
+      minPrice, 
+      maxPrice, 
+      sort = '-createdAt' 
+    } = req.query;
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Add filters
-    if (category) query.category = category;
-    if (condition) query.condition = condition;
+    // Add filters - UPDATED WITH FACULTY
+    if (category && category !== 'all') query.category = category;
+    if (condition && condition !== 'all') {
+      // Normalize condition for database query
+      const normalizedCondition = condition.toLowerCase().replace(' ', '-');
+      query.condition = normalizedCondition;
+    }
+    if (faculty && faculty !== 'all') query.faculty = faculty;
     if (minPrice) query.price = { ...query.price, $gte: parseFloat(minPrice) };
     if (maxPrice) query.price = { ...query.price, $lte: parseFloat(maxPrice) };
+    
+    console.log("🔍 Query filters:", query);
     
     // Execute query
     const items = await Item.find(query)
@@ -318,20 +342,69 @@ exports.getItemById = async (req, res) => {
 };
 
 /**
- * Create new item with Cloudinary image upload
+ * Create new item with Cloudinary image upload - UPDATED
  */
 exports.createItem = async (req, res) => {
   try {
     const userData = verifyToken(req);
-    const { title, description, price, category, condition = 'good' } = req.body;
     
-    // Validate required fields
-    const validationErrors = validateItemData({ title, description, price, category, condition });
-    if (validationErrors.length > 0) {
+    // ACCEPT ALL FIELDS from frontend including faculty
+    const { 
+      title, 
+      description, 
+      price, 
+      category, 
+      condition = 'good',
+      faculty 
+    } = req.body;
+    
+    console.log("📦 Received item data:", {
+      title, description, price, category, condition, faculty
+    });
+    console.log("🖼️ File received:", req.file ? {
+      filename: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      cloudinaryUrl: req.file.path
+    } : "No file");
+    
+    // Validate required fields - UPDATED
+    const errors = [];
+    
+    if (!title || title.trim().length < 3) {
+      errors.push('Title must be at least 3 characters');
+    }
+    
+    if (!description || description.trim().length < 10) {
+      errors.push('Description must be at least 10 characters');
+    }
+    
+    if (!price || isNaN(price) || parseFloat(price) <= 0) {
+      errors.push('Price must be a positive number');
+    }
+    
+    if (!category) {
+      errors.push('Category is required');
+    }
+    
+    // UPDATED: Accept more condition variations
+    const validConditions = [
+      'new', 'like-new', 'like new', 'like_new', 
+      'good', 'fair', 'poor', 'excellent', 'mint', 'used', 'refurbished'
+    ];
+    
+    if (condition) {
+      const normalizedCondition = condition.toLowerCase().replace(' ', '-');
+      if (!validConditions.includes(normalizedCondition)) {
+        errors.push(`Condition must be one of: New, Like New, Good, Fair, Poor, Excellent, Mint, Used, Refurbished`);
+      }
+    }
+    
+    if (errors.length > 0) {
       return res.status(400).json({ 
         success: false,
         message: 'Validation failed',
-        errors: validationErrors 
+        errors 
       });
     }
     
@@ -347,18 +420,23 @@ exports.createItem = async (req, res) => {
     const cloudinaryUrl = req.file.path;
     const isAutoApproved = userData.role === 'admin';
     
-    // Create item in database with Cloudinary URL
+    // Normalize condition for storage
+    const normalizedCondition = condition.toLowerCase().replace(' ', '-');
+    
+    // Create item in database with Cloudinary URL - UPDATED WITH FACULTY
     const newItem = await Item.create({
       title: title.trim(),
       description: description.trim(),
       price: parseFloat(price),
-      category,
-      condition,
+      category: category.trim(),
+      condition: normalizedCondition,
+      faculty: faculty || 'Other', // ADDED FACULTY FIELD
       image: cloudinaryUrl, // Cloudinary URL
       owner: userData.id,
       isApproved: isAutoApproved,
       isFlagged: false,
-      approvedAt: isAutoApproved ? new Date() : null
+      approvedAt: isAutoApproved ? new Date() : null,
+      status: 'Available'
     });
     
     // Add image URL (already full URL from Cloudinary)
@@ -366,6 +444,8 @@ exports.createItem = async (req, res) => {
       ...newItem.toObject(),
       imageURL: cloudinaryUrl
     };
+    
+    console.log("✅ Item created successfully:", newItem._id);
     
     // Send notification if auto-approved
     if (isAutoApproved && NotificationService) {
@@ -398,9 +478,20 @@ exports.createItem = async (req, res) => {
       });
     }
     
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      const validationErrors = Object.values(err.errors).map(e => e.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
-      message: 'Error creating item'
+      message: 'Error creating item',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
@@ -534,13 +625,22 @@ exports.rejectItem = async (req, res) => {
 };
 
 /**
- * Update existing item with Cloudinary image handling
+ * Update existing item with Cloudinary image handling - UPDATED
  */
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
     const userData = verifyToken(req);
-    const { title, description, price, category, condition } = req.body;
+    
+    // ACCEPT ALL FIELDS including faculty
+    const { 
+      title, 
+      description, 
+      price, 
+      category, 
+      condition,
+      faculty 
+    } = req.body;
     
     // Find item
     const item = await Item.findById(id);
@@ -563,19 +663,20 @@ exports.updateItem = async (req, res) => {
     }
     
     // Validate data
-    const validationErrors = validateItemData({ 
-      title: title || item.title, 
-      description: description || item.description, 
-      price: price || item.price, 
+    const validationData = {
+      title: title || item.title,
+      description: description || item.description,
+      price: price || item.price,
       category: category || item.category,
       condition: condition || item.condition
-    });
+    };
     
-    if (validationErrors.length > 0) {
+    const errors = validateItemData(validationData);
+    if (errors.length > 0) {
       return res.status(400).json({ 
         success: false,
         message: 'Validation failed',
-        errors: validationErrors 
+        errors 
       });
     }
     
@@ -591,13 +692,17 @@ exports.updateItem = async (req, res) => {
       imageUrl = req.file.path;
     }
     
-    // Update item
+    // Normalize condition if provided
+    const normalizedCondition = condition ? condition.toLowerCase().replace(' ', '-') : item.condition;
+    
+    // Update item - INCLUDING FACULTY
     const updatedData = {
       title: title ? title.trim() : item.title,
       description: description ? description.trim() : item.description,
       price: price ? parseFloat(price) : item.price,
-      category: category || item.category,
-      condition: condition || item.condition,
+      category: category ? category.trim() : item.category,
+      condition: normalizedCondition,
+      faculty: faculty !== undefined ? faculty : item.faculty, // UPDATED
       image: imageUrl,
       // Reset approval if non-admin user updates the item
       ...(userData.role !== 'admin' && { 
@@ -787,11 +892,19 @@ exports.deleteItem = async (req, res) => {
 };
 
 /**
- * Search items
+ * Search items - UPDATED with faculty
  */
 exports.searchItems = async (req, res) => {
   try {
-    const { q, category, minPrice, maxPrice, condition, sort = 'relevance' } = req.query;
+    const { 
+      q, 
+      category, 
+      faculty,
+      minPrice, 
+      maxPrice, 
+      condition, 
+      sort = 'relevance' 
+    } = req.query;
     
     // Build search query
     const query = { isApproved: true, isFlagged: false };
@@ -801,13 +914,18 @@ exports.searchItems = async (req, res) => {
       query.$or = [
         { title: { $regex: q, $options: "i" } },
         { description: { $regex: q, $options: "i" } },
-        { category: { $regex: q, $options: "i" } }
+        { category: { $regex: q, $options: "i" } },
+        { faculty: { $regex: q, $options: "i" } } // ADDED FACULTY TO SEARCH
       ];
     }
     
     // Filters
-    if (category) query.category = category;
-    if (condition) query.condition = condition;
+    if (category && category !== 'all') query.category = category;
+    if (faculty && faculty !== 'all') query.faculty = faculty; // ADDED FACULTY FILTER
+    if (condition && condition !== 'all') {
+      const normalizedCondition = condition.toLowerCase().replace(' ', '-');
+      query.condition = normalizedCondition;
+    }
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = parseFloat(minPrice);
@@ -848,7 +966,7 @@ exports.searchItems = async (req, res) => {
       data: {
         items: itemsWithURL,
         total: items.length,
-        query: { q, category, condition }
+        query: { q, category, condition, faculty }
       }
     });
     

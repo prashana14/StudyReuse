@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import apiService from "../services/api"; // CHANGED: Import apiService
+import apiService from "../services/api";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ItemCard from "../components/ItemCard";
 
@@ -12,11 +12,16 @@ const Items = () => {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
+  const [facultyFilter, setFacultyFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
+
+  // Faculty options
+  const facultyOptions = [
+    "BBA", "BITM", "BBS", "BBM", "BBA-F", "MBS", "MBA", "MITM", "MBA-F"
+  ];
 
   // Get search query from URL if present
   useEffect(() => {
@@ -45,9 +50,8 @@ const Items = () => {
       setLoading(true);
       setError("");
       
-      // 🔥 CHANGED: Use apiService.items.getAll()
       const response = await apiService.items.getAll();
-      console.log("Items API Response:", response.data);
+      console.log("Items API Response:", response);
       
       // Extract items from response
       let itemsArray = [];
@@ -66,10 +70,21 @@ const Items = () => {
       
       console.log(`Found ${itemsArray.length} items`);
       
-      // 🔥 FIX: Ensure Cloudinary URLs are available
+      // Log some sample items to check their condition values
+      if (itemsArray.length > 0) {
+        console.log("Sample items with conditions:");
+        itemsArray.slice(0, 3).forEach((item, i) => {
+          console.log(`Item ${i}:`, {
+            title: item.title,
+            condition: item.condition,
+            conditionType: typeof item.condition
+          });
+        });
+      }
+      
+      // Ensure Cloudinary URLs are available
       const itemsWithImageURL = itemsArray.map(item => ({
         ...item,
-        // Ensure we have the Cloudinary URL
         imageURL: item.imageURL || item.image || null
       }));
       
@@ -115,8 +130,20 @@ const Items = () => {
           'refurbished': 'Refurbished'
         };
         
-        return conditionMap[normalized] || 
-               (normalized.charAt(0).toUpperCase() + normalized.slice(1));
+        // First check exact match
+        if (conditionMap[normalized]) {
+          return conditionMap[normalized];
+        }
+        
+        // Check if contains any of the keywords
+        for (const [key, value] of Object.entries(conditionMap)) {
+          if (normalized.includes(key)) {
+            return value;
+          }
+        }
+        
+        // If no match, capitalize first letter
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
       });
     
     // Get unique values
@@ -145,13 +172,19 @@ const Items = () => {
   useEffect(() => {
     let result = [...items];
     
+    console.log("Applying filters...");
+    console.log("Total items:", items.length);
+    console.log("Condition filter:", conditionFilter);
+    console.log("Faculty filter:", facultyFilter);
+    
     // Apply search filter
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       result = result.filter(item => 
         (item.title && item.title.toLowerCase().includes(term)) ||
         (item.description && item.description.toLowerCase().includes(term)) ||
-        (item.category && item.category.toLowerCase().includes(term))
+        (item.category && item.category.toLowerCase().includes(term)) ||
+        (item.faculty && item.faculty.toLowerCase().includes(term))
       );
     }
     
@@ -160,50 +193,46 @@ const Items = () => {
       result = result.filter(item => item.category === categoryFilter);
     }
     
+    // Apply faculty filter
+    if (facultyFilter) {
+      result = result.filter(item => {
+        const itemFaculty = item.faculty?.toString().trim() || '';
+        const filterFaculty = facultyFilter.trim();
+        return itemFaculty.toLowerCase() === filterFaculty.toLowerCase();
+      });
+    }
+    
     // Apply condition filter
     if (conditionFilter) {
       result = result.filter(item => {
-        const itemCondition = item.condition?.toString().toLowerCase() || '';
-        const filterCondition = conditionFilter.toLowerCase();
+        const itemCondition = item.condition?.toString().toLowerCase().trim() || '';
+        const filterCondition = conditionFilter.toLowerCase().trim();
         
-        // Handle variations
-        const conditionVariations = {
+        // Handle variations - using exact matching logic
+        const conditionMapping = {
           'new': ['new'],
           'like new': ['like new', 'like-new', 'like_new'],
           'good': ['good'],
           'fair': ['fair'],
-          'poor': ['poor']
+          'poor': ['poor'],
+          'excellent': ['excellent'],
+          'very good': ['very good', 'very_good'],
+          'mint': ['mint'],
+          'used': ['used'],
+          'refurbished': ['refurbished']
         };
         
-        if (conditionVariations[filterCondition]) {
-          return conditionVariations[filterCondition].some(variation => 
-            itemCondition.includes(variation)
+        // Check if filter condition exists in mapping
+        if (conditionMapping[filterCondition]) {
+          const matches = conditionMapping[filterCondition].some(variation => 
+            itemCondition === variation
           );
+          return matches;
         }
         
+        // Fallback: check if contains
         return itemCondition.includes(filterCondition);
       });
-    }
-    
-    // Apply price range filter
-    if (priceRange.min !== "") {
-      const min = parseFloat(priceRange.min);
-      if (!isNaN(min)) {
-        result = result.filter(item => {
-          const price = parseFloat(item.price) || 0;
-          return price >= min;
-        });
-      }
-    }
-    
-    if (priceRange.max !== "") {
-      const max = parseFloat(priceRange.max);
-      if (!isNaN(max)) {
-        result = result.filter(item => {
-          const price = parseFloat(item.price) || 0;
-          return price <= max;
-        });
-      }
     }
     
     // Apply sorting
@@ -224,7 +253,7 @@ const Items = () => {
     
     setFilteredItems(result);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [items, searchTerm, categoryFilter, conditionFilter, priceRange, sortBy]);
+  }, [items, searchTerm, categoryFilter, facultyFilter, conditionFilter, sortBy]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -239,8 +268,8 @@ const Items = () => {
   const resetFilters = () => {
     setSearchTerm("");
     setCategoryFilter("");
+    setFacultyFilter("");
     setConditionFilter("");
-    setPriceRange({ min: "", max: "" });
     setSortBy("newest");
   };
 
@@ -316,7 +345,7 @@ const Items = () => {
           <div style={{ position: "relative" }}>
             <input
               type="text"
-              placeholder="Search by title, description, or category..."
+              placeholder="Search by title, description, category, or faculty..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -435,6 +464,53 @@ const Items = () => {
               ))}
             </select>
           </div>
+
+          {/* Faculty Filter */}
+          <div>
+            <label style={{ 
+              display: "block", 
+              marginBottom: "8px", 
+              fontSize: "14px", 
+              fontWeight: "600", 
+              color: "#495057" 
+            }}>
+              Faculty
+            </label>
+            <select
+              value={facultyFilter}
+              onChange={(e) => setFacultyFilter(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                border: "2px solid #e0e0e0",
+                borderRadius: "10px",
+                fontSize: "14px",
+                backgroundColor: "white",
+                appearance: "none",
+                backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 16px center",
+                backgroundSize: "16px",
+                transition: "all 0.3s",
+                cursor: "pointer",
+                outline: "none"
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#4361ee";
+                e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e0e0e0";
+                e.target.style.boxShadow = "none";
+              }}
+            >
+              <option value="">All Faculties</option>
+              {facultyOptions.map(faculty => (
+                <option key={faculty} value={faculty}>{faculty}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Condition Filter */}
           <div>
             <label style={{ 
@@ -465,6 +541,14 @@ const Items = () => {
                 cursor: "pointer",
                 outline: "none"
               }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#4361ee";
+                e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#e0e0e0";
+                e.target.style.boxShadow = "none";
+              }}
             >
               <option value="">All Conditions</option>
               {conditionOptions.map(condition => (
@@ -473,80 +557,6 @@ const Items = () => {
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Price Range Filter */}
-          <div>
-            <label style={{ 
-              display: "block", 
-              marginBottom: "8px", 
-              fontSize: "14px", 
-              fontWeight: "600", 
-              color: "#495057" 
-            }}>
-              Price Range
-            </label>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <input
-                type="number"
-                placeholder="Min"
-                value={priceRange.min}
-                onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  textAlign: "center",
-                  outline: "none",
-                  transition: "all 0.3s"
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#4361ee";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#e0e0e0";
-                  e.target.style.boxShadow = "none";
-                }}
-                min="0"
-              />
-              <span style={{ 
-                color: "#6c757d", 
-                fontSize: "14px",
-                fontWeight: "500",
-                minWidth: "24px",
-                textAlign: "center"
-              }}>
-                →
-              </span>
-              <input
-                type="number"
-                placeholder="Max"
-                value={priceRange.max}
-                onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  border: "2px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  textAlign: "center",
-                  outline: "none",
-                  transition: "all 0.3s"
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#4361ee";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#e0e0e0";
-                  e.target.style.boxShadow = "none";
-                }}
-                min="0"
-              />
-            </div>
           </div>
 
           {/* Sort By Filter */}
@@ -613,6 +623,12 @@ const Items = () => {
           )}
           {categoryFilter && (
             <span> in <strong style={{ color: "#4361ee" }}>{categoryFilter}</strong></span>
+          )}
+          {facultyFilter && (
+            <span> from <strong style={{ color: "#4361ee" }}>{facultyFilter}</strong></span>
+          )}
+          {conditionFilter && (
+            <span> with condition <strong style={{ color: "#4361ee" }}>{conditionFilter}</strong></span>
           )}
         </p>
         
@@ -761,7 +777,7 @@ const Items = () => {
             fontSize: "16px",
             lineHeight: "1.6"
           }}>
-            {searchTerm || categoryFilter || conditionFilter || priceRange.min || priceRange.max 
+            {searchTerm || categoryFilter || facultyFilter || conditionFilter
               ? "Try adjusting your filters to see more results."
               : "No items are currently available in the marketplace. Be the first to add one!"}
           </p>
