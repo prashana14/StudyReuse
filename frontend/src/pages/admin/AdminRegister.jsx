@@ -36,9 +36,22 @@ const AdminRegister = () => {
     if (error) setError('');
   };
 
-  const validateRIADomain = (email) => {
-    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+  // Function to validate SDC email domain
+  const validateSDCDomain = (email) => {
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.sdc\.edu\.np$)|(^[a-zA-Z0-9._-]+@sdc\.edu\.np$)/;
     return domainRegex.test(email);
+  };
+
+  // Function to validate name
+  const validateName = (name) => {
+    // Check if name has at least 2 characters and contains only letters and spaces
+    const nameRegex = /^[a-zA-Z\s]{2,50}$/;
+    return nameRegex.test(name.trim());
+  };
+
+  // Function to validate password strength
+  const validatePasswordStrength = (password) => {
+    return password.length >= 6;
   };
 
   const handleSubmit = async (e) => {
@@ -50,12 +63,19 @@ const AdminRegister = () => {
       return;
     }
     
-    if (!validateRIADomain(formData.email)) {
-      setError("Only RIA email addresses are allowed for admin registration");
+    // ✅ Validate name before submission
+    if (!validateName(formData.name)) {
+      setError("Please enter a valid name (2-50 characters, letters only)");
       return;
     }
     
-    if (formData.password.length < 6) {
+    // ✅ Validate SDC domain before submission
+    if (!validateSDCDomain(formData.email)) {
+      setError("Only SDC email addresses are allowed for admin registration");
+      return;
+    }
+    
+    if (!validatePasswordStrength(formData.password)) {
       setError("Password must be at least 6 characters");
       return;
     }
@@ -92,6 +112,13 @@ const AdminRegister = () => {
     }
   };
 
+  // Real-time validation feedback
+  const isNameValid = formData.name ? validateName(formData.name) : null;
+  const isEmailValid = formData.email ? validateSDCDomain(formData.email) : null;
+  const isPasswordValid = formData.password ? validatePasswordStrength(formData.password) : null;
+  const passwordsMatch = formData.confirmPassword ? formData.password === formData.confirmPassword : null;
+  const isFormValid = isNameValid && isEmailValid && isPasswordValid && passwordsMatch;
+
   if (!registrationOpen && limitInfo) {
     return (
       <div style={{
@@ -100,66 +127,67 @@ const AdminRegister = () => {
         alignItems: "center",
         justifyContent: "center",
         background: "linear-gradient(135deg, #1a237e 0%, #283593 100%)",
-        padding: "20px"
+        padding: "15px"
       }}>
         <div style={{
           width: "100%",
-          maxWidth: "450px",
+          maxWidth: "400px",
           backgroundColor: "white",
-          borderRadius: "16px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          borderRadius: "12px",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
           overflow: "hidden"
         }}>
           <div style={{
             background: "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
-            padding: "30px 20px",
+            padding: "20px 15px",
             textAlign: "center",
             color: "white"
           }}>
             <h1 style={{ 
               margin: 0, 
-              fontSize: "28px", 
+              fontSize: "24px",
               fontWeight: "700",
-              letterSpacing: "1px"
+              letterSpacing: "0.5px"
             }}>
               Admin Registration Closed
             </h1>
           </div>
 
-          <div style={{ padding: "40px 30px" }}>
+          <div style={{ padding: "25px 20px" }}>
             <div style={{
-              padding: "25px",
+              padding: "20px",
               backgroundColor: "#fff8e1",
               border: "2px solid #ffd54f",
-              borderRadius: "12px",
+              borderRadius: "10px",
               textAlign: "center",
-              marginBottom: "30px"
+              marginBottom: "25px"
             }}>
               <div style={{ 
-                fontSize: "48px",
-                marginBottom: "15px",
+                fontSize: "40px",
+                marginBottom: "12px",
                 color: "#ff9800"
               }}>
                 ⚠️
               </div>
               <h3 style={{
                 color: "#f57c00",
-                fontSize: "18px",
+                fontSize: "16px",
                 fontWeight: "600",
-                marginBottom: "10px"
+                marginBottom: "8px"
               }}>
                 Maximum Admin Limit Reached
               </h3>
               <p style={{ 
                 color: "#5d4037",
-                marginBottom: "15px",
-                lineHeight: "1.5"
+                marginBottom: "12px",
+                lineHeight: "1.5",
+                fontSize: "14px"
               }}>
                 Current Admins: <span style={{ fontWeight: "700" }}>{limitInfo.currentCount}/{limitInfo.maxAllowed}</span>
               </p>
               <p style={{ 
                 color: "#795548",
-                fontSize: "13px",
+                fontSize: "12px",
                 fontStyle: "italic",
                 marginBottom: "0"
               }}>
@@ -167,22 +195,22 @@ const AdminRegister = () => {
               </p>
             </div>
 
-            <div style={{ textAlign: "center", marginBottom: "25px" }}>
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <button
                 onClick={() => window.location.href = "/admin/login"}
                 style={{
                   width: "100%",
-                  padding: "16px",
+                  padding: "14px",
                   backgroundColor: "#303f9f",
                   color: "white",
                   border: "none",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  borderRadius: "8px",
+                  fontSize: "15px",
                   fontWeight: "600",
                   cursor: "pointer",
                   transition: "all 0.3s",
-                  marginBottom: "15px",
-                  boxShadow: "0 4px 15px rgba(48, 63, 159, 0.3)"
+                  marginBottom: "12px",
+                  boxShadow: "0 4px 12px rgba(48, 63, 159, 0.3)"
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = "#1a237e";
@@ -201,7 +229,7 @@ const AdminRegister = () => {
                 style={{ 
                   color: "#666", 
                   textDecoration: "none",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
@@ -216,7 +244,7 @@ const AdminRegister = () => {
                   e.target.style.gap = "6px";
                 }}
               >
-                <span style={{ fontSize: "18px" }}>←</span>
+                <span style={{ fontSize: "16px" }}>←</span>
                 Back to StudyReuse Home
               </Link>
             </div>
@@ -233,20 +261,20 @@ const AdminRegister = () => {
       alignItems: "center",
       justifyContent: "center",
       background: "linear-gradient(135deg, #1a237e 0%, #283593 100%)",
-      padding: "20px"
+      padding: "15px"
     }}>
       <div style={{
         width: "100%",
-        maxWidth: "450px",
+        maxWidth: "400px",
         backgroundColor: "white",
-        borderRadius: "16px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        borderRadius: "12px",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
         overflow: "hidden"
       }}>
-        {/* Header with gradient */}
+        {/* Header with gradient - Made more compact */}
         <div style={{
           background: "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
-          padding: "30px 20px",
+          padding: "20px 15px",
           textAlign: "center",
           color: "white"
         }}>
@@ -254,33 +282,33 @@ const AdminRegister = () => {
             display: "flex", 
             alignItems: "center", 
             justifyContent: "center",
-            gap: "15px"
+            gap: "12px"
           }}>
             <img 
               src="/logo.png" 
               alt="StudyReuse Logo"
               style={{ 
-                height: "50px",
-                borderRadius: "8px",
+                height: "40px",
+                borderRadius: "6px",
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
-                padding: "5px"
+                padding: "4px"
               }}
             />
             <h1 style={{ 
               margin: 0, 
-              fontSize: "32px", 
-              fontWeight: "800",
-              letterSpacing: "1px",
+              fontSize: "26px",
+              fontWeight: "700",
+              letterSpacing: "0.5px",
               color: "white",
-              textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)"
+              textShadow: "0 2px 8px rgba(0, 0, 0, 0.2)"
             }}>
               StudyReuse
             </h1>
           </div>
           <p style={{ 
-            margin: "10px 0 0 0", 
+            margin: "8px 0 0 0",
             opacity: 0.9,
-            fontSize: "18px",
+            fontSize: "16px",
             fontWeight: "500"
           }}>
             Admin Portal - Registration
@@ -288,12 +316,12 @@ const AdminRegister = () => {
           {limitInfo && (
             <div style={{
               display: "inline-block",
-              marginTop: "15px",
-              padding: "8px 20px",
+              marginTop: "12px",
+              padding: "6px 16px",
               backgroundColor: "rgba(255, 255, 255, 0.15)",
               color: "white",
               borderRadius: "20px",
-              fontSize: "14px",
+              fontSize: "13px",
               fontWeight: "500",
               backdropFilter: "blur(10px)"
             }}>
@@ -302,12 +330,12 @@ const AdminRegister = () => {
           )}
         </div>
 
-        <div style={{ padding: "40px 30px" }}>
+        <div style={{ padding: "25px 20px" }}>
           <h2 style={{ 
             textAlign: "center", 
-            marginBottom: "30px", 
+            marginBottom: "20px",
             color: "#1a237e",
-            fontSize: "24px",
+            fontSize: "22px",
             fontWeight: "600"
           }}>
             Administrator Registration
@@ -317,17 +345,17 @@ const AdminRegister = () => {
             <div style={{
               color: "#d32f2f",
               backgroundColor: "#ffebee",
-              padding: "12px 16px",
+              padding: "10px 14px",
               borderRadius: "8px",
-              marginBottom: "25px",
+              marginBottom: "20px",
               border: "1px solid #ffcdd2",
-              fontSize: "14px",
+              fontSize: "13px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "16px" }}>⚠️</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "14px" }}>⚠️</span>
                 <span>{error}</span>
               </div>
               <button
@@ -338,7 +366,7 @@ const AdminRegister = () => {
                   color: "#d32f2f",
                   cursor: "pointer",
                   padding: "0",
-                  fontSize: "18px"
+                  fontSize: "16px"
                 }}
               >
                 ✕
@@ -347,15 +375,16 @@ const AdminRegister = () => {
           )}
           
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
                 Full Name
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <input
                 type="text"
@@ -366,69 +395,136 @@ const AdminRegister = () => {
                 required
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  padding: "12px 14px",
+                  border: isNameValid === false ? "1px solid #e74c3c" : 
+                         isNameValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
                   boxSizing: "border-box",
                   transition: "all 0.3s",
                   outline: "none"
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onBlur={(e) => {
+                  if (!formData.name) {
+                    e.target.style.borderColor = "#e0e0e0";
+                  } else if (validateName(formData.name)) {
+                    e.target.style.borderColor = "#2ecc71";
+                  } else {
+                    e.target.style.borderColor = "#e74c3c";
+                  }
+                }}
               />
+              <div style={{ 
+                fontSize: "11px",
+                color: isNameValid === false ? "#e74c3c" : 
+                      isNameValid === true ? "#2ecc71" : "#666",
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                {formData.name ? (
+                  isNameValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Valid name format</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>2-50 letters and spaces only</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>👤</span>
+                    <span>Enter your full name</span>
+                  </>
+                )}
+              </div>
             </div>
             
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
-                RIA Email Address
+                SDC Email Address
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <input
                 type="email"
                 name="email"
-                placeholder="admin@ria.edu.np"
+                placeholder="admin@sdc.edu.np"
                 value={formData.email}
                 onChange={handleChange}
                 required
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  padding: "12px 14px",
+                  border: isEmailValid === false ? "1px solid #e74c3c" : 
+                         isEmailValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
                   boxSizing: "border-box",
                   transition: "all 0.3s",
                   outline: "none"
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onBlur={(e) => {
+                  if (!formData.email) {
+                    e.target.style.borderColor = "#e0e0e0";
+                  } else if (validateSDCDomain(formData.email)) {
+                    e.target.style.borderColor = "#2ecc71";
+                  } else {
+                    e.target.style.borderColor = "#e74c3c";
+                  }
+                }}
               />
               <div style={{ 
-                fontSize: "12px", 
-                color: "#666", 
+                fontSize: "11px",
+                color: isEmailValid === false ? "#e74c3c" : 
+                      isEmailValid === true ? "#2ecc71" : "#666",
                 marginTop: "4px",
                 display: "flex",
-                alignItems: "center"
+                alignItems: "center",
+                gap: "4px"
               }}>
-                <span>Only @ria.edu.np emails allowed for admin access</span>
+                {formData.email ? (
+                  isEmailValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Valid SDC email</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Must be @sdc.edu.np domain</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>📧</span>
+                    <span>Only @sdc.edu.np emails allowed</span>
+                  </>
+                )}
               </div>
             </div>
             
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
                 Password
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <div style={{ position: "relative" }}>
                 <input
@@ -441,23 +537,32 @@ const AdminRegister = () => {
                   minLength="6"
                   style={{
                     width: "100%",
-                    padding: "14px 50px 14px 16px",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "10px",
-                    fontSize: "16px",
+                    padding: "12px 45px 12px 14px",
+                    border: isPasswordValid === false ? "1px solid #e74c3c" : 
+                           isPasswordValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "14px",
                     boxSizing: "border-box",
                     transition: "all 0.3s",
                     outline: "none"
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onBlur={(e) => {
+                    if (!formData.password) {
+                      e.target.style.borderColor = "#e0e0e0";
+                    } else if (validatePasswordStrength(formData.password)) {
+                      e.target.style.borderColor = "#2ecc71";
+                    } else {
+                      e.target.style.borderColor = "#e74c3c";
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     position: "absolute",
-                    right: "16px",
+                    right: "14px",
                     top: "50%",
                     transform: "translateY(-50%)",
                     background: "none",
@@ -477,8 +582,8 @@ const AdminRegister = () => {
                   onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                 >
                   <svg 
-                    width="20" 
-                    height="20" 
+                    width="18"
+                    height="18"
                     viewBox="0 0 24 24" 
                     fill="none" 
                     stroke="currentColor" 
@@ -500,25 +605,46 @@ const AdminRegister = () => {
                   </svg>
                 </button>
               </div>
-              <p style={{ 
-                marginTop: "8px", 
-                fontSize: "12px", 
-                color: "#888",
-                marginBottom: "0"
+              <div style={{ 
+                fontSize: "11px",
+                color: isPasswordValid === false ? "#e74c3c" : 
+                      isPasswordValid === true ? "#2ecc71" : "#888",
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
               }}>
-                Use at least 6 characters with strong security
-              </p>
+                {formData.password ? (
+                  isPasswordValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Strong password</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>At least 6 characters required</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>🔒</span>
+                    <span>Use at least 6 characters</span>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div style={{ marginBottom: "30px" }}>
+            <div style={{ marginBottom: "25px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
                 Confirm Password
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <div style={{ position: "relative" }}>
                 <input
@@ -530,23 +656,32 @@ const AdminRegister = () => {
                   required
                   style={{
                     width: "100%",
-                    padding: "14px 50px 14px 16px",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "10px",
-                    fontSize: "16px",
+                    padding: "12px 45px 12px 14px",
+                    border: passwordsMatch === false ? "1px solid #e74c3c" : 
+                           passwordsMatch === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "14px",
                     boxSizing: "border-box",
                     transition: "all 0.3s",
                     outline: "none"
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onBlur={(e) => {
+                    if (!formData.confirmPassword) {
+                      e.target.style.borderColor = "#e0e0e0";
+                    } else if (formData.password === formData.confirmPassword) {
+                      e.target.style.borderColor = "#2ecc71";
+                    } else {
+                      e.target.style.borderColor = "#e74c3c";
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   style={{
                     position: "absolute",
-                    right: "16px",
+                    right: "14px",
                     top: "50%",
                     transform: "translateY(-50%)",
                     background: "none",
@@ -566,8 +701,8 @@ const AdminRegister = () => {
                   onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                 >
                   <svg 
-                    width="20" 
-                    height="20" 
+                    width="18"
+                    height="18"
                     viewBox="0 0 24 24" 
                     fill="none" 
                     stroke="currentColor" 
@@ -589,77 +724,107 @@ const AdminRegister = () => {
                   </svg>
                 </button>
               </div>
+              <div style={{ 
+                fontSize: "11px",
+                color: passwordsMatch === false ? "#e74c3c" : 
+                      passwordsMatch === true ? "#2ecc71" : "#888",
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                {formData.confirmPassword ? (
+                  passwordsMatch ? (
+                    <>
+                      <span>✓</span>
+                      <span>Passwords match</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Passwords do not match</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>🔒</span>
+                    <span>Confirm your password</span>
+                  </>
+                )}
+              </div>
             </div>
 
+            {/* Terms checkbox - Made more compact */}
             <div style={{
               backgroundColor: "#f5f5f5",
-              padding: "16px",
-              borderRadius: "10px",
-              marginBottom: "30px",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "25px",
               border: "1px solid #e0e0e0"
             }}>
               <label style={{ 
                 display: "flex", 
                 alignItems: "flex-start", 
-                gap: "12px",
+                gap: "10px",
                 cursor: "pointer"
               }}>
                 <input 
                   type="checkbox" 
                   required 
                   style={{
-                    marginTop: "4px",
-                    width: "18px",
-                    height: "18px",
+                    marginTop: "3px",
+                    width: "16px",
+                    height: "16px",
                     cursor: "pointer"
                   }}
                 />
                 <span style={{ 
                   color: "#333", 
-                  fontSize: "13px",
+                  fontSize: "12px",
                   lineHeight: "1.5"
                 }}>
                   I understand that as an administrator, I will have access to all user data, 
-                  system controls, and administrative privileges. I agree to use these powers 
-                  responsibly and only for StudyReuse management purposes.
+                  system controls, and administrative privileges.
                 </span>
               </label>
             </div>
 
             <button 
               type="submit" 
-              disabled={isLoading || !registrationOpen}
+              disabled={isLoading || !registrationOpen || !isFormValid}
               style={{
                 width: "100%",
-                padding: "16px",
-                background: isLoading || !registrationOpen
+                padding: "14px",
+                background: isLoading || !registrationOpen || !isFormValid
                   ? "#ccc" 
                   : "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
                 color: "white",
                 border: "none",
-                borderRadius: "10px",
-                fontSize: "16px",
+                borderRadius: "8px",
+                fontSize: "15px",
                 fontWeight: "600",
-                cursor: isLoading || !registrationOpen ? "not-allowed" : "pointer",
+                cursor: isLoading || !registrationOpen || !isFormValid ? "not-allowed" : "pointer",
                 transition: "all 0.3s",
                 letterSpacing: "0.5px",
-                marginBottom: "25px",
-                boxShadow: "0 4px 15px rgba(48, 63, 159, 0.3)",
+                marginBottom: "20px",
+                boxShadow: isLoading || !registrationOpen || !isFormValid 
+                  ? "none" 
+                  : "0 4px 12px rgba(48, 63, 159, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px"
               }}
               onMouseEnter={(e) => {
-                if (!isLoading && registrationOpen) {
+                if (!isLoading && registrationOpen && isFormValid) {
                   e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 20px rgba(48, 63, 159, 0.4)";
+                  e.target.style.boxShadow = "0 6px 16px rgba(48, 63, 159, 0.4)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isLoading && registrationOpen) {
+                if (!isLoading && registrationOpen && isFormValid) {
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 15px rgba(48, 63, 159, 0.3)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(48, 63, 159, 0.3)";
                 }
               }}
             >
@@ -677,7 +842,7 @@ const AdminRegister = () => {
                 </>
               ) : (
                 <>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.9 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.9 }}>
                     <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm4 12h-4v3l-5-5 5-5v3h4v4z"/>
                   </svg>
                   Register as Administrator
@@ -687,11 +852,11 @@ const AdminRegister = () => {
             
             <div style={{ 
               textAlign: "center", 
-              paddingTop: "20px",
+              paddingTop: "15px",
               borderTop: "1px solid #eee",
-              marginBottom: "25px"
+              marginBottom: "20px"
             }}>
-              <p style={{ color: "#666", marginBottom: "8px" }}>
+              <p style={{ color: "#666", marginBottom: "8px", fontSize: "14px" }}>
                 Already have admin access?
               </p>
               <Link 
@@ -700,7 +865,7 @@ const AdminRegister = () => {
                   color: "#303f9f", 
                   textDecoration: "none",
                   fontWeight: "600",
-                  fontSize: "15px",
+                  fontSize: "14px",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
@@ -716,63 +881,63 @@ const AdminRegister = () => {
                 }}
               >
                 Login to Admin Panel
-                <span style={{ fontSize: "18px" }}>→</span>
+                <span style={{ fontSize: "16px" }}>→</span>
               </Link>
             </div>
             
-            {/* User Registration Link */}
+            {/* User Registration Link - Made more compact */}
             <div style={{
-              marginTop: "30px",
-              paddingTop: "25px",
+              marginTop: "20px",
+              paddingTop: "15px",
               borderTop: "1px solid #eee",
               textAlign: "center"
             }}>
               <p style={{ 
                 color: "#666", 
-                marginBottom: "12px", 
-                fontSize: "14px",
+                marginBottom: "8px",
+                fontSize: "13px",
                 fontWeight: "500"
               }}>
                 User Registration
               </p>
               <p style={{ 
                 color: "#888", 
-                marginBottom: "15px", 
-                fontSize: "13px",
+                marginBottom: "12px",
+                fontSize: "12px",
                 lineHeight: "1.5"
               }}>
-                Are you a student? Register for regular user access.
+                Student? Register for regular access.
               </p>
               <button
                 type="button"
                 onClick={() => window.location.href = "/register"}
                 style={{
-                  padding: "10px 24px",
+                  padding: "8px 20px",
                   backgroundColor: "#4CAF50",
                   color: "white",
                   border: "none",
-                  borderRadius: "10px",
-                  fontSize: "14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
                   fontWeight: "600",
                   cursor: "pointer",
                   transition: "all 0.3s",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "8px",
-                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)"
+                  gap: "6px",
+                  boxShadow: "0 4px 10px rgba(76, 175, 80, 0.3)"
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = "#388E3C";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 18px rgba(76, 175, 80, 0.4)";
+                  e.target.style.transform = "translateY(-1px)";
+                  e.target.style.boxShadow = "0 6px 14px rgba(76, 175, 80, 0.4)";
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = "#4CAF50";
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
+                  e.target.style.boxShadow = "0 4px 10px rgba(76, 175, 80, 0.3)";
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
                 Register as User
@@ -781,9 +946,9 @@ const AdminRegister = () => {
           </form>
         </div>
 
-        {/* Footer */}
+        {/* Footer - Made more compact */}
         <div style={{
-          padding: "20px",
+          padding: "15px",
           textAlign: "center",
           backgroundColor: "#f8f9fa",
           borderTop: "1px solid #eee"
@@ -793,7 +958,7 @@ const AdminRegister = () => {
             style={{ 
               color: "#666", 
               textDecoration: "none",
-              fontSize: "14px",
+              fontSize: "13px",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
@@ -808,11 +973,11 @@ const AdminRegister = () => {
               e.target.style.gap = "6px";
             }}
           >
-            <span style={{ fontSize: "18px" }}>←</span>
+            <span style={{ fontSize: "16px" }}>←</span>
             Back to StudyReuse Home
           </Link>
           <p style={{ 
-            margin: "10px 0 0 0", 
+            margin: "8px 0 0 0",
             color: "#888", 
             fontSize: "11px",
             fontStyle: "italic"
@@ -826,6 +991,28 @@ const AdminRegister = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Better focus styles for accessibility */
+        *:focus {
+          outline: 2px solid #3498db;
+          outline-offset: 2px;
+        }
+        
+        /* Smooth transitions */
+        input, button {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Disabled state */
+        input:disabled, button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

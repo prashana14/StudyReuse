@@ -11,6 +11,13 @@ export function AdminLogin() {
   const { loginAdmin } = useAdminAuth();
   const navigate = useNavigate();
 
+  // Function to validate SDC email domain
+  const validateSDCDomain = (email) => {
+    // Check if email ends with @sdc.edu.np or .sdc.edu.np
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.sdc\.edu\.np$)|(^[a-zA-Z0-9._-]+@sdc\.edu\.np$)/;
+    return domainRegex.test(email);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -18,6 +25,13 @@ export function AdminLogin() {
     
     if (!email || !password) {
       setError("Email and password are required");
+      setIsLoading(false);
+      return;
+    }
+    
+    // ✅ Validate SDC domain before submission
+    if (!validateSDCDomain(email)) {
+      setError("Only SDC admin emails are allowed (@sdc.edu.np)");
       setIsLoading(false);
       return;
     }
@@ -54,6 +68,9 @@ export function AdminLogin() {
     }
   };
 
+  // Real-time validation feedback
+  const isEmailValid = email ? validateSDCDomain(email) : null;
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -61,20 +78,20 @@ export function AdminLogin() {
       alignItems: "center",
       justifyContent: "center",
       background: "linear-gradient(135deg, #1a237e 0%, #283593 100%)",
-      padding: "20px"
+      padding: "15px" // Reduced
     }}>
       <div style={{
         width: "100%",
-        maxWidth: "450px",
+        maxWidth: "400px", // Reduced from 450px
         backgroundColor: "white",
-        borderRadius: "16px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        borderRadius: "12px", // Reduced from 16px
+        boxShadow: "0 10px 40px rgba(0,0,0,0.2)", // Reduced
         overflow: "hidden"
       }}>
-        {/* Header with gradient */}
+        {/* Header with gradient - Made more compact */}
         <div style={{
           background: "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
-          padding: "30px 20px",
+          padding: "20px 15px", // Reduced
           textAlign: "center",
           color: "white"
         }}>
@@ -82,45 +99,45 @@ export function AdminLogin() {
             display: "flex", 
             alignItems: "center", 
             justifyContent: "center",
-            gap: "15px"
+            gap: "12px" // Reduced
           }}>
             <img 
               src="/logo.png" 
               alt="StudyReuse Logo"
               style={{ 
-                height: "50px",
-                borderRadius: "8px",
+                height: "40px", // Reduced from 50px
+                borderRadius: "6px", // Reduced
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
-                padding: "5px"
+                padding: "4px" // Reduced
               }}
             />
             <h1 style={{ 
               margin: 0, 
-              fontSize: "32px", 
-              fontWeight: "800",
-              letterSpacing: "1px",
+              fontSize: "26px", // Reduced from 32px
+              fontWeight: "700", // Reduced from 800
+              letterSpacing: "0.5px", // Reduced
               color: "white",
-              textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)"
+              textShadow: "0 2px 8px rgba(0, 0, 0, 0.2)" // Reduced
             }}>
               StudyReuse
             </h1>
           </div>
           <p style={{ 
-            margin: "10px 0 0 0", 
+            margin: "8px 0 0 0", // Reduced
             opacity: 0.9,
-            fontSize: "18px",
+            fontSize: "16px", // Reduced from 18px
             fontWeight: "500"
           }}>
             Admin Portal
           </p>
         </div>
 
-        <div style={{ padding: "40px 30px" }}>
+        <div style={{ padding: "25px 20px" }}> {/* Reduced padding */}
           <h2 style={{ 
             textAlign: "center", 
-            marginBottom: "30px", 
+            marginBottom: "20px", // Reduced from 30px
             color: "#1a237e",
-            fontSize: "24px",
+            fontSize: "22px", // Reduced from 24px
             fontWeight: "600"
           }}>
             Administrator Login
@@ -130,17 +147,17 @@ export function AdminLogin() {
             <div style={{
               color: "#d32f2f",
               backgroundColor: "#ffebee",
-              padding: "12px 16px",
+              padding: "10px 14px", // Reduced
               borderRadius: "8px",
-              marginBottom: "25px",
+              marginBottom: "20px", // Reduced
               border: "1px solid #ffcdd2",
-              fontSize: "14px",
+              fontSize: "13px", // Reduced
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "16px" }}>⚠️</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}> {/* Reduced gap */}
+                <span style={{ fontSize: "14px" }}>⚠️</span> {/* Reduced */}
                 <span>{error}</span>
               </div>
               <button
@@ -151,7 +168,7 @@ export function AdminLogin() {
                   color: "#d32f2f",
                   cursor: "pointer",
                   padding: "0",
-                  fontSize: "18px"
+                  fontSize: "16px" // Reduced
                 }}
               >
                 ✕
@@ -160,56 +177,85 @@ export function AdminLogin() {
           )}
           
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}> {/* Reduced */}
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", // Reduced
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px" // Reduced
               }}>
                 Admin Email Address
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <input
                 type="email"
-                placeholder="admin@ria.edu.np"
+                placeholder="admin@sdc.edu.np"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  padding: "12px 14px", // Reduced
+                  border: isEmailValid === false ? "1px solid #e74c3c" : 
+                         isEmailValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                  borderRadius: "8px", // Reduced
+                  fontSize: "14px", // Reduced
                   boxSizing: "border-box",
                   transition: "all 0.3s",
                   outline: "none"
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onBlur={(e) => {
+                  if (!email) {
+                    e.target.style.borderColor = "#e0e0e0";
+                  } else if (validateSDCDomain(email)) {
+                    e.target.style.borderColor = "#2ecc71";
+                  } else {
+                    e.target.style.borderColor = "#e74c3c";
+                  }
+                }}
               />
               <div style={{ 
-                fontSize: "12px", 
-                color: "#666", 
+                fontSize: "11px", // Reduced
+                color: isEmailValid === false ? "#e74c3c" : 
+                      isEmailValid === true ? "#2ecc71" : "#666", 
                 marginTop: "4px",
                 display: "flex",
                 alignItems: "center",
                 gap: "4px"
               }}>
-                <span>Use admin email credentials</span>
+                {email ? (
+                  isEmailValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Valid SDC admin email</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Must be @sdc.edu.np domain</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>📧</span>
+                    <span>Use SDC admin email (@sdc.edu.np)</span>
+                  </>
+                )}
               </div>
             </div>
             
-            <div style={{ marginBottom: "30px" }}>
+            <div style={{ marginBottom: "25px" }}> {/* Reduced */}
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", // Reduced
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px" // Reduced
               }}>
                 Admin Password
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <div style={{ position: "relative" }}>
                 <input
@@ -220,23 +266,33 @@ export function AdminLogin() {
                   required
                   style={{
                     width: "100%",
-                    padding: "14px 50px 14px 16px",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "10px",
-                    fontSize: "16px",
+                    padding: "12px 45px 12px 14px", // Reduced
+                    border: password.length > 0 && password.length < 6 ? 
+                           "1px solid #e74c3c" : 
+                           password.length >= 6 ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                    borderRadius: "8px", // Reduced
+                    fontSize: "14px", // Reduced
                     boxSizing: "border-box",
                     transition: "all 0.3s",
                     outline: "none"
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#303f9f"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onBlur={(e) => {
+                    if (!password) {
+                      e.target.style.borderColor = "#e0e0e0";
+                    } else if (password.length >= 6) {
+                      e.target.style.borderColor = "#2ecc71";
+                    } else {
+                      e.target.style.borderColor = "#e74c3c";
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     position: "absolute",
-                    right: "16px",
+                    right: "14px", // Adjusted
                     top: "50%",
                     transform: "translateY(-50%)",
                     background: "none",
@@ -256,8 +312,8 @@ export function AdminLogin() {
                   onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                 >
                   <svg 
-                    width="20" 
-                    height="20" 
+                    width="18" // Reduced
+                    height="18" // Reduced
                     viewBox="0 0 24 24" 
                     fill="none" 
                     stroke="currentColor" 
@@ -279,50 +335,72 @@ export function AdminLogin() {
                   </svg>
                 </button>
               </div>
-              <p style={{ 
-                marginTop: "8px", 
-                fontSize: "12px", 
-                color: "#888",
-                marginBottom: "0"
+              <div style={{ 
+                fontSize: "11px", // Reduced
+                color: password.length > 0 && password.length < 6 ? "#e74c3c" : 
+                      password.length >= 6 ? "#2ecc71" : "#888",
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
               }}>
-                Use secure admin password
-              </p>
+                {password.length > 0 ? (
+                  password.length >= 6 ? (
+                    <>
+                      <span>✓</span>
+                      <span>Strong password</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Password must be at least 6 characters</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>🔒</span>
+                    <span>Use secure admin password</span>
+                  </>
+                )}
+              </div>
             </div>
 
             <button 
               type="submit" 
-              disabled={isLoading}
+              disabled={isLoading || !isEmailValid || password.length < 6}
               style={{
                 width: "100%",
-                padding: "16px",
-                background: isLoading 
+                padding: "14px", // Reduced
+                background: isLoading || !isEmailValid || password.length < 6
                   ? "#ccc" 
                   : "linear-gradient(135deg, #303f9f 0%, #1a237e 100%)",
                 color: "white",
                 border: "none",
-                borderRadius: "10px",
-                fontSize: "16px",
+                borderRadius: "8px", // Reduced
+                fontSize: "15px", // Reduced
                 fontWeight: "600",
-                cursor: isLoading ? "not-allowed" : "pointer",
+                cursor: isLoading || !isEmailValid || password.length < 6 ? "not-allowed" : "pointer",
                 transition: "all 0.3s",
                 letterSpacing: "0.5px",
-                marginBottom: "25px",
-                boxShadow: "0 4px 15px rgba(48, 63, 159, 0.3)",
+                marginBottom: "20px", // Reduced
+                boxShadow: isLoading || !isEmailValid || password.length < 6 
+                  ? "none" 
+                  : "0 4px 12px rgba(48, 63, 159, 0.3)", // Reduced
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px"
               }}
               onMouseEnter={(e) => {
-                if (!isLoading) {
+                if (!isLoading && isEmailValid && password.length >= 6) {
                   e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 20px rgba(48, 63, 159, 0.4)";
+                  e.target.style.boxShadow = "0 6px 16px rgba(48, 63, 159, 0.4)"; // Reduced
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isLoading) {
+                if (!isLoading && isEmailValid && password.length >= 6) {
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 15px rgba(48, 63, 159, 0.3)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(48, 63, 159, 0.3)"; // Reduced
                 }
               }}
             >
@@ -340,7 +418,7 @@ export function AdminLogin() {
                 </>
               ) : (
                 <>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.9 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.9 }}> {/* Reduced */}
                     <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
                   </svg>
                   Login as Administrator
@@ -350,11 +428,11 @@ export function AdminLogin() {
             
             <div style={{ 
               textAlign: "center", 
-              paddingTop: "20px",
+              paddingTop: "15px", // Reduced
               borderTop: "1px solid #eee",
-              marginBottom: "25px"
+              marginBottom: "20px" // Reduced
             }}>
-              <p style={{ color: "#666", marginBottom: "8px" }}>
+              <p style={{ color: "#666", marginBottom: "8px", fontSize: "14px" }}> {/* Reduced */}
                 Don't have admin access?
               </p>
               <Link 
@@ -363,7 +441,7 @@ export function AdminLogin() {
                   color: "#303f9f", 
                   textDecoration: "none",
                   fontWeight: "600",
-                  fontSize: "15px",
+                  fontSize: "14px", // Reduced
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
@@ -379,63 +457,63 @@ export function AdminLogin() {
                 }}
               >
                 Register as Administrator
-                <span style={{ fontSize: "18px" }}>→</span>
+                <span style={{ fontSize: "16px" }}>→</span> {/* Reduced */}
               </Link>
             </div>
             
-            {/* User Login Link */}
+            {/* User Login Link - Made more compact */}
             <div style={{
-              marginTop: "30px",
-              paddingTop: "25px",
+              marginTop: "20px", // Reduced
+              paddingTop: "15px", // Reduced
               borderTop: "1px solid #eee",
               textAlign: "center"
             }}>
               <p style={{ 
                 color: "#666", 
-                marginBottom: "12px", 
-                fontSize: "14px",
+                marginBottom: "8px", // Reduced
+                fontSize: "13px", // Reduced
                 fontWeight: "500"
               }}>
                 User Login
               </p>
               <p style={{ 
                 color: "#888", 
-                marginBottom: "15px", 
-                fontSize: "13px",
+                marginBottom: "12px", // Reduced
+                fontSize: "12px", // Reduced
                 lineHeight: "1.5"
               }}>
-                Are you a regular user? Login to access student features.
+                Regular user? Login to access student features.
               </p>
               <button
                 type="button"
                 onClick={() => window.location.href = "/login"}
                 style={{
-                  padding: "10px 24px",
+                  padding: "8px 20px", // Reduced
                   backgroundColor: "#4CAF50",
                   color: "white",
                   border: "none",
-                  borderRadius: "10px",
-                  fontSize: "14px",
+                  borderRadius: "8px", // Reduced
+                  fontSize: "13px", // Reduced
                   fontWeight: "600",
                   cursor: "pointer",
                   transition: "all 0.3s",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "8px",
-                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)"
+                  gap: "6px", // Reduced
+                  boxShadow: "0 4px 10px rgba(76, 175, 80, 0.3)" // Reduced
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = "#388E3C";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 18px rgba(76, 175, 80, 0.4)";
+                  e.target.style.transform = "translateY(-1px)"; // Reduced
+                  e.target.style.boxShadow = "0 6px 14px rgba(76, 175, 80, 0.4)"; // Reduced
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = "#4CAF50";
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.3)";
+                  e.target.style.boxShadow = "0 4px 10px rgba(76, 175, 80, 0.3)"; // Reduced
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"> {/* Reduced */}
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
                 Login as User
@@ -444,9 +522,9 @@ export function AdminLogin() {
           </form>
         </div>
 
-        {/* Footer */}
+        {/* Footer - Made more compact */}
         <div style={{
-          padding: "20px",
+          padding: "15px", // Reduced
           textAlign: "center",
           backgroundColor: "#f8f9fa",
           borderTop: "1px solid #eee"
@@ -456,7 +534,7 @@ export function AdminLogin() {
             style={{ 
               color: "#666", 
               textDecoration: "none",
-              fontSize: "14px",
+              fontSize: "13px", // Reduced
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
@@ -471,16 +549,16 @@ export function AdminLogin() {
               e.target.style.gap = "6px";
             }}
           >
-            <span style={{ fontSize: "18px" }}>←</span>
+            <span style={{ fontSize: "16px" }}>←</span> {/* Reduced */}
             Back to StudyReuse Home
           </Link>
           <p style={{ 
-            margin: "10px 0 0 0", 
+            margin: "8px 0 0 0", // Reduced
             color: "#888", 
-            fontSize: "11px",
+            fontSize: "10px", // Reduced
             fontStyle: "italic"
           }}>
-            Admin access is restricted to authorized personnel only
+            Admin access restricted to authorized personnel
           </p>
         </div>
       </div>
@@ -490,9 +568,31 @@ export function AdminLogin() {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Better focus styles for accessibility */
+        *:focus {
+          outline: 2px solid #3498db;
+          outline-offset: 2px;
+        }
+        
+        /* Smooth transitions */
+        input, button {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Disabled state */
+        input:disabled, button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
       `}</style>
     </div>
   );
-};
+}
 
 export default AdminLogin;

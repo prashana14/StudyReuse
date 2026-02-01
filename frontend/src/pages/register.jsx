@@ -20,11 +20,18 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Function to validate RIA email domain
-  const validateRIADomain = (email) => {
-    // Check if email ends with @ria.edu.np or .ria.edu.np
-    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+  // Function to validate SDC email domain
+  const validateSDCDomain = (email) => {
+    // Check if email ends with @sdc.edu.np or .sdc.edu.np
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.sdc\.edu\.np$)|(^[a-zA-Z0-9._-]+@sdc\.edu\.np$)/;
     return domainRegex.test(email);
+  };
+
+  // Function to validate name
+  const validateName = (name) => {
+    // Check if name has at least 3 characters and contains only letters and spaces
+    const nameRegex = /^[a-zA-Z\s]{3,50}$/;
+    return nameRegex.test(name.trim());
   };
 
   const handleSubmit = async (e) => {
@@ -32,9 +39,16 @@ const Register = () => {
     setError("");
     setLoading(true);
 
-    // ✅ Validate RIA domain before submission
-    if (!validateRIADomain(formData.email)) {
-      setError("Only RIA students are allowed");
+    // ✅ Validate name before submission
+    if (!validateName(formData.name)) {
+      setError("Please enter a valid name (2-50 characters, letters only)");
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Validate SDC domain before submission
+    if (!validateSDCDomain(formData.email)) {
+      setError("Only SDC students are allowed (use @sdc.edu.np email)");
       setLoading(false);
       return;
     }
@@ -57,13 +71,9 @@ const Register = () => {
     try {
       console.log("Calling API endpoint: /users/register");
       
-      // ✅ FIXED: Using the correct API method from your apiService
-      // Option 1: Using direct API.post (which already extracts response.data)
       const response = await api.post("/users/register", formData);
       console.log("Registration response:", response);
       
-      // ✅ FIXED: The response is already the data object (because of interceptor)
-      // So we access response.token and response.user directly (not response.data.token)
       if (response && response.token && response.user) {
         // Save to localStorage
         localStorage.setItem("token", response.token);
@@ -71,7 +81,7 @@ const Register = () => {
         
         // Call login from context if it exists
         if (login) {
-          login(response); // ✅ Pass the full response object
+          login(response);
         }
         
         alert("Registration successful!");
@@ -105,6 +115,10 @@ const Register = () => {
     }
   };
 
+  // Real-time validation feedback
+  const isNameValid = formData.name ? validateName(formData.name) : null;
+  const isEmailValid = formData.email ? validateSDCDomain(formData.email) : null;
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -116,16 +130,16 @@ const Register = () => {
     }}>
       <div style={{
         width: "100%",
-        maxWidth: "450px",
+        maxWidth: "400px",
         backgroundColor: "white",
-        borderRadius: "16px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        borderRadius: "12px",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
         overflow: "hidden"
       }}>
        {/* Header with gradient */}
       <div style={{
         background: "linear-gradient(135deg, #d2baebc3 0%, #87a8e1c8 100%)",
-        padding: "30px 20px",
+        padding: "20px 15px",
         textAlign: "center",
         color: "black"
       }}>
@@ -133,44 +147,44 @@ const Register = () => {
         display: "flex", 
         alignItems: "center", 
         justifyContent: "center",
-        gap: "15px"
+        gap: "12px"
       }}>
         <img 
           src="/logo.png" 
           alt="StudyReuse Logo"
           style={{ 
-            height: "50px",
-            borderRadius: "8px",
+            height: "40px",
+            borderRadius: "6px",
             backgroundColor: "rgba(248, 208, 208, 0.2)",
-            padding: "5px"
+            padding: "4px"
           }}
         />
         <h1 style={{ 
           margin: 0, 
-          fontSize: "32px", 
-          fontWeight: "800",
-          letterSpacing: "1px",
+          fontSize: "26px",
+          fontWeight: "700",
+          letterSpacing: "0.5px",
           color: "white",
-          textShadow: "0 2px 10px rgba(0, 0, 0, 0.3)"
+          textShadow: "0 2px 8px rgba(0, 0, 0, 0.2)"
         }}>
           StudyReuse
         </h1>
       </div>
       <p style={{ 
-        margin: "10px 0 0 0", 
+        margin: "8px 0 0 0",
         opacity: 0.9,
-        fontSize: "25px"
+        fontSize: "16px"
       }}>
-        Join our community of students
+        Join SDC student community
       </p>
       </div>
 
-        <div style={{ padding: "40px 30px" }}>
+        <div style={{ padding: "25px 20px" }}>
           <h2 style={{ 
             textAlign: "center", 
-            marginBottom: "30px", 
+            marginBottom: "20px",
             color: "#215eecff",
-            fontSize: "24px",
+            fontSize: "22px",
             fontWeight: "600"
           }}>
             Create Account
@@ -180,26 +194,27 @@ const Register = () => {
             <div style={{
               color: "#d32f2f",
               backgroundColor: "#ffebee",
-              padding: "12px 16px",
+              padding: "10px 14px",
               borderRadius: "8px",
-              marginBottom: "25px",
+              marginBottom: "20px",
               border: "1px solid #ffcdd2",
-              fontSize: "14px"
+              fontSize: "13px"
             }}>
               {error}
             </div>
           )}
           
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
                 Full Name
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <input
                 name="name"
@@ -210,68 +225,136 @@ const Register = () => {
                 required
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  padding: "12px 14px",
+                  border: isNameValid === false ? "1px solid #e74c3c" : 
+                         isNameValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
                   boxSizing: "border-box",
                   transition: "all 0.3s",
                   outline: "none"
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#667eea"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onBlur={(e) => {
+                  if (!formData.name) {
+                    e.target.style.borderColor = "#e0e0e0";
+                  } else if (validateName(formData.name)) {
+                    e.target.style.borderColor = "#2ecc71";
+                  } else {
+                    e.target.style.borderColor = "#e74c3c";
+                  }
+                }}
               />
+              <div style={{ 
+                fontSize: "11px", 
+                color: isNameValid === false ? "#e74c3c" : 
+                      isNameValid === true ? "#2ecc71" : "#666", 
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                {formData.name ? (
+                  isNameValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Valid name format</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Use 3-50 letters and spaces only</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>👤</span>
+                    <span>Enter your full name (letters only)</span>
+                  </>
+                )}
+              </div>
             </div>
             
-            <div style={{ marginBottom: "22px" }}>
+            <div style={{ marginBottom: "18px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
               Email Address
+              <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <input
                 name="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="username@sdc.edu.np"
                 value={formData.email}
                 onChange={handleChange}
                 required
                 style={{
                   width: "100%",
-                  padding: "14px 16px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "10px",
-                  fontSize: "16px",
+                  padding: "12px 14px",
+                  border: isEmailValid === false ? "1px solid #e74c3c" : 
+                         isEmailValid === true ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                  borderRadius: "8px",
+                  fontSize: "14px",
                   boxSizing: "border-box",
                   transition: "all 0.3s",
                   outline: "none"
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#667eea"}
-                onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                onBlur={(e) => {
+                  if (!formData.email) {
+                    e.target.style.borderColor = "#e0e0e0";
+                  } else if (validateSDCDomain(formData.email)) {
+                    e.target.style.borderColor = "#2ecc71";
+                  } else {
+                    e.target.style.borderColor = "#e74c3c";
+                  }
+                }}
               />
               <div style={{ 
-                fontSize: "12px", 
-                color: "#666", 
+                fontSize: "11px", 
+                color: isEmailValid === false ? "#e74c3c" : 
+                      isEmailValid === true ? "#2ecc71" : "#666", 
                 marginTop: "4px",
                 display: "flex",
-                alignItems: "center"
+                alignItems: "center",
+                gap: "4px"
               }}>
+                {formData.email ? (
+                  isEmailValid ? (
+                    <>
+                      <span>✓</span>
+                      <span>Valid SDC email</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Must end with @sdc.edu.np</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>📧</span>
+                    <span>Use your SDC College email (@sdc.edu.np)</span>
+                  </>
+                )}
               </div>
             </div>
             
-            <div style={{ marginBottom: "30px" }}>
+            <div style={{ marginBottom: "25px" }}>
               <label style={{ 
                 display: "block", 
-                marginBottom: "10px", 
+                marginBottom: "8px", 
                 fontWeight: "500",
                 color: "#555",
-                fontSize: "14px"
+                fontSize: "13px"
               }}>
                 Password
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
               </label>
               <div style={{ position: "relative" }}>
                 <input
@@ -283,23 +366,33 @@ const Register = () => {
                   required
                   style={{
                     width: "100%",
-                    padding: "14px 50px 14px 16px",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "10px",
-                    fontSize: "16px",
+                    padding: "12px 45px 12px 14px",
+                    border: formData.password.length > 0 && formData.password.length < 6 ? 
+                           "1px solid #e74c3c" : 
+                           formData.password.length >= 6 ? "1px solid #2ecc71" : "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "14px",
                     boxSizing: "border-box",
                     transition: "all 0.3s",
                     outline: "none"
                   }}
                   onFocus={(e) => e.target.style.borderColor = "#667eea"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  onBlur={(e) => {
+                    if (!formData.password) {
+                      e.target.style.borderColor = "#e0e0e0";
+                    } else if (formData.password.length >= 6) {
+                      e.target.style.borderColor = "#2ecc71";
+                    } else {
+                      e.target.style.borderColor = "#e74c3c";
+                    }
+                  }}
                 />
                 <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 style={{
                   position: "absolute",
-                  right: "16px",
+                  right: "14px",
                   top: "50%",
                   transform: "translateY(-50%)",
                   background: "none",
@@ -319,8 +412,8 @@ const Register = () => {
                 onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
               >
                 <svg 
-                  width="20" 
-                  height="20" 
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24" 
                   fill="none" 
                   stroke="currentColor" 
@@ -342,50 +435,72 @@ const Register = () => {
                 </svg>
               </button>
               </div>
-              <p style={{ 
-                marginTop: "8px", 
-                fontSize: "12px", 
-                color: "#888",
-                marginBottom: "0"
+              <div style={{ 
+                fontSize: "11px", 
+                color: formData.password.length > 0 && formData.password.length < 6 ? "#e74c3c" : 
+                      formData.password.length >= 6 ? "#2ecc71" : "#888",
+                marginTop: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
               }}>
-                Use at least 6 characters
-              </p>
+                {formData.password.length > 0 ? (
+                  formData.password.length >= 6 ? (
+                    <>
+                      <span>✓</span>
+                      <span>Strong password</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚠</span>
+                      <span>Password must be at least 6 characters</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <span>🔒</span>
+                    <span>Use at least 6 characters</span>
+                  </>
+                )}
+              </div>
             </div>
 
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || !isNameValid || !isEmailValid || formData.password.length < 6}
               style={{
                 width: "100%",
-                padding: "16px",
-                background: loading 
+                padding: "14px",
+                background: loading || !isNameValid || !isEmailValid || formData.password.length < 6
                   ? "#ccc" 
                   : "linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)",
                 color: "white",
                 border: "none",
-                borderRadius: "10px",
-                fontSize: "16px",
+                borderRadius: "8px",
+                fontSize: "15px",
                 fontWeight: "600",
-                cursor: loading ? "not-allowed" : "pointer",
+                cursor: loading || !isNameValid || !isEmailValid || formData.password.length < 6 ? "not-allowed" : "pointer",
                 transition: "all 0.3s",
                 letterSpacing: "0.5px",
-                marginBottom: "25px",
-                boxShadow: "0 4px 15px rgba(106, 17, 203, 0.3)",
+                marginBottom: "20px",
+                boxShadow: loading || !isNameValid || !isEmailValid || formData.password.length < 6 
+                  ? "none" 
+                  : "0 4px 12px rgba(106, 17, 203, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px"
               }}
               onMouseEnter={(e) => {
-                if (!loading) {
+                if (!loading && isNameValid && isEmailValid && formData.password.length >= 6) {
                   e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 20px rgba(106, 17, 203, 0.4)";
+                  e.target.style.boxShadow = "0 6px 16px rgba(106, 17, 203, 0.4)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading) {
+                if (!loading && isNameValid && isEmailValid && formData.password.length >= 6) {
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 15px rgba(106, 17, 203, 0.3)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(106, 17, 203, 0.3)";
                 }
               }}
             >
@@ -410,12 +525,12 @@ const Register = () => {
             
             <div style={{ 
               textAlign: "center", 
-              paddingTop: "20px",
+              paddingTop: "15px",
               borderTop: "1px solid #eee",
-              marginBottom: "25px"
+              marginBottom: "20px"
             }}>
-              <p style={{ color: "#666", marginBottom: "8px" }}>
-                Already have a RIA account?
+              <p style={{ color: "#666", marginBottom: "8px", fontSize: "14px" }}>
+                Already have a SDC account?
               </p>
               <Link 
                 to="/login" 
@@ -423,7 +538,7 @@ const Register = () => {
                   color: "#6a11cb", 
                   textDecoration: "none",
                   fontWeight: "600",
-                  fontSize: "15px",
+                  fontSize: "14px",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
@@ -439,61 +554,61 @@ const Register = () => {
                 }}
               >
                 Sign in to your account
-                <span style={{ fontSize: "18px" }}>→</span>
+                <span style={{ fontSize: "16px" }}>→</span>
               </Link>
             </div>
             
             <div style={{
-              paddingTop: "25px",
+              paddingTop: "15px",
               borderTop: "1px solid #eee",
               textAlign: "center"
             }}>
               <p style={{ 
                 color: "#666", 
-                marginBottom: "12px", 
-                fontSize: "14px",
+                marginBottom: "8px",
+                fontSize: "13px",
                 fontWeight: "500"
               }}>
                 Admin Registration
               </p>
               <p style={{ 
                 color: "#888", 
-                marginBottom: "15px", 
-                fontSize: "13px",
+                marginBottom: "12px",
+                fontSize: "12px",
                 lineHeight: "1.5"
               }}>
-                Need to create an administrator account? Use the admin portal for special access.
+                Need administrator account? Use admin portal.
               </p>
               <button
                 type="button"
                 onClick={() => window.location.href = "/admin/register"}
                 style={{
-                  padding: "12px 28px",
+                  padding: "10px 22px",
                   backgroundColor: "#28a745",
                   color: "white",
                   border: "none",
-                  borderRadius: "10px",
-                  fontSize: "14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
                   fontWeight: "600",
                   cursor: "pointer",
                   transition: "all 0.3s",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "10px",
-                  boxShadow: "0 4px 12px rgba(40, 167, 69, 0.3)"
+                  gap: "8px",
+                  boxShadow: "0 4px 10px rgba(40, 167, 69, 0.3)"
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.backgroundColor = "#218838";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 6px 18px rgba(40, 167, 69, 0.4)";
+                  e.target.style.transform = "translateY(-1px)";
+                  e.target.style.boxShadow = "0 6px 14px rgba(40, 167, 69, 0.4)";
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = "#28a745";
                   e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "0 4px 12px rgba(40, 167, 69, 0.3)";
+                  e.target.style.boxShadow = "0 4px 10px rgba(40, 167, 69, 0.3)";
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
                 Register as Admin
@@ -503,7 +618,7 @@ const Register = () => {
         </div>
 
         <div style={{
-          padding: "20px",
+          padding: "15px",
           textAlign: "center",
           backgroundColor: "#f8f9fa",
           borderTop: "1px solid #eee"
@@ -511,7 +626,7 @@ const Register = () => {
           <p style={{ 
             margin: 0, 
             color: "#888", 
-            fontSize: "13px",
+            fontSize: "12px",
             lineHeight: "1.5"
           }}>
             By registering, you agree to our{" "}
@@ -530,6 +645,28 @@ const Register = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Better focus styles for accessibility */
+        *:focus {
+          outline: 2px solid #3498db;
+          outline-offset: 2px;
+        }
+        
+        /* Smooth transitions */
+        input, button {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Disabled state */
+        input:disabled, button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

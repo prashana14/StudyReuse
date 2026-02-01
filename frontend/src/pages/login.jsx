@@ -13,10 +13,10 @@ const Login = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  // Function to validate RIA email domain
-  const validateRIADomain = (email) => {
-    // Check if email ends with @ria.edu.np or .ria.edu.np
-    const domainRegex = /(^[a-zA-Z0-9._-]+\.ria\.edu\.np$)|(^[a-zA-Z0-9._-]+@ria\.edu\.np$)/;
+  // Function to validate SDC email domain
+  const validateSDCDomain = (email) => {
+    // Check if email ends with @sdc.edu.np or .sdc.edu.np
+    const domainRegex = /(^[a-zA-Z0-9._-]+\.sdc\.edu\.np$)|(^[a-zA-Z0-9._-]+@sdc\.edu\.np$)/;
     return domainRegex.test(email);
   };
 
@@ -33,15 +33,15 @@ const Login = () => {
     }
     
     // ✅ Validate email format
-    if (!/\S+@\S+\.\S+/.test(email) && !email.includes(".ria.edu.np")) {
+    if (!/\S+@\S+\.\S+/.test(email) && !email.includes(".sdc.edu.np")) {
       setError("Please enter a valid email address");
       setLoading(false);
       return;
     }
     
-    // ✅ Validate RIA domain
-    if (!validateRIADomain(email)) {
-      setError("Only RIA email addresses are allowed");
+    // ✅ Validate SDC domain
+    if (!validateSDCDomain(email)) {
+      setError("Only SDC email addresses are allowed");
       setLoading(false);
       return;
     }
@@ -194,506 +194,579 @@ const Login = () => {
 
   return (
     <div style={{
-      maxWidth: "400px",
-      margin: "50px auto",
-      padding: "30px",
-      backgroundColor: "white",
-      borderRadius: "10px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)"
+      minHeight: "90vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "20px",
+      backgroundColor: "#f5f7fa"
     }}>
-      <h2 style={{ 
-        textAlign: "center", 
-        marginBottom: "20px",
-        color: "#1890ff",
-        fontSize: "28px",
-        fontWeight: "600"
-      }}>Login to StudyReuse</h2>
-      
-      <p style={{
-        textAlign: "center",
-        color: "#666",
-        marginBottom: "30px",
-        fontSize: "14px"
+      <div style={{
+        maxWidth: "400px",
+        width: "100%",
+        margin: "0 auto",
+        padding: "25px",
+        backgroundColor: "white",
+        borderRadius: "12px",
+        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.12)",
+        position: "relative"
       }}>
-        Access your RIA Study Materials Repository
-      </p>
-      
-      <div style={{ textAlign: "center", marginBottom: "30px" }}>
-        <img 
-          src="/logo.png" 
-          alt="StudyReuse Logo"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = "https://via.placeholder.com/150/1890ff/ffffff?text=SR";
-          }}
-          style={{ 
-            height: "120px",
-            width: "120px",
-            marginBottom: "15px",
-            borderRadius: "50%",
-            boxShadow: "0 4px 12px rgba(24, 144, 255, 0.3)",
-            objectFit: "cover",
-            border: "3px solid #1890ff"
-          }}
-        />
-      </div>
-
-      {/* ERROR MESSAGE DISPLAY */}
-      {error && (
-        <div style={{
-          marginBottom: "20px",
-          padding: "12px 15px",
-          backgroundColor: "#ffebee",
-          border: "1px solid #ffcdd2",
-          borderRadius: "8px",
-          color: "#d32f2f",
-          fontSize: "14px",
-          display: "flex",
-          alignItems: "flex-start",
-          gap: "10px",
-          animation: "fadeIn 0.3s ease"
-        }}>
-          <span style={{ 
-            fontSize: "18px",
-            flexShrink: 0,
-            marginTop: "1px"
-          }}>⚠️</span>
-          <div style={{ flex: 1 }}>
-            <strong style={{ display: "block", marginBottom: "4px" }}>Login Error</strong>
-            <span>{error}</span>
-          </div>
-          <button
-            onClick={() => setError("")}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#d32f2f",
-              cursor: "pointer",
-              padding: "0",
-              fontSize: "16px",
-              width: "24px",
-              height: "24px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "50%",
-              transition: "all 0.2s"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#ffcdd2"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            title="Dismiss error"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "20px" }}>
-          <label style={{ 
-            display: "block", 
-            marginBottom: "8px", 
-            fontWeight: "500",
-            color: "#333",
-            fontSize: "14px"
-          }}>
-            Email Address
-            <span style={{ color: "#ff4d4f", marginLeft: "4px" }}>*</span>
-          </label>
-          <input
-            type="email"
-            placeholder="username@ria.edu.np"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "12px 15px",
-              border: error.includes("email") ? "1px solid #ff4d4f" : "1px solid #d9d9d9",
-              borderRadius: "8px",
-              fontSize: "15px",
-              boxSizing: "border-box",
-              transition: "all 0.3s",
-              backgroundColor: loading ? "#f5f5f5" : "white"
-            }}
-            onFocus={(e) => {
-              if (!loading) {
-                e.target.style.borderColor = "#1890ff";
-                e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
-              }
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = error.includes("email") ? "#ff4d4f" : "#d9d9d9";
-              e.target.style.boxShadow = "none";
-            }}
-          />
-          <div style={{ 
-            fontSize: "12px", 
-            color: "#666", 
-            marginTop: "6px",
+        {/* CLOSE BUTTON FOR MOBILE */}
+        <button
+          onClick={() => navigate("/")}
+          style={{
+            position: "absolute",
+            top: "15px",
+            right: "15px",
+            background: "none",
+            border: "none",
+            fontSize: "20px",
+            color: "#999",
+            cursor: "pointer",
+            width: "32px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
-            gap: "4px"
-          }}>
-            <span>📧</span>
-            <span>Use your RIA College email</span>
-          </div>
-        </div>
+            justifyContent: "center",
+            borderRadius: "50%",
+            transition: "all 0.2s"
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = "#f5f5f5";
+            e.target.style.color = "#333";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = "transparent";
+            e.target.style.color = "#999";
+          }}
+          title="Close"
+        >
+          ×
+        </button>
+
+        <h2 style={{ 
+          textAlign: "center", 
+          marginBottom: "10px",
+          color: "#2c3e50",
+          fontSize: "20px",
+          fontWeight: "600",
+          marginTop: "5px"
+        }}>Login to StudyReuse</h2>
         
-        <div style={{ marginBottom: "25px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <label style={{ 
-              display: "block", 
-              fontWeight: "500",
-              color: "#333",
-              fontSize: "14px"
-            }}>
-              Password
-              <span style={{ color: "#ff4d4f", marginLeft: "4px" }}>*</span>
-            </label>
+        <p style={{
+          textAlign: "center",
+          color: "#7f8c8d",
+          marginBottom: "20px",
+          fontSize: "13px",
+          lineHeight: "1.4"
+        }}>
+          Access your SDC Study Materials
+        </p>
+        
+        <div style={{ textAlign: "center", marginBottom: "15px" }}>
+          <img 
+            src="/logo.png" 
+            alt="StudyReuse Logo"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = "https://via.placeholder.com/80/3498db/ffffff?text=SR";
+            }}
+            style={{ 
+              height: "60px",
+              width: "60px",
+              marginBottom: "5px",
+              borderRadius: "50%",
+              boxShadow: "0 4px 10px rgba(52, 152, 219, 0.25)",
+              objectFit: "cover",
+              border: "3px solid #3498db"
+            }}
+          />
+        </div>
+
+        {/* ERROR MESSAGE DISPLAY */}
+        {error && (
+          <div style={{
+            marginBottom: "15px",
+            padding: "10px 12px",
+            backgroundColor: "#ffeaea",
+            border: "1px solid #ffcccc",
+            borderRadius: "8px",
+            color: "#e74c3c",
+            fontSize: "12px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "8px",
+            animation: "fadeIn 0.3s ease"
+          }}>
+            <span style={{ 
+              fontSize: "14px",
+              flexShrink: 0,
+              marginTop: "1px"
+            }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ display: "block", marginBottom: "2px", fontSize: "12px" }}>Login Error</strong>
+              <span>{error}</span>
+            </div>
             <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setError("")}
               style={{
                 background: "none",
                 border: "none",
-                color: "#1890ff",
+                color: "#e74c3c",
                 cursor: "pointer",
                 padding: "0",
-                fontSize: "12px",
-                fontWeight: "500",
-                transition: "all 0.2s"
+                fontSize: "14px",
+                width: "20px",
+                height: "20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "50%",
+                transition: "all 0.2s",
+                flexShrink: 0
               }}
-              onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
-              onMouseLeave={(e) => e.target.style.textDecoration = "none"}
-              disabled={loading}
+              onMouseEnter={(e) => e.target.style.backgroundColor = "#ffcccc"}
+              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              title="Dismiss error"
             >
-              {showPassword ? "Hide password" : "Show password"}
+              ✕
             </button>
           </div>
-          <div style={{ position: "relative" }}>
+        )}
+        
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: "15px" }}>
+            <label style={{ 
+              display: "block", 
+              marginBottom: "5px", 
+              fontWeight: "500",
+              color: "#2c3e50",
+              fontSize: "13px"
+            }}>
+              Email Address
+              <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
+            </label>
             <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="email"
+              placeholder="username@sdc.edu.np"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading}
               style={{
                 width: "100%",
-                padding: "12px 45px 12px 15px",
-                border: error.includes("password") ? "1px solid #ff4d4f" : "1px solid #d9d9d9",
+                padding: "11px 14px",
+                border: error.includes("email") ? "1px solid #e74c3c" : "1px solid #ddd",
                 borderRadius: "8px",
-                fontSize: "15px",
+                fontSize: "14px",
                 boxSizing: "border-box",
                 transition: "all 0.3s",
-                backgroundColor: loading ? "#f5f5f5" : "white"
+                backgroundColor: loading ? "#f9f9f9" : "white"
               }}
               onFocus={(e) => {
                 if (!loading) {
-                  e.target.style.borderColor = "#1890ff";
-                  e.target.style.boxShadow = "0 0 0 2px rgba(24, 144, 255, 0.2)";
+                  e.target.style.borderColor = "#3498db";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(52, 152, 219, 0.15)";
                 }
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = error.includes("password") ? "#ff4d4f" : "#d9d9d9";
+                e.target.style.borderColor = error.includes("email") ? "#e74c3c" : "#ddd";
                 e.target.style.boxShadow = "none";
               }}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: "absolute",
-                right: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "4px",
-                color: "#666",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "30px",
-                height: "30px",
-                borderRadius: "50%",
-                transition: "all 0.3s",
-                opacity: loading ? 0.5 : 1
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) e.target.style.backgroundColor = "#f0f0f0";
-              }}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-              disabled={loading}
-              title={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-              )}
-            </button>
-          </div>
-          <div style={{ 
-            fontSize: "12px", 
-            color: "#666", 
-            marginTop: "6px",
-            display: "flex",
-            alignItems: "center",
-            gap: "4px"
-          }}>
-            <span>🔒</span>
-            <span>Password must be at least 6 characters</span>
-          </div>
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "14px",
-            backgroundColor: loading ? "#bae0ff" : "#1890ff",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            fontSize: "16px",
-            fontWeight: "600",
-            cursor: loading ? "not-allowed" : "pointer",
-            transition: "all 0.3s",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            boxShadow: loading ? "none" : "0 2px 0 rgba(5, 145, 255, 0.1)"
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) {
-              e.target.style.backgroundColor = "#096dd9";
-              e.target.style.transform = "translateY(-1px)";
-              e.target.style.boxShadow = "0 4px 12px rgba(24, 144, 255, 0.4)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!loading) {
-              e.target.style.backgroundColor = "#1890ff";
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 2px 0 rgba(5, 145, 255, 0.1)";
-            }
-          }}
-        >
-          {loading ? (
-            <>
-              <span style={{
-                width: "18px",
-                height: "18px",
-                border: "2px solid white",
-                borderTop: "2px solid transparent",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite"
-              }}></span>
-              Authenticating...
-            </>
-          ) : (
-            <>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-              Login
-            </>
-          )}
-        </button>
-        
-        <div style={{ textAlign: "center", marginTop: "25px" }}>
-          <p style={{ color: "#666", fontSize: "14px" }}>
-            Don't have an account?{" "}
-            <a 
-              href="/register" 
-              style={{ 
-                color: "#1890ff", 
-                textDecoration: "none", 
-                fontWeight: "600",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.textDecoration = "underline";
-                e.target.style.color = "#096dd9";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.textDecoration = "none";
-                e.target.style.color = "#1890ff";
-              }}
-            >
-              Create Account
-            </a>
-          </p>
-        </div>
-        
-        {/* FORGOT PASSWORD SECTION */}
-        <div style={{ 
-          textAlign: "center", 
-          marginTop: "20px",
-          paddingTop: "20px",
-          borderTop: "1px solid #f0f0f0"
-        }}>
-          <a 
-            href="/forgot-password" 
-            style={{ 
-              color: "#666", 
-              textDecoration: "none", 
-              fontSize: "14px",
-              transition: "all 0.2s",
-              display: "inline-flex",
+            <div style={{ 
+              fontSize: "11px", 
+              color: "#7f8c8d", 
+              marginTop: "5px",
+              display: "flex",
               alignItems: "center",
-              gap: "6px"
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.color = "#1890ff";
-              e.target.style.textDecoration = "underline";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.color = "#666";
-              e.target.style.textDecoration = "none";
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-            Forgot Password?
-          </a>
-        </div>
-        
-        {/* ADMIN ACCESS SECTION */}
-        <div style={{
-          marginTop: "30px",
-          padding: "20px",
-          backgroundColor: "#fafafa",
-          borderRadius: "8px",
-          border: "1px solid #f0f0f0",
-          textAlign: "center"
-        }}>
-          <p style={{ 
-            color: "#666", 
-            marginBottom: "15px", 
-            fontSize: "14px",
-            fontWeight: "500"
-          }}>
-            <span style={{ 
-              backgroundColor: "#1890ff", 
-              color: "white",
-              padding: "2px 8px",
-              borderRadius: "12px",
-              fontSize: "12px",
-              marginRight: "8px"
-            }}>ADMIN</span>
-            Administrator Access
-          </p>
-          <button
-            type="button"
-            onClick={() => window.location.href = "/admin/login"}
+              gap: "4px"
+            }}>
+              <span>📧</span>
+              <span>Use your SDC College email (@sdc.edu.np)</span>
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+              <label style={{ 
+                display: "block", 
+                fontWeight: "500",
+                color: "#2c3e50",
+                fontSize: "13px"
+              }}>
+                Password
+                <span style={{ color: "#e74c3c", marginLeft: "4px" }}>*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#3498db",
+                  cursor: "pointer",
+                  padding: "0",
+                  fontSize: "11px",
+                  fontWeight: "500",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+                onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+                disabled={loading}
+              >
+                {showPassword ? "Hide password" : "Show password"}
+              </button>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "11px 40px 11px 14px",
+                  border: error.includes("password") ? "1px solid #e74c3c" : "1px solid #ddd",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  boxSizing: "border-box",
+                  transition: "all 0.3s",
+                  backgroundColor: loading ? "#f9f9f9" : "white"
+                }}
+                onFocus={(e) => {
+                  if (!loading) {
+                    e.target.style.borderColor = "#3498db";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(52, 152, 219, 0.15)";
+                  }
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = error.includes("password") ? "#e74c3c" : "#ddd";
+                  e.target.style.boxShadow = "none";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px",
+                  color: "#7f8c8d",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  transition: "all 0.3s",
+                  opacity: loading ? 0.5 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) e.target.style.backgroundColor = "#f0f0f0";
+                }}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                disabled={loading}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                )}
+              </button>
+            </div>
+            <div style={{ 
+              fontSize: "11px", 
+              color: "#7f8c8d", 
+              marginTop: "5px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px"
+            }}>
+              <span>🔒</span>
+              <span>Password must be at least 6 characters</span>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
             style={{
-              padding: "10px 24px",
-              backgroundColor: "#dc3545",
+              width: "100%",
+              padding: "12px",
+              backgroundColor: loading ? "#a0d1f9" : "#3498db",
               color: "white",
               border: "none",
               borderRadius: "8px",
               fontSize: "14px",
-              fontWeight: "500",
-              cursor: "pointer",
+              fontWeight: "600",
+              cursor: loading ? "not-allowed" : "pointer",
               transition: "all 0.3s",
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: "8px",
-              boxShadow: "0 2px 0 rgba(220, 53, 69, 0.1)"
+              boxShadow: loading ? "none" : "0 4px 12px rgba(52, 152, 219, 0.25)"
             }}
             onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "#c82333";
-              e.target.style.transform = "translateY(-1px)";
-              e.target.style.boxShadow = "0 4px 12px rgba(220, 53, 69, 0.3)";
+              if (!loading) {
+                e.target.style.backgroundColor = "#2980b9";
+                e.target.style.transform = "translateY(-2px)";
+                e.target.style.boxShadow = "0 6px 16px rgba(52, 152, 219, 0.35)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "#dc3545";
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 2px 0 rgba(220, 53, 69, 0.1)";
+              if (!loading) {
+                e.target.style.backgroundColor = "#3498db";
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "0 4px 12px rgba(52, 152, 219, 0.25)";
+              }
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-            </svg>
-            Admin Portal
+            {loading ? (
+              <>
+                <span style={{
+                  width: "16px",
+                  height: "16px",
+                  border: "2px solid white",
+                  borderTop: "2px solid transparent",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite"
+                }}></span>
+                Authenticating...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                Login
+              </>
+            )}
           </button>
-          <p style={{ 
-            marginTop: "10px", 
-            color: "#888", 
-            fontSize: "12px",
-            fontStyle: "italic"
+          
+          <div style={{ textAlign: "center", marginTop: "15px", paddingBottom: "10px" }}>
+            <p style={{ color: "#7f8c8d", fontSize: "13px" }}>
+              Don't have an account?{" "}
+              <a 
+                href="/register" 
+                style={{ 
+                  color: "#3498db", 
+                  textDecoration: "none", 
+                  fontWeight: "600",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.textDecoration = "underline";
+                  e.target.style.color = "#2980b9";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.textDecoration = "none";
+                  e.target.style.color = "#3498db";
+                }}
+              >
+                Create Account
+              </a>
+            </p>
+          </div>
+          
+          {/* FORGOT PASSWORD SECTION */}
+          {/* <div style={{ 
+            textAlign: "center", 
+            marginTop: "12px",
+            padding: "12px 0",
+            borderTop: "1px solid #eee"
           }}>
-            Restricted access for authorized personnel only
-          </p>
-        </div>
-      </form>
+            <a 
+              href="/forgot-password" 
+              style={{ 
+                color: "#7f8c8d", 
+                textDecoration: "none", 
+                fontSize: "12px",
+                transition: "all 0.2s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "#3498db";
+                e.target.style.textDecoration = "underline";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "#7f8c8d";
+                e.target.style.textDecoration = "none";
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              Forgot Password?
+            </a>
+          </div> */}
+          
+          {/* ADMIN ACCESS SECTION - Made much more compact */}
+          <div style={{
+            marginTop: "8px",
+            padding: "8px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            border: "1px solid #eee",
+            textAlign: "center"
+          }}>
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              gap: "5px",
+              marginBottom: "6px"
+            }}>
+              <span style={{ 
+                backgroundColor: "#e74c3c", 
+                color: "white",
+                padding: "1px 6px",
+                borderRadius: "10px",
+                fontSize: "10px",
+                fontWeight: "600"
+              }}>ADMIN</span>
+              <span style={{ 
+                color: "#7f8c8d", 
+                fontSize: "12px",
+                fontWeight: "500"
+              }}>
+                Administrator Access
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.location.href = "/admin/login"}
+              style={{
+                padding: "6px 16px",
+                backgroundColor: "#e74c3c",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "500",
+                cursor: "pointer",
+                transition: "all 0.3s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                boxShadow: "0 2px 6px rgba(231, 76, 60, 0.2)"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#c0392b";
+                e.target.style.transform = "translateY(-1px)";
+                e.target.style.boxShadow = "0 4px 10px rgba(231, 76, 60, 0.25)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#e74c3c";
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "0 2px 6px rgba(231, 76, 60, 0.2)";
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+              </svg>
+              Admin Portal
+            </button>
+            <p style={{ 
+              marginTop: "6px", 
+              color: "#95a5a6", 
+              fontSize: "10px",
+              fontStyle: "italic"
+            }}>
+              Restricted access for authorized personnel only
+            </p>
+          </div>
+        </form>
 
-      {/* DEBUG INFO - Only show in development */}
-      {process.env.NODE_ENV === 'development' && (
+        {/* FOOTER - Placed outside the main container so it's only visible when scrolling */}
         <div style={{
-          marginTop: "30px",
-          padding: "15px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "6px",
-          fontSize: "12px",
-          color: "#666",
-          border: "1px dashed #ddd"
+          marginTop: "15px",
+          paddingTop: "10px",
+          borderTop: "1px solid #eee",
+          textAlign: "center"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-            <span>🔧</span>
-            <strong>Development Info</strong>
-          </div>
-          <div>Backend URL: {getBaseURL()}</div>
-          <div>Current endpoint: /users/login</div>
-          <div style={{ marginTop: "8px", color: "#999", fontSize: "11px" }}>
-            Check browser console for detailed logs
-          </div>
+          <p style={{ 
+            color: "#95a5a6", 
+            fontSize: "11px",
+            marginBottom: "4px"
+          }}>
+            © {new Date().getFullYear()} StudyReuse - SDC Materials
+          </p>
+          {/* <p style={{ 
+            color: "#bdc3c7", 
+            fontSize: "10px",
+            marginBottom: "0"
+          }}>
+            v1.0.0 • For SDC students and faculty only
+          </p> */}
         </div>
-      )}
 
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* Better focus styles for accessibility */
-        *:focus {
-          outline: 2px solid #1890ff;
-          outline-offset: 2px;
-        }
-        
-        /* Smooth transitions */
-        input, button {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        /* Disabled state */
-        input:disabled, button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      `}</style>
+        {/* DEBUG INFO - Made very compact or removable */}
+        {/* {process.env.NODE_ENV === 'development' && (
+          <div style={{
+            marginTop: "15px",
+            padding: "8px 10px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "6px",
+            fontSize: "10px",
+            color: "#7f8c8d",
+            border: "1px dashed #ddd"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
+              <span style={{ fontSize: "10px" }}>🔧</span>
+              <strong style={{ fontSize: "10px" }}>Dev Info</strong>
+            </div>
+            <div style={{ fontSize: "9px" }}>Backend: {getBaseURL()}</div>
+          </div>
+        )} */}
+
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          
+          /* Better focus styles for accessibility */
+          *:focus {
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+          }
+          
+          /* Smooth transitions */
+          input, button {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          /* Disabled state */
+          input:disabled, button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+        `}</style>
+      </div>
     </div>
   );
 };
