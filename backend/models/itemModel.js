@@ -17,15 +17,23 @@ const itemSchema = mongoose.Schema(
       min: [0, 'Price cannot be negative']
     },
     
-    // Category - add enum if you have specific categories
+    // QUANTITY FIELD - ADDED
+    quantity: {
+      type: Number,
+      required: [true, 'Quantity is required'],
+      min: [1, 'Quantity must be at least 1'],
+      default: 1
+    },
+    
+    // Category
     category: {
       type: String,
       required: [true, 'Category is required'],
-      enum: ['books', 'notes', 'electronics', 'stationery', 'furniture', 'other'],
+      enum: ['books', 'notes', 'electronics', 'stationery', 'labreports', 'other'],
       default: 'books'
     },
     
-    // Condition field - ADD THIS
+    // Condition field
     condition: {
       type: String,
       required: [true, 'Condition is required'],
@@ -33,7 +41,7 @@ const itemSchema = mongoose.Schema(
       default: 'good'
     },
     
-    // Faculty field - ADD THIS
+    // Faculty field
     faculty: {
       type: String,
       enum: ['BBA', 'BITM', 'BBS', 'BBM', 'BBA-F', 'MBS', 'MBA', 'MITM', 'MBA-F', 'Other'],
@@ -53,10 +61,10 @@ const itemSchema = mongoose.Schema(
       required: true 
     },
 
-    // Status field
+    // Status field - UPDATED ENUM
     status: {
       type: String,
-      enum: ['Available', 'Sold', 'Under Negotiation', 'Unavailable'],
+      enum: ['Available', 'Sold', 'Sold Out', 'Under Negotiation', 'Unavailable'],
       default: 'Available'
     },
     
@@ -93,8 +101,28 @@ itemSchema.virtual('imageURL').get(function() {
   if (this.image && this.image.startsWith('http')) {
     return this.image;
   }
-  // If using Cloudinary or similar, add your logic here
   return this.image;
+});
+
+// Add virtual for availability - ADDED
+itemSchema.virtual('isAvailable').get(function() {
+  return this.status === 'Available' && this.quantity > 0;
+});
+
+// Add virtual for low stock warning - ADDED
+itemSchema.virtual('isLowStock').get(function() {
+  return this.quantity <= 3 && this.quantity > 0;
+});
+
+// Pre-save hook to update status based on quantity
+itemSchema.pre('save', function(next) {
+  // Update status based on quantity
+  if (this.quantity <= 0 && this.status !== 'Sold Out') {
+    this.status = 'Sold Out';
+  } else if (this.quantity > 0 && this.status === 'Sold Out') {
+    this.status = 'Available';
+  }
+  next();
 });
 
 // Post-save hook

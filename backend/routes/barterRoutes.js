@@ -52,7 +52,7 @@ router.post("/", authMiddleware, async (req, res) => {
 
     // Check if target item is available
     if (item.status !== "available") {
-      return res.status(400).json({ 
+      return res.status(404).json({ 
         message: "This item is not available for barter" 
       });
     }
@@ -116,7 +116,7 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
-// Update barter status
+// Update barter status - COMPLETELY FIXED VERSION
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const { status } = req.body;
@@ -124,70 +124,253 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ 
+        success: false,
         message: "Valid status is required", 
         validStatuses 
       });
     }
 
+    // Find barter with ALL required fields
     const barter = await Barter.findById(req.params.id)
-      .populate("item", "title")
-      .populate("offerItem", "title")
-      .populate("requester", "name")
-      .populate("owner", "name");
+      .select("item offerItem requester owner status")
+      .lean(); // Use lean() to get plain JavaScript object
     
     if (!barter) {
-      return res.status(404).json({ message: "Barter request not found" });
+      console.log(`❌ Barter not found: ${req.params.id}`);
+      return res.status(404).json({ 
+        success: false,
+        message: "Barter request not found" 
+      });
     }
 
     // Check authorization - only owner can update
-    if (barter.owner._id.toString() !== req.user._id.toString()) {
+    const ownerId = barter.owner?.toString();
+    const userId = req.user._id.toString();
+    
+    if (!ownerId || ownerId !== userId) {
+      console.log(`❌ Unauthorized: User ${userId} trying to update barter owned by ${ownerId}`);
       return res.status(403).json({ 
+        success: false,
         message: "Not authorized to update this barter request" 
+      });
+    }
+
+    console.log(`🔄 Updating barter ${req.params.id} to status: ${status}`);
+    console.log(`📦 Barter data:`, {
+      item: barter.item,
+      offerItem: barter.offerItem,
+      owner: barter.owner,
+      currentStatus: barter.status
+    });
+
+    // Validate that all required fields exist
+    if (!barter.item || !barter.offerItem) {
+      console.error(`❌ Missing required fields in barter:`, barter);
+      return res.status(400).json({
+        success: false,
+        message: "Barter data is incomplete. Missing item or offerItem reference."
       });
     }
 
     // Update item statuses when barter is accepted
     if (status === "accepted" && barter.status !== "accepted") {
-      const item = await Item.findById(barter.item._id);
-      const offerItem = await Item.findById(barter.offerItem._id);
+      console.log("📦 Marking items as reserved...");
       
-      if (item) {
-        item.status = "reserved";
-        await item.save();
-      }
-      
-      if (offerItem) {
-        offerItem.status = "reserved";
-        await offerItem.save();
+      try {
+        // Find and update items
+        await Item.findByIdAndUpdate(barter.item, { 
+          status: "reserved" 
+        }, { new: true });
+        
+        await Item.findByIdAndUpdate(barter.offerItem, { 
+          status: "reserved" 
+        }, { new: true });
+        
+        console.log(`✅ Items ${barter.item} and ${barter.offerItem} marked as reserved`);
+      } catch (itemError) {
+        console.error("❌ Error updating item statuses:", itemError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update item statuses",
+          error: itemError.message
+        });
       }
     }
 
     // Revert item statuses if barter is rejected from accepted state
     if (status === "rejected" && barter.status === "accepted") {
-      const item = await Item.findById(barter.item._id);
-      const offerItem = await Item.findById(barter.offerItem._id);
+      console.log("🔄 Reverting items to available...");
       
-      if (item && item.status === "reserved") {
-        item.status = "available";
-        await item.save();
-      }
-      
-      if (offerItem && offerItem.status === "reserved") {
-        offerItem.status = "available";
-        await offerItem.save();
+      try {
+        await Item.findByIdAndUpdate(barter.item, { 
+          status: "available" 
+        }, { new: true });
+        
+        await Item.findByIdAndUpdate(barter.offerItem, { 
+          status: "available" 
+        }, { new: true });
+        
+        console.log(`✅ Items ${barter.item} and ${barter.offerItem} reverted to available`);
+      } catch (itemError) {
+        console.error("❌ Error reverting item statuses:", itemError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to revert item statuses",
+          error: itemError.message
+        });
       }
     }
 
-    barter.status = status;
-    await barter.save();
+    // Update barter status - use findByIdAndUpdate to avoid validation issues
+    const updatedBarter = await Barter.findByIdAndUpdate(
+      req.params.id,
+      { status: status },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedBarter) {
+      console.error(`❌ Failed to update barter ${req.params.id}`);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update barter status"
+      });
+    }
+
+    console.log(`✅ Barter ${req.params.id} updated to ${status}`);
+
+    // Get populated barter for response
+    const populatedBarter = await Barter.findById(updatedBarter._id)
+      .populate("item", "title imageURL category condition price status")
+      .populate("offerItem", "title imageURL category condition price status")
+      .populate("requester", "name email")
+      .populate("owner", "name email");
 
     // Create notification for requester
     await Notification.create({
-      user: barter.requester._id,
+      user: barter.requester,
       type: "barter",
       title: "Barter Request Updated",
-      message: `Your barter request for "${barter.item.title}" was ${status} by ${req.user.name}.`,
-      relatedItem: barter.item._id,
+      message: `Your barter request was ${status}.`,
+      relatedItem: barter.item,
+      relatedUser: req.user._id,
+      isRead: false
+    });
+
+    console.log(`📧 Notification sent to requester`);
+    
+    res.json({ 
+      success: true,
+      message: `Barter request ${status}`,
+      barter: populatedBarter
+    });
+
+  } catch (error) {
+    console.error("❌ Error updating barter:", error);
+    console.error("Error details:", {
+      name: error.name,
+      message: error.message,
+      errors: error.errors,
+      stack: error.stack
+    });
+    
+    // Check if it's a validation error
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: errors
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Server error",
+      error: error.message 
+    });
+  }
+});
+
+// Update barter status - Simplified alternative endpoint
+router.put("/:id/status", authMiddleware, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ["pending", "accepted", "rejected"];
+
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Valid status is required", 
+        validStatuses 
+      });
+    }
+
+    // Use findByIdAndUpdate directly to avoid issues
+    const updatedBarter = await Barter.findByIdAndUpdate(
+      req.params.id,
+      { status: status },
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedBarter) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Barter request not found" 
+      });
+    }
+
+    // Check authorization - only owner can update
+    if (updatedBarter.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to update this barter request" 
+      });
+    }
+
+    // Update item statuses when barter is accepted
+    if (status === "accepted" && updatedBarter.status !== "accepted") {
+      try {
+        await Item.findByIdAndUpdate(updatedBarter.item, { 
+          status: "reserved" 
+        });
+        
+        await Item.findByIdAndUpdate(updatedBarter.offerItem, { 
+          status: "reserved" 
+        });
+      } catch (itemError) {
+        console.error("Error updating item statuses:", itemError);
+      }
+    }
+
+    // Revert item statuses if barter is rejected from accepted state
+    if (status === "rejected" && updatedBarter.status === "accepted") {
+      try {
+        await Item.findByIdAndUpdate(updatedBarter.item, { 
+          status: "available" 
+        });
+        
+        await Item.findByIdAndUpdate(updatedBarter.offerItem, { 
+          status: "available" 
+        });
+      } catch (itemError) {
+        console.error("Error reverting item statuses:", itemError);
+      }
+    }
+
+    // Populate response
+    const populatedBarter = await Barter.findById(updatedBarter._id)
+      .populate("item", "title imageURL category condition price status")
+      .populate("offerItem", "title imageURL category condition price status")
+      .populate("requester", "name email")
+      .populate("owner", "name email");
+
+    // Create notification
+    await Notification.create({
+      user: updatedBarter.requester,
+      type: "barter",
+      title: "Barter Request Updated",
+      message: `Your barter request was ${status}.`,
+      relatedItem: updatedBarter.item,
       relatedUser: req.user._id,
       isRead: false
     });
@@ -195,18 +378,24 @@ router.put("/:id", authMiddleware, async (req, res) => {
     res.json({ 
       success: true,
       message: `Barter request ${status}`,
-      barter: await Barter.findById(barter._id)
-        .populate("item", "title imageURL category condition price status")
-        .populate("offerItem", "title imageURL category condition price status")
-        .populate("requester", "name email")
-        .populate("owner", "name email")
+      barter: populatedBarter
     });
 
   } catch (error) {
-    console.error("❌ Error updating barter:", error);
+    console.error("❌ Error updating barter status:", error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        error: error.message
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
-      message: "Server error" 
+      message: "Server error",
+      error: error.message 
     });
   }
 });
@@ -258,8 +447,10 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
     // Check if user is involved in this barter
     const userId = req.user._id.toString();
-    if (barter.requester._id.toString() !== userId && 
-        barter.owner._id.toString() !== userId) {
+    const requesterId = barter.requester._id.toString();
+    const ownerId = barter.owner._id.toString();
+    
+    if (requesterId !== userId && ownerId !== userId) {
       return res.status(403).json({ 
         success: false,
         message: "Not authorized to view this barter request" 

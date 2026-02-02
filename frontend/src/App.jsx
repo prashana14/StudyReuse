@@ -40,7 +40,7 @@ import AnalyticsPage from "./pages/admin/AnalyticsPage";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 
 // Import Providers
-import { CartProvider } from "./context/CartContext";
+import { CartProvider } from "./context/CartProvider";
 import { NotificationProvider } from "./context/NotificationContext";
 
 function App() {

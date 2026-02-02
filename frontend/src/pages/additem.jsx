@@ -12,7 +12,8 @@ const AddItem = () => {
     description: "",
     category: "",
     condition: "",
-    faculty: ""
+    faculty: "",
+    quantity: "1" // ADDED: Quantity field
   });
   
   const [imageFile, setImageFile] = useState(null);
@@ -21,14 +22,14 @@ const AddItem = () => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // 🔥 UPDATED: Match backend enum exactly
+  // 🔥 UPDATED: Match backend enum exactly - REPLACED Furniture with Lab Reports
   const categoryOptions = [
     { value: "", label: "Select a category" },
     { value: "books", label: "Books/Textbooks" },
     { value: "notes", label: "Notes" },
     { value: "electronics", label: "Electronics" },
     { value: "stationery", label: "Stationery" },
-    { value: "furniture", label: "Furniture" },
+    { value: "labreports", label: "Lab Reports" }, // CHANGED: Furniture → Lab Reports
     { value: "other", label: "Other" }
   ];
 
@@ -57,6 +58,17 @@ const AddItem = () => {
     { value: "Other", label: "Other" }
   ];
 
+  // Quantity options
+  const quantityOptions = [
+    { value: "1", label: "1 unit" },
+    { value: "2", label: "2 units" },
+    { value: "3", label: "3 units" },
+    { value: "4", label: "4 units" },
+    { value: "5", label: "5 units" },
+    { value: "10", label: "10 units" },
+    { value: "custom", label: "Custom amount..." }
+  ];
+
   // Clean up localStorage when component mounts
   useEffect(() => {
     localStorage.removeItem('lastItemSubmitTime');
@@ -79,10 +91,28 @@ const AddItem = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Handle custom quantity input
+    if (name === "quantity") {
+      if (value === "custom") {
+        setFormData(prev => ({
+          ...prev,
+          [name]: "",
+          showCustomQuantity: true
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          showCustomQuantity: false
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
     
     if (error) setError("");
   };
@@ -206,6 +236,12 @@ const AddItem = () => {
       validationErrors.push("Please upload an image of the item");
     }
     
+    // ADDED: Quantity validation
+    const quantity = parseInt(formData.quantity) || 1;
+    if (!formData.quantity || quantity < 1) {
+      validationErrors.push("Quantity must be at least 1");
+    }
+    
     if (validationErrors.length > 0) {
       setError(validationErrors[0]);
       setLoading(false);
@@ -217,17 +253,19 @@ const AddItem = () => {
       console.log("Creating item with:", {
         ...formData,
         price: parseFloat(formData.price),
+        quantity: quantity,
         imageFile: imageFile?.name,
         faculty: formData.faculty || 'Other'
       });
 
-      // 🔥 FIX: Send data exactly as backend expects
+      // 🔥 FIX: Send data exactly as backend expects - INCLUDING QUANTITY
       const itemData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
-        category: formData.category, // Already matches backend enum
-        condition: formData.condition, // Already matches backend enum
+        quantity: quantity, // ADDED: Include quantity
+        category: formData.category,
+        condition: formData.condition,
         faculty: formData.faculty || 'Other'
       };
 
@@ -249,7 +287,9 @@ const AddItem = () => {
           description: "",
           category: "",
           condition: "",
-          faculty: ""
+          faculty: "",
+          quantity: "1",
+          showCustomQuantity: false
         });
         
         // Clean up image preview
@@ -510,20 +550,20 @@ const AddItem = () => {
                 </select>
               </div>
 
-              {/* Faculty Selection */}
+              {/* Quantity Field - NEW */}
               <div className="form-group" style={{ marginBottom: "24px" }}>
                 <label className="form-label" style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#212529" }}>
-                  Faculty (Optional)
+                  Quantity Available *
                 </label>
                 <select
-                  name="faculty"
-                  value={formData.faculty}
+                  name="quantity"
+                  value={formData.showCustomQuantity ? "custom" : formData.quantity}
                   onChange={handleInputChange}
                   disabled={loading}
                   style={{ 
                     width: "100%",
                     padding: "14px 40px 14px 16px",
-                    border: "1px solid #e0e0e0",
+                    border: formData.quantity ? "1px solid #e0e0e0" : "1px solid #ff6b6b",
                     borderRadius: "8px",
                     fontSize: "16px",
                     backgroundColor: loading ? "#f8f9fa" : "white",
@@ -536,16 +576,44 @@ const AddItem = () => {
                     cursor: loading ? "not-allowed" : "pointer"
                   }}
                   onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
-                  onBlur={(e) => !loading && (e.target.style.borderColor = "#e0e0e0")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = formData.quantity ? "#e0e0e0" : "#ff6b6b")}
                 >
-                  {facultyOptions.map(faculty => (
-                    <option key={faculty.value} value={faculty.value}>
-                      {faculty.label}
+                  {quantityOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
+                
+                {/* Custom Quantity Input */}
+                {formData.showCustomQuantity && (
+                  <div style={{ marginTop: "10px" }}>
+                    <input
+                      type="number"
+                      name="quantity"
+                      placeholder="Enter custom quantity"
+                      value={formData.quantity}
+                      onChange={handleInputChange}
+                      min="1"
+                      max="999"
+                      disabled={loading}
+                      style={{ 
+                        width: "100%",
+                        padding: "12px 16px",
+                        border: "1px solid #4361ee",
+                        borderRadius: "8px",
+                        fontSize: "16px",
+                        transition: "all 0.3s",
+                        background: loading ? "#f8f9fa" : "white"
+                      }}
+                      onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                      onBlur={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                    />
+                  </div>
+                )}
+                
                 <p style={{ fontSize: "12px", color: "#6c757d", marginTop: "4px" }}>
-                  Select your faculty to help students find relevant items
+                  How many units of this item are available? Users can only purchase what's in stock.
                 </p>
               </div>
             </div>
@@ -585,6 +653,45 @@ const AddItem = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Faculty Selection */}
+              <div className="form-group" style={{ marginBottom: "24px" }}>
+                <label className="form-label" style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#212529" }}>
+                  Faculty (Optional)
+                </label>
+                <select
+                  name="faculty"
+                  value={formData.faculty}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  style={{ 
+                    width: "100%",
+                    padding: "14px 40px 14px 16px",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    backgroundColor: loading ? "#f8f9fa" : "white",
+                    appearance: "none",
+                    backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    backgroundSize: "16px",
+                    transition: "all 0.3s",
+                    cursor: loading ? "not-allowed" : "pointer"
+                  }}
+                  onFocus={(e) => !loading && (e.target.style.borderColor = "#4361ee")}
+                  onBlur={(e) => !loading && (e.target.style.borderColor = "#e0e0e0")}
+                >
+                  {facultyOptions.map(faculty => (
+                    <option key={faculty.value} value={faculty.value}>
+                      {faculty.label}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ fontSize: "12px", color: "#6c757d", marginTop: "4px" }}>
+                  Select your faculty to help students find relevant items
+                </p>
               </div>
 
               {/* Image Upload Section */}
@@ -913,9 +1020,9 @@ const AddItem = () => {
             </p>
           </div>
           <div style={{ background: "white", padding: "20px", borderRadius: "8px" }}>
-            <h4 style={{ fontSize: "16px", marginBottom: "8px", color: "#4361ee" }}>Fair Pricing</h4>
+            <h4 style={{ fontSize: "16px", marginBottom: "8px", color: "#4361ee" }}>Quantity Matters</h4>
             <p style={{ fontSize: "14px", color: "#6c757d" }}>
-              Research similar items to set a competitive price. Consider item condition.
+              Set the correct quantity. Users can only purchase what's available in stock.
             </p>
           </div>
           <div style={{ background: "white", padding: "20px", borderRadius: "8px" }}>

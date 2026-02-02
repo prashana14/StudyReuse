@@ -30,18 +30,15 @@ const AdminItemsPage = () => {
       setLoading(true);
       setError(null);
       
-      // Build query params for admin endpoint
       const params = {
         page: filters.page,
         limit: filters.limit
       };
       
-      // Add status filter if not 'all'
       if (filters.status !== 'all') {
         params.status = filters.status;
       }
       
-      // Add approval filter if not 'all'
       if (filters.isApproved !== 'all') {
         if (filters.isApproved === 'approved') {
           params.isApproved = true;
@@ -52,18 +49,12 @@ const AdminItemsPage = () => {
         }
       }
       
-      // Add search filter
       if (filters.search.trim()) {
         params.search = filters.search.trim();
       }
       
-      console.log('Fetching admin items with params:', params);
-      
-      // ✅ USE THE CORRECT FUNCTION: apiService.admin.getItems
       const data = await apiService.admin.getItems(params);
-      console.log('Admin items response:', data);
       
-      // Handle different response structures
       let itemsList = [];
       let paginationData = {
         totalPages: 1,
@@ -73,11 +64,9 @@ const AdminItemsPage = () => {
       
       if (data) {
         if (Array.isArray(data)) {
-          // If response is directly an array
           itemsList = data;
           paginationData.total = data.length;
         } else if (data.items) {
-          // If response has items property
           itemsList = data.items;
           if (data.pagination) {
             paginationData = data.pagination;
@@ -87,7 +76,6 @@ const AdminItemsPage = () => {
             paginationData.currentPage = data.currentPage || filters.page;
           }
         } else if (data.data && Array.isArray(data.data)) {
-          // If response has data property
           itemsList = data.data;
           paginationData.total = data.total || data.data.length || 0;
         }
@@ -96,23 +84,8 @@ const AdminItemsPage = () => {
       setItems(itemsList);
       setPagination(paginationData);
       
-      if (itemsList.length === 0) {
-        console.log('No items returned. Possible issues:');
-        console.log('1. API endpoint might be incorrect');
-        console.log('2. Admin token might be missing or invalid');
-        console.log('3. Backend might not have the admin items endpoint');
-        console.log('4. Filters might be too restrictive');
-      }
-      
     } catch (error) {
       console.error('Error fetching items:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response,
-        status: error.status
-      });
-      
-      // Try to get more specific error message
       let errorMessage = 'Failed to load items. Please check your connection.';
       if (error.message?.includes('Network Error')) {
         errorMessage = 'Network error. Please check if the server is running.';
@@ -132,7 +105,6 @@ const AdminItemsPage = () => {
   const handleStatusChange = async (itemId, newStatus) => {
     try {
       await apiService.admin.updateItemStatus(itemId, { status: newStatus });
-      // Refresh items list
       fetchItems();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -185,6 +157,23 @@ const AdminItemsPage = () => {
     }
   };
 
+  // NEW: Handle quantity update
+  const handleQuantityUpdate = async (itemId, newQuantity) => {
+    try {
+      if (!newQuantity || newQuantity < 0) {
+        alert('Quantity must be a non-negative number');
+        return;
+      }
+      
+      await apiService.items.updateQuantity(itemId, newQuantity);
+      alert('Quantity updated successfully!');
+      fetchItems();
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      alert('Failed to update quantity. Please try again.');
+    }
+  };
+
   const handleRefresh = () => {
     fetchItems();
   };
@@ -205,7 +194,29 @@ const AdminItemsPage = () => {
     }
   };
 
-  // Loading state
+  // Add this helper function to your apiService helpers or define here
+  const getQuantityBadgeStyle = (quantity) => {
+    if (quantity <= 0) {
+      return {
+        background: '#fee2e2',
+        color: '#dc2626',
+        border: '1px solid #fca5a5'
+      };
+    } else if (quantity <= 3) {
+      return {
+        background: '#fef3c7',
+        color: '#92400e',
+        border: '1px solid #fcd34d'
+      };
+    } else {
+      return {
+        background: '#d1fae5',
+        color: '#065f46',
+        border: '1px solid #10b981'
+      };
+    }
+  };
+
   if (loading && items.length === 0) {
     return (
       <div style={{
@@ -265,27 +276,6 @@ const AdminItemsPage = () => {
         </div>
         
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => {
-              console.log('Current API service:', apiService);
-              console.log('Admin methods available:', Object.keys(apiService.admin));
-              console.log('Current filters:', filters);
-            }}
-            style={{
-              padding: '0.5rem',
-              backgroundColor: '#6b7280',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              fontWeight: 500
-            }}
-            title="Debug Info"
-          >
-            🐛 Debug
-          </button>
-          
           <button
             onClick={handleRefresh}
             style={{
@@ -350,7 +340,9 @@ const AdminItemsPage = () => {
               <option value="all">📦 All Status</option>
               <option value="Available">✅ Available</option>
               <option value="Sold">💰 Sold</option>
-              <option value="Reserved">⏳ Reserved</option>
+              <option value="Sold Out">❌ Sold Out</option>
+              <option value="Under Negotiation">🤝 Under Negotiation</option>
+              <option value="Unavailable">🚫 Unavailable</option>
             </select>
           </div>
 
@@ -385,6 +377,41 @@ const AdminItemsPage = () => {
             </select>
           </div>
 
+          {/* Quantity Filter - NEW */}
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#374151',
+              marginBottom: '0.375rem'
+            }}>
+              <span style={{ marginRight: '0.25rem' }}>📦</span>
+              Stock Status
+            </label>
+            <select
+              value={filters.stock || 'all'}
+              onChange={(e) => setFilters(prev => ({ 
+                ...prev, 
+                stock: e.target.value === 'all' ? undefined : e.target.value,
+                page: 1 
+              }))}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                backgroundColor: '#ffffff'
+              }}
+            >
+              <option value="all">📊 All Stock Levels</option>
+              <option value="out_of_stock">❌ Out of Stock (0)</option>
+              <option value="low_stock">⚠️ Low Stock (1-3)</option>
+              <option value="in_stock">✅ In Stock (4+)</option>
+            </select>
+          </div>
+
           {/* Search Filter */}
           <div>
             <label style={{
@@ -400,7 +427,7 @@ const AdminItemsPage = () => {
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 type="text"
-                placeholder="Search by title or description..."
+                placeholder="Search by title, description, or owner..."
                 value={filters.search}
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 onKeyPress={(e) => e.key === 'Enter' && setFilters(prev => ({ ...prev, page: 1 }))}
@@ -497,10 +524,6 @@ const AdminItemsPage = () => {
             <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
               <button
                 onClick={() => {
-                  console.log('Debugging API issue...');
-                  console.log('API Base URL:', apiService.config.baseURL);
-                  console.log('Admin Token exists:', !!apiService.config.getToken(true));
-                  console.log('Available admin methods:', Object.keys(apiService.admin));
                   fetchItems();
                 }}
                 style={{
@@ -513,7 +536,7 @@ const AdminItemsPage = () => {
                   fontSize: '0.75rem'
                 }}
               >
-                Retry with Debug
+                Retry
               </button>
               <button
                 onClick={() => setError(null)}
@@ -597,323 +620,511 @@ const AdminItemsPage = () => {
         </div>
       ) : (
         <>
+          {/* Summary Stats - NEW */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '1rem',
             marginBottom: '1.5rem'
           }}>
-            {items.map(item => (
-              <div
-                key={item._id}
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '0.75rem',
-                  padding: '1.25rem',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e5e7eb',
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    transform: 'translateY(-2px)'
-                  }
-                }}
-              >
-                {/* Item Image and Basic Info */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    style={{
-                      width: '100px',
-                      height: '100px',
-                      objectFit: 'cover',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #e5e7eb'
-                    }}
-                    onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/100x100?text=No+Image';
-                    }}
-                  />
-                  
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{
-                      fontSize: '1rem',
-                      fontWeight: 'bold',
-                      margin: '0 0 0.375rem 0',
-                      color: '#1f2937',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}>
-                      <span style={{ 
-                        maxWidth: '200px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '2rem',
+                color: '#3b82f6',
+                marginBottom: '0.5rem'
+              }}>
+                {items.length}
+              </div>
+              <div style={{
+                fontSize: '0.875rem',
+                color: '#6b7280'
+              }}>
+                Total Items
+              </div>
+            </div>
+            
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '2rem',
+                color: '#10b981',
+                marginBottom: '0.5rem'
+              }}>
+                {items.filter(item => item.quantity > 0).length}
+              </div>
+              <div style={{
+                fontSize: '0.875rem',
+                color: '#6b7280'
+              }}>
+                In Stock Items
+              </div>
+            </div>
+            
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '2rem',
+                color: '#f59e0b',
+                marginBottom: '0.5rem'
+              }}>
+                {items.filter(item => item.quantity <= 3 && item.quantity > 0).length}
+              </div>
+              <div style={{
+                fontSize: '0.875rem',
+                color: '#6b7280'
+              }}>
+                Low Stock Items
+              </div>
+            </div>
+            
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '2rem',
+                color: '#ef4444',
+                marginBottom: '0.5rem'
+              }}>
+                {items.filter(item => item.quantity === 0).length}
+              </div>
+              <div style={{
+                fontSize: '0.875rem',
+                color: '#6b7280'
+              }}>
+                Out of Stock
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+            gap: '1rem',
+            marginBottom: '1.5rem'
+          }}>
+            {items.map(item => {
+              const quantityBadgeStyle = getQuantityBadgeStyle(item.quantity || 0);
+              
+              return (
+                <div
+                  key={item._id}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '0.75rem',
+                    padding: '1.25rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    border: '1px solid #e5e7eb',
+                    transition: 'all 0.2s ease',
+                    ':hover': {
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      transform: 'translateY(-2px)'
+                    }
+                  }}
+                >
+                  {/* Item Header */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '1rem'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: '1.125rem',
+                        fontWeight: 'bold',
+                        margin: '0 0 0.375rem 0',
+                        color: '#1f2937'
                       }}>
                         {item.title}
-                      </span>
-                      <span style={{
-                        fontSize: '0.875rem',
-                        fontWeight: 600,
-                        color: '#10b981'
-                      }}>
-                        ₹{item.price}
-                      </span>
-                    </h3>
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          color: '#10b981'
+                        }}>
+                          ₹{item.price}
+                        </span>
+                        <span style={{ color: '#d1d5db' }}>•</span>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: apiService.helpers?.getCategoryColor?.(item.category)?.bg || '#f3f4f6',
+                          color: apiService.helpers?.getCategoryColor?.(item.category)?.text || '#374151',
+                          padding: '0.125rem 0.5rem',
+                          borderRadius: '9999px'
+                        }}>
+                          {item.category}
+                        </span>
+                      </div>
+                    </div>
                     
-                    <p style={{
-                      fontSize: '0.875rem',
-                      color: '#6b7280',
-                      margin: '0 0 0.5rem 0',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
+                    {/* Quantity Display & Edit - NEW */}
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      gap: '0.25rem'
                     }}>
-                      {item.description}
-                    </p>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '9999px',
+                        ...quantityBadgeStyle
+                      }}>
+                        {item.quantity || 0} units
+                        {item.quantity <= 3 && item.quantity > 0 && ' ⚠️'}
+                        {item.quantity === 0 && ' ❌'}
+                      </div>
+                      
+                      {/* Quick Quantity Edit */}
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button
+                          onClick={() => {
+                            const newQty = prompt('Enter new quantity:', item.quantity || 0);
+                            if (newQty !== null && newQty !== undefined) {
+                              handleQuantityUpdate(item._id, parseInt(newQty));
+                            }
+                          }}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#3b82f6',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}
+                          title="Edit quantity"
+                        >
+                          ✏️ Edit Qty
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p style={{
+                    fontSize: '0.875rem',
+                    color: '#6b7280',
+                    margin: '0 0 1rem 0',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {item.description}
+                  </p>
+
+                  {/* Status & Approval Badges */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '9999px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      backgroundColor: item.status === 'Available' ? '#d1fae5' : 
+                                      item.status === 'Sold Out' ? '#fee2e2' : 
+                                      item.status === 'Under Negotiation' ? '#fef3c7' :
+                                      '#f3f4f6',
+                      color: item.status === 'Available' ? '#065f46' : 
+                            item.status === 'Sold Out' ? '#dc2626' : 
+                            item.status === 'Under Negotiation' ? '#92400e' :
+                            '#374151'
+                    }}>
+                      {item.status === 'Available' ? '✅' : 
+                       item.status === 'Sold Out' ? '❌' : 
+                       item.status === 'Under Negotiation' ? '🤝' : '📦'}
+                      {item.status}
+                    </span>
                     
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '9999px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      backgroundColor: item.isApproved ? '#d1fae5' : 
+                                      item.isFlagged ? '#fee2e2' : '#fef3c7',
+                      color: item.isApproved ? '#065f46' :
+                            item.isFlagged ? '#991b1b' : '#92400e'
+                    }}>
+                      {item.isApproved ? '✅ Approved' :
+                       item.isFlagged ? '🚩 Flagged' : '⏳ Pending'}
+                    </span>
+                  </div>
+
+                  {/* Owner & Date Info */}
+                  <div style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.5rem',
+                    marginBottom: '1rem'
+                  }}>
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      marginBottom: '0.5rem'
+                      justifyContent: 'space-between',
+                      fontSize: '0.75rem'
                     }}>
-                      <span style={{
-                        fontSize: '0.75rem',
-                        backgroundColor: apiService.helpers.getCategoryColor(item.category).bg,
-                        color: apiService.helpers.getCategoryColor(item.category).text,
-                        padding: '0.125rem 0.5rem',
-                        borderRadius: '9999px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        {apiService.helpers.getCategoryIcon(item.category)}
-                        {item.category}
-                      </span>
+                      <div>
+                        <p style={{
+                          margin: '0 0 0.25rem 0',
+                          color: '#374151',
+                          fontWeight: 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}>
+                          <span>👤</span>
+                          Owner
+                        </p>
+                        <p style={{
+                          margin: 0,
+                          color: '#6b7280'
+                        }}>
+                          {item.owner?.name || 'Unknown User'}
+                          <span style={{ color: '#9ca3af', margin: '0 0.25rem' }}>•</span>
+                          {item.owner?.email || 'No email'}
+                        </p>
+                      </div>
+                      
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{
+                          margin: '0 0 0.25rem 0',
+                          color: '#374151',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          justifyContent: 'flex-end'
+                        }}>
+                          <span>📅</span>
+                          Listed
+                        </p>
+                        <p style={{
+                          margin: 0,
+                          color: '#6b7280',
+                          fontSize: '0.7rem'
+                        }}>
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Status Badges */}
-                <div style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem',
-                  marginBottom: '1rem'
-                }}>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '9999px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    backgroundColor: apiService.helpers.getStatusColor(item.status).split(' ')[0],
-                    color: apiService.helpers.getStatusColor(item.status).split(' ')[1]
-                  }}>
-                    {apiService.helpers.getStatusEmoji(item.status)}
-                    {item.status}
-                  </span>
-                  
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '9999px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    backgroundColor: item.isApproved ? '#d1fae5' : 
-                                    item.isFlagged ? '#fee2e2' : '#fef3c7',
-                    color: item.isApproved ? '#065f46' :
-                          item.isFlagged ? '#991b1b' : '#92400e'
-                  }}>
-                    {item.isApproved ? '✅ Approved' :
-                     item.isFlagged ? '🚩 Flagged' : '⏳ Pending'}
-                  </span>
-                </div>
-
-                {/* Owner Information */}
-                <div style={{
-                  padding: '0.75rem',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '0.5rem',
-                  marginBottom: '1rem'
-                }}>
+                  {/* Action Buttons */}
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '0.75rem'
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gap: '0.5rem'
                   }}>
-                    <div>
-                      <p style={{
-                        margin: '0 0 0.25rem 0',
-                        color: '#374151',
-                        fontWeight: 500,
+                    {/* View Details */}
+                    <button
+                      onClick={() => navigate(`/admin/items/${item._id}`)}
+                      style={{
+                        padding: '0.5rem',
+                        backgroundColor: '#3b82f6',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        <span>👤</span>
-                        Owner
-                      </p>
-                      <p style={{
-                        margin: 0,
-                        color: '#6b7280',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        {item.owner?.name || 'Unknown User'}
-                        <span style={{ color: '#9ca3af' }}>•</span>
-                        {item.owner?.email || 'No email'}
-                      </p>
-                    </div>
-                    
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{
-                        margin: '0 0 0.25rem 0',
-                        color: '#374151',
-                        display: 'flex',
-                        alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '0.25rem',
-                        justifyContent: 'flex-end'
-                      }}>
-                        <span>📅</span>
-                        Listed
-                      </p>
-                      <p style={{
-                        margin: 0,
-                        color: '#6b7280',
-                        fontSize: '0.7rem'
-                      }}>
-                        {apiService.helpers.timeAgo(item.createdAt)}
-                      </p>
-                    </div>
+                        fontWeight: 500
+                      }}
+                      title="View details"
+                    >
+                      <span>👁️</span>
+                    </button>
+                    
+                    {/* Status Change */}
+                    <select
+                      value={item.status}
+                      onChange={(e) => handleStatusChange(item._id, e.target.value)}
+                      style={{
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.75rem',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="Available">Available</option>
+                      <option value="Sold">Sold</option>
+                      <option value="Sold Out">Sold Out</option>
+                      <option value="Under Negotiation">Negotiation</option>
+                      <option value="Unavailable">Unavailable</option>
+                    </select>
+                    
+                    {/* Quantity Quick Actions - NEW */}
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value === 'restock') {
+                          const newQty = prompt('Enter restock quantity:', item.quantity || 0);
+                          if (newQty !== null) {
+                            handleQuantityUpdate(item._id, parseInt(newQty));
+                          }
+                        } else if (e.target.value === 'zero') {
+                          if (confirm('Set quantity to 0 (Sold Out)?')) {
+                            handleQuantityUpdate(item._id, 0);
+                          }
+                        }
+                        e.target.value = '';
+                      }}
+                      style={{
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.75rem',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>📦 Stock</option>
+                      <option value="restock">🔄 Restock</option>
+                      <option value="zero">❌ Set to 0</option>
+                    </select>
+                    
+                    {/* Approve/Reject */}
+                    {!item.isApproved && !item.isFlagged ? (
+                      <button
+                        onClick={() => handleApprove(item._id)}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontWeight: 500
+                        }}
+                        title="Approve item"
+                      >
+                        <span>✅</span>
+                      </button>
+                    ) : item.isFlagged ? (
+                      <button
+                        onClick={() => {
+                          const reason = prompt('Enter reason for flag removal:');
+                          if (reason) {
+                            // You'll need to add this API endpoint
+                            apiService.admin.unflagItem(item._id, reason);
+                            fetchItems();
+                          }
+                        }}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#f59e0b',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontWeight: 500
+                        }}
+                        title="Unflag item"
+                      >
+                        <span>🚩</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleReject(item._id)}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#f59e0b',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontWeight: 500
+                        }}
+                        title="Reject item"
+                      >
+                        <span>❌</span>
+                      </button>
+                    )}
+                    
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDelete(item._id)}
+                      style={{
+                        padding: '0.5rem',
+                        backgroundColor: '#ef4444',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.25rem',
+                        fontWeight: 500
+                      }}
+                      title="Delete item"
+                    >
+                      <span>🗑️</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '0.5rem'
-                }}>
-                  {/* View Details */}
-                  <button
-                    onClick={() => navigate(`/admin/items/${item._id}`)}
-                    style={{
-                      padding: '0.5rem',
-                      backgroundColor: '#3b82f6',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '0.375rem',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.25rem',
-                      fontWeight: 500
-                    }}
-                    title="View details"
-                  >
-                    <span>👁️</span>
-                  </button>
-                  
-                  {/* Status Change */}
-                  <select
-                    value={item.status}
-                    onChange={(e) => handleStatusChange(item._id, e.target.value)}
-                    style={{
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.75rem',
-                      backgroundColor: '#ffffff',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Sold">Sold</option>
-                    <option value="Reserved">Reserved</option>
-                  </select>
-                  
-                  {/* Approve/Reject */}
-                  {!item.isApproved ? (
-                    <button
-                      onClick={() => handleApprove(item._id)}
-                      style={{
-                        padding: '0.5rem',
-                        backgroundColor: '#10b981',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.375rem',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.25rem',
-                        fontWeight: 500
-                      }}
-                      title="Approve item"
-                    >
-                      <span>✅</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleReject(item._id)}
-                      style={{
-                        padding: '0.5rem',
-                        backgroundColor: '#f59e0b',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.375rem',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.25rem',
-                        fontWeight: 500
-                      }}
-                      title="Reject item"
-                    >
-                      <span>❌</span>
-                    </button>
-                  )}
-                  
-                  {/* Delete */}
-                  <button
-                    onClick={() => handleDelete(item._id)}
-                    style={{
-                      padding: '0.5rem',
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '0.375rem',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.25rem',
-                      fontWeight: 500
-                    }}
-                    title="Delete item"
-                  >
-                    <span>🗑️</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pagination */}
@@ -1032,6 +1243,22 @@ const AdminItemsPage = () => {
           )}
         </>
       )}
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+          .item-card {
+            grid-template-columns: 1fr !important;
+          }
+          .action-buttons {
+            grid-template-columns: repeat(3, 1fr) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import apiService from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/CartProvider";
 
 const ItemDetails = () => {
   const { id } = useParams();
@@ -17,7 +17,7 @@ const ItemDetails = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [deleting, setDeleting] = useState(false);
   
-  // Barter-specific states - UPDATED
+  // Barter-specific states
   const [barterLoading, setBarterLoading] = useState(false);
   const [barterSuccess, setBarterSuccess] = useState("");
   const [barterError, setBarterError] = useState("");
@@ -28,8 +28,13 @@ const ItemDetails = () => {
   const [barterMessage, setBarterMessage] = useState("");
 
   const { addToCart, getItemQuantity } = useCart();
-  const quantityInCart = getItemQuantity(item?._id);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  // NEW: State for quantity management
+  const [availableQuantity, setAvailableQuantity] = useState(0);
+  const [quantityInCart, setQuantityInCart] = useState(0);
+  const [canAddToCart, setCanAddToCart] = useState(false);
+  const [showQuantityInfo, setShowQuantityInfo] = useState(false);
 
   useEffect(() => {
     const fetchItem = async () => {
@@ -60,6 +65,10 @@ const ItemDetails = () => {
         };
         
         setItem(itemWithImageURL);
+        
+        // NEW: Calculate quantity information
+        const itemQuantity = itemData.quantity || 0;
+        setAvailableQuantity(itemQuantity);
         
         if (user && itemData.owner) {
           const ownerId = itemData.owner._id?.toString() || itemData.owner.toString();
@@ -97,160 +106,90 @@ const ItemDetails = () => {
     fetchItem();
   }, [id, user, token]);
 
-  // Fetch user's available items for barter - DEBUG VERSION
-const fetchUserItemsForBarter = async () => {
-  if (!isAuthenticated) {
-    alert("Please login to request barter");
-    navigate('/login');
-    return false;
-  }
+  // NEW: Update cart quantity whenever item or cart changes
+  useEffect(() => {
+    if (item) {
+      const cartQty = getItemQuantity(item._id);
+      setQuantityInCart(cartQty);
+      
+      // Check if we can add more to cart
+      const canAdd = item.status === 'Available' && 
+                    availableQuantity > 0 && 
+                    cartQty < availableQuantity;
+      setCanAddToCart(canAdd);
+      
+      // Show quantity info if low stock or in cart
+      const shouldShowInfo = availableQuantity <= 3 || cartQty > 0;
+      setShowQuantityInfo(shouldShowInfo);
+    }
+  }, [item, availableQuantity, getItemQuantity]);
 
-  if (isOwnItem) {
-    setBarterError("You cannot barter with your own item");
-    setTimeout(() => setBarterError(""), 3000);
-    return false;
-  }
-
-  setBarterLoading(true);
-  
-  try {
-    console.log('🔍 Starting to fetch user items...');
-    console.log('🔍 Using token:', token ? 'Yes' : 'No');
-    
-    // Try the API call
-    const response = await apiService.items.getMyItems();
-    console.log('🔍 Raw API response:', response);
-    console.log('🔍 Response type:', typeof response);
-    console.log('🔍 Is array?', Array.isArray(response));
-    
-    // Debug the entire response structure
-    if (response && typeof response === 'object') {
-      console.log('🔍 Response keys:', Object.keys(response));
-      for (const key in response) {
-        console.log(`🔍 Key "${key}":`, response[key], 'Type:', typeof response[key]);
-        if (Array.isArray(response[key])) {
-          console.log(`🔍 Found array in key "${key}" with ${response[key].length} items`);
-        }
-      }
-    }
-    
-    let userItems = [];
-    
-    // Handle different response structures
-    if (Array.isArray(response)) {
-      console.log('✅ Response is directly an array');
-      userItems = response;
-    } else if (response?.data) {
-      console.log('✅ Response has .data property:', response.data);
-      if (Array.isArray(response.data)) {
-        userItems = response.data;
-      } else if (response.data?.items && Array.isArray(response.data.items)) {
-        userItems = response.data.items;
-      } else if (response.data?.data && Array.isArray(response.data.data)) {
-        userItems = response.data.data;
-      }
-    } else if (response?.items && Array.isArray(response.items)) {
-      console.log('✅ Response has .items array');
-      userItems = response.items;
-    } else if (response?.results && Array.isArray(response.results)) {
-      console.log('✅ Response has .results array');
-      userItems = response.results;
-    } else if (response && typeof response === 'object') {
-      // Look for any array property
-      const arrayKeys = Object.keys(response).filter(key => Array.isArray(response[key]));
-      if (arrayKeys.length > 0) {
-        console.log('✅ Found array in keys:', arrayKeys);
-        userItems = response[arrayKeys[0]];
-      } else {
-        console.warn('❌ No array found in response object');
-        // Convert object values to array if needed
-        userItems = Object.values(response).filter(item => 
-          item && typeof item === 'object' && item._id
-        );
-      }
-    }
-    
-    console.log('📦 Final userItems:', userItems);
-    console.log('📦 Is userItems an array?', Array.isArray(userItems));
-    console.log('📦 userItems length:', userItems?.length || 0);
-    
-    // If still not an array, fallback to empty array
-    if (!Array.isArray(userItems)) {
-      console.error('❌ userItems is not an array:', userItems);
-      userItems = [];
-    }
-    
-    // Filter items that are available and not the current item
-    const availableItems = userItems.filter(userItem => {
-      if (!userItem || !userItem._id) {
-        console.log('❌ Skipping item - no _id:', userItem);
-        return false;
-      }
-      
-      // Skip the current item
-      if (userItem._id === id) {
-        console.log('❌ Skipping current item:', userItem._id);
-        return false;
-      }
-      
-      // Check if item is available
-      const isAvailable = userItem.status === 'Available' || userItem.status === 'available';
-      if (!isAvailable) {
-        console.log(`❌ Item ${userItem._id} not available. Status:`, userItem.status);
-      }
-      
-      // Check if item is approved (if applicable)
-      const isApproved = userItem.isApproved === true || 
-                         userItem.isApproved === 'true' || 
-                         userItem.approvalStatus === 'approved' ||
-                         userItem.approved === true ||
-                         !userItem.isApproved; // If field doesn't exist, assume approved
-      
-      if (!isApproved) {
-        console.log(`❌ Item ${userItem._id} not approved. Approval:`, userItem.isApproved);
-      }
-      
-      const shouldInclude = isAvailable && isApproved;
-      if (shouldInclude) {
-        console.log(`✅ Including item for barter: ${userItem.title} (${userItem._id})`);
-      }
-      
-      return shouldInclude;
-    });
-    
-    console.log('📦 Available items for barter:', availableItems);
-    
-    setOfferItems(availableItems);
-    
-    if (availableItems.length === 0) {
-      setBarterError("You don't have any items available for barter. Add items first!");
-      setTimeout(() => setBarterError(""), 5000);
+  // Fetch user's available items for barter
+  const fetchUserItemsForBarter = async () => {
+    if (!isAuthenticated) {
+      alert("Please login to request barter");
+      navigate('/login');
       return false;
     }
-    
-    return true;
-  } catch (error) {
-    console.error("❌ Error fetching user items:", error);
-    
-    // More detailed error logging
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-      console.error('Response headers:', error.response.headers);
-    } else if (error.request) {
-      console.error('No response received:', error.request);
+
+    if (isOwnItem) {
+      setBarterError("You cannot barter with your own item");
+      setTimeout(() => setBarterError(""), 3000);
+      return false;
     }
+
+    setBarterLoading(true);
     
-    const errorMsg = error.response?.data?.message || 
-                    error.message || 
-                    "Failed to load your items. Please try again.";
-    setBarterError(errorMsg);
-    setTimeout(() => setBarterError(""), 5000);
-    return false;
-  } finally {
-    setBarterLoading(false);
-  }
-};
+    try {
+      const response = await apiService.items.getMyItems();
+      
+      let userItems = [];
+      
+      if (Array.isArray(response)) {
+        userItems = response;
+      } else if (response?.data) {
+        if (Array.isArray(response.data)) {
+          userItems = response.data;
+        } else if (response.data?.items && Array.isArray(response.data.items)) {
+          userItems = response.data.items;
+        }
+      } else if (response?.items && Array.isArray(response.items)) {
+        userItems = response.items;
+      }
+      
+      // Filter items that are available and not the current item
+      const availableItems = userItems.filter(userItem => {
+        if (!userItem || !userItem._id) return false;
+        if (userItem._id === id) return false;
+        
+        const isAvailable = userItem.status === 'Available' || userItem.status === 'available';
+        const isApproved = userItem.isApproved === true || 
+                          !userItem.isApproved;
+        
+        return isAvailable && isApproved;
+      });
+      
+      setOfferItems(availableItems);
+      
+      if (availableItems.length === 0) {
+        setBarterError("You don't have any items available for barter. Add items first!");
+        setTimeout(() => setBarterError(""), 5000);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("❌ Error fetching user items:", error);
+      const errorMsg = error.response?.data?.message || 
+                      error.message || 
+                      "Failed to load your items. Please try again.";
+      setBarterError(errorMsg);
+      setTimeout(() => setBarterError(""), 5000);
+      return false;
+    } finally {
+      setBarterLoading(false);
+    }
+  };
 
   // Open barter modal
   const openBarterModal = async () => {
@@ -261,7 +200,7 @@ const fetchUserItemsForBarter = async () => {
     }
   };
 
-  // Barter Request Function - FIXED
+  // Barter Request Function
   const handleBarterRequest = async () => {
     if (!selectedOfferItemId) {
       setBarterError("Please select an item to offer in exchange");
@@ -274,12 +213,6 @@ const fetchUserItemsForBarter = async () => {
     setBarterSuccess("");
 
     try {
-      console.log('🔍 Sending barter request with:', {
-        itemId: item._id,
-        offerItemId: selectedOfferItemId,
-        message: barterMessage
-      });
-
       await apiService.barter.create({
         itemId: item._id,
         offerItemId: selectedOfferItemId,
@@ -338,11 +271,18 @@ const fetchUserItemsForBarter = async () => {
     navigate(`/edit-item/${id}`);
   };
 
+  // UPDATED: Add to cart with quantity validation
   const handleAddToCart = () => {
     if (!item) return;
     
-    if (item.status !== 'Available') {
-      alert(`This item is ${item.status}. Cannot add to cart.`);
+    if (!canAddToCart) {
+      if (availableQuantity <= 0) {
+        alert('This item is sold out.');
+      } else if (quantityInCart >= availableQuantity) {
+        alert(`Cannot add more. Only ${availableQuantity} available.`);
+      } else {
+        alert(`Item is ${item.status}. Cannot add to cart.`);
+      }
       return;
     }
     
@@ -352,6 +292,31 @@ const fetchUserItemsForBarter = async () => {
     setTimeout(() => {
       setIsAddingToCart(false);
     }, 1000);
+  };
+
+  // NEW: Get availability badge style
+  const getAvailabilityBadge = () => {
+    if (availableQuantity <= 0) {
+      return {
+        text: 'SOLD OUT',
+        color: '#dc3545',
+        bgColor: '#f8d7da'
+      };
+    }
+    
+    if (availableQuantity <= 3) {
+      return {
+        text: `ONLY ${availableQuantity} LEFT`,
+        color: '#ff6b6b',
+        bgColor: '#fff5f5'
+      };
+    }
+    
+    return {
+      text: `${availableQuantity} AVAILABLE`,
+      color: '#28a745',
+      bgColor: '#d4edda'
+    };
   };
 
   // Loading state
@@ -478,6 +443,7 @@ const fetchUserItemsForBarter = async () => {
   const imageUrl = getImageUrl();
   const approved = isItemApproved();
   const flagged = isItemFlagged();
+  const availabilityBadge = getAvailabilityBadge();
 
   return (
     <div style={{ maxWidth: "1200px", margin: "40px auto", padding: "0 20px" }}>
@@ -907,6 +873,20 @@ const fetchUserItemsForBarter = async () => {
                 </span>
               )}
               
+              {/* NEW: Availability Badge */}
+              <span style={{
+                display: "inline-block",
+                background: availabilityBadge.bgColor,
+                color: availabilityBadge.color,
+                padding: "8px 20px",
+                borderRadius: "4px",
+                fontSize: "14px",
+                fontWeight: "600",
+                border: `1px solid ${availabilityBadge.color}20`
+              }}>
+                {availabilityBadge.text}
+              </span>
+              
               {item.status && (
                 <span style={{
                   display: "inline-block",
@@ -972,6 +952,77 @@ const fetchUserItemsForBarter = async () => {
                 </span>
               )}
             </div>
+            
+            {/* NEW: Quantity Information Section */}
+            {showQuantityInfo && (
+              <div style={{ 
+                padding: "15px", 
+                background: "#f8f9fa", 
+                borderRadius: "8px",
+                marginBottom: "20px",
+                borderLeft: "4px solid #4361ee"
+              }}>
+                <h3 style={{ 
+                  marginBottom: "10px", 
+                  fontSize: "16px", 
+                  color: "#212529",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <span>📦</span> Stock Information
+                </h3>
+                <div style={{ 
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                  <div>
+                    <div style={{ fontSize: "14px", color: "#6c757d" }}>
+                      Available:
+                    </div>
+                    <div style={{ 
+                      fontSize: "20px", 
+                      fontWeight: "600",
+                      color: availableQuantity > 0 ? "#28a745" : "#dc3545"
+                    }}>
+                      {availableQuantity > 0 ? `${availableQuantity} units` : 'Out of stock'}
+                    </div>
+                  </div>
+                  
+                  {quantityInCart > 0 && (
+                    <div style={{ 
+                      background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                      color: "white",
+                      padding: "8px 16px",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      fontWeight: "600"
+                    }}>
+                      {quantityInCart} in your cart
+                    </div>
+                  )}
+                </div>
+                
+                {availableQuantity <= 3 && availableQuantity > 0 && (
+                  <div style={{
+                    marginTop: "10px",
+                    padding: "8px 12px",
+                    background: "#fff3cd",
+                    border: "1px solid #ffc107",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    color: "#856404",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    <span>⚠️</span>
+                    Low stock - Order soon!
+                  </div>
+                )}
+              </div>
+            )}
             
             <div style={{ 
               padding: "20px", 
@@ -1044,16 +1095,16 @@ const fetchUserItemsForBarter = async () => {
 
           {/* Action Buttons */}
           <div style={{ display: "flex", gap: "15px", marginTop: "30px", flexWrap: "wrap" }}>
-            {/* Add to Cart Button */}
+            {/* UPDATED: Add to Cart Button with quantity validation */}
             <button 
               onClick={handleAddToCart}
-              disabled={isAddingToCart || item?.status !== 'Available'}
+              disabled={isAddingToCart || !canAddToCart}
               style={{ 
                 flex: 1, 
                 padding: "16px 24px",
                 background: isAddingToCart 
                   ? "#28a745" 
-                  : (item?.status === 'Available' 
+                  : (canAddToCart 
                       ? "linear-gradient(135deg, #20c997, #109f7d)" 
                       : "#6c757d"),
                 color: "white",
@@ -1061,8 +1112,8 @@ const fetchUserItemsForBarter = async () => {
                 borderRadius: "6px",
                 fontSize: "16px",
                 fontWeight: "600",
-                cursor: item?.status === 'Available' ? "pointer" : "not-allowed",
-                opacity: isAddingToCart ? 0.8 : 1,
+                cursor: canAddToCart ? "pointer" : "not-allowed",
+                opacity: (isAddingToCart || canAddToCart) ? 1 : 0.7,
                 transition: "all 0.3s",
                 minWidth: "200px",
                 display: "flex",
@@ -1071,13 +1122,13 @@ const fetchUserItemsForBarter = async () => {
                 gap: "8px"
               }}
               onMouseEnter={(e) => {
-                if (item?.status === 'Available' && !isAddingToCart) {
+                if (canAddToCart && !isAddingToCart) {
                   e.currentTarget.style.transform = "translateY(-2px)";
                   e.currentTarget.style.boxShadow = "0 4px 12px rgba(32, 201, 151, 0.3)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (item?.status === 'Available' && !isAddingToCart) {
+                if (canAddToCart && !isAddingToCart) {
                   e.currentTarget.style.transform = "translateY(0)";
                   e.currentTarget.style.boxShadow = "none";
                 }
@@ -1097,14 +1148,16 @@ const fetchUserItemsForBarter = async () => {
                   }}></div>
                   Adding...
                 </>
-              ) : item?.status === 'Available' ? (
+              ) : canAddToCart ? (
                 quantityInCart > 0 ? `🛒 Add More (${quantityInCart} in cart)` : "🛒 Add to Cart"
+              ) : availableQuantity <= 0 ? (
+                '❌ Sold Out'
               ) : (
-                `❌ ${item?.status}`
+                `❌ ${item.status}`
               )}
             </button>
             
-            {/* Request Barter Button - UPDATED */}
+            {/* Request Barter Button */}
             {!isOwnItem && (
               <button 
                 onClick={openBarterModal}

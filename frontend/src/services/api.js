@@ -124,15 +124,31 @@ API_MULTIPART.interceptors.response.use(
 export const createItemFormData = (itemData, imageFile) => {
   const formData = new FormData();
   
+  // Required fields
   formData.append('title', itemData.title?.trim() || '');
   formData.append('description', itemData.description?.trim() || '');
   formData.append('price', parseFloat(itemData.price) || 0);
   formData.append('category', itemData.category || 'books');
   formData.append('condition', itemData.condition || 'good');
   
+  // 🔥 FIXED: Add quantity and faculty fields that backend expects
+  // Ensure quantity is at least 1
+  const quantity = Math.max(1, parseInt(itemData.quantity) || 1);
+  formData.append('quantity', quantity);
+  
+  // Add faculty (optional field with default)
+  formData.append('faculty', itemData.faculty || 'Other');
+  
+  // Add image if provided
   if (imageFile) {
     formData.append('image', imageFile);
   }
+  
+  // Debug: Log what's being sent
+  // console.log('FormData being sent to backend:');
+  // for (let [key, value] of formData.entries()) {
+  //   console.log(`${key}: ${value} (type: ${typeof value})`);
+  // }
   
   return formData;
 };
@@ -257,7 +273,9 @@ const itemAPI = {
   // User-specific
   getMyItems: (params = {}) => API.get('/items/my', { params }),
   create: async (itemData, imageFile) => {
+    // Use the updated createItemFormData which now includes quantity and faculty
     const formData = createItemFormData(itemData, imageFile);
+    //console.log('Creating item with formData:', formData);
     return API_MULTIPART.post('/items', formData);
   },
   update: async (id, itemData, imageFile = null) => {
@@ -664,14 +682,14 @@ const apiService = {
     },
     
     // Debug helper
-    debug: () => {
-      console.log('API Service Debug Info:');
-      console.log('Base URL:', API_BASE_URL);
-      console.log('User Token exists:', !!localStorage.getItem('token'));
-      console.log('Admin Token exists:', !!localStorage.getItem('adminToken'));
-      console.log('User Data:', localStorage.getItem('user'));
-      console.log('Admin Data:', localStorage.getItem('adminData'));
-    }
+    // debug: () => {
+    //   console.log('API Service Debug Info:');
+    //   console.log('Base URL:', API_BASE_URL);
+    //   console.log('User Token exists:', !!localStorage.getItem('token'));
+    //   console.log('Admin Token exists:', !!localStorage.getItem('adminToken'));
+    //   console.log('User Data:', localStorage.getItem('user'));
+    //   console.log('Admin Data:', localStorage.getItem('adminData'));
+    // }
   }
 };
 

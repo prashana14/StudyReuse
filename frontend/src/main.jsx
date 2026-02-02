@@ -7,7 +7,7 @@ import "./styles.css";
 import { AuthProvider } from "./context/AuthContext";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
-import { CartProvider } from "./context/CartContext";
+import { CartProvider } from "./context/CartProvider";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -42,6 +42,11 @@ function validateItemData(data) {
     errors.push('Price must be a positive number');
   }
   
+  // ADDED: Quantity validation
+  if (!data.quantity || isNaN(data.quantity) || parseInt(data.quantity) < 1) {
+    errors.push('Quantity must be at least 1');
+  }
+  
   if (!data.category) {
     errors.push('Category is required');
   }
@@ -355,11 +360,12 @@ exports.createItem = async (req, res) => {
       price, 
       category, 
       condition = 'good',
-      faculty 
+      faculty,
+      quantity
     } = req.body;
     
     console.log("📦 Received item data:", {
-      title, description, price, category, condition, faculty
+      title, description, price, category, condition, faculty, quantity
     });
     console.log("🖼️ File received:", req.file ? {
       filename: req.file.originalname,
@@ -381,6 +387,11 @@ exports.createItem = async (req, res) => {
     
     if (!price || isNaN(price) || parseFloat(price) <= 0) {
       errors.push('Price must be a positive number');
+    }
+    
+    // ADDED: Quantity validation
+    if (!quantity || isNaN(quantity) || parseInt(quantity) < 1) {
+      errors.push('Quantity must be at least 1');
     }
     
     if (!category) {
@@ -428,6 +439,7 @@ exports.createItem = async (req, res) => {
       title: title.trim(),
       description: description.trim(),
       price: parseFloat(price),
+      quantity: parseInt(quantity),
       category: category.trim(),
       condition: normalizedCondition,
       faculty: faculty || 'Other', // ADDED FACULTY FIELD
@@ -436,7 +448,7 @@ exports.createItem = async (req, res) => {
       isApproved: isAutoApproved,
       isFlagged: false,
       approvedAt: isAutoApproved ? new Date() : null,
-      status: 'Available'
+      status: parseInt(quantity) > 0 ? 'Available' : 'Sold Out'
     });
     
     // Add image URL (already full URL from Cloudinary)
@@ -625,18 +637,19 @@ exports.rejectItem = async (req, res) => {
 };
 
 /**
- * Update existing item with Cloudinary image handling - UPDATED
+ * Update existing item with Cloudinary image handling - UPDATED WITH QUANTITY
  */
 exports.updateItem = async (req, res) => {
   try {
     const { id } = req.params;
     const userData = verifyToken(req);
     
-    // ACCEPT ALL FIELDS including faculty
+    // ACCEPT ALL FIELDS including quantity
     const { 
       title, 
       description, 
       price, 
+      quantity,
       category, 
       condition,
       faculty 
@@ -662,11 +675,12 @@ exports.updateItem = async (req, res) => {
       });
     }
     
-    // Validate data
+    // Validate data including quantity
     const validationData = {
       title: title || item.title,
       description: description || item.description,
       price: price || item.price,
+      quantity: quantity !== undefined ? quantity : item.quantity, // ADDED
       category: category || item.category,
       condition: condition || item.condition
     };
@@ -695,15 +709,17 @@ exports.updateItem = async (req, res) => {
     // Normalize condition if provided
     const normalizedCondition = condition ? condition.toLowerCase().replace(' ', '-') : item.condition;
     
-    // Update item - INCLUDING FACULTY
+    // Update item - INCLUDING QUANTITY
     const updatedData = {
       title: title ? title.trim() : item.title,
       description: description ? description.trim() : item.description,
       price: price ? parseFloat(price) : item.price,
+      quantity: quantity ? parseInt(quantity) : item.quantity, // ADDED
       category: category ? category.trim() : item.category,
       condition: normalizedCondition,
-      faculty: faculty !== undefined ? faculty : item.faculty, // UPDATED
+      faculty: faculty !== undefined ? faculty : item.faculty,
       image: imageUrl,
+      status: (quantity !== undefined ? parseInt(quantity) : item.quantity) > 0 ? 'Available' : 'Sold Out', // UPDATE STATUS
       // Reset approval if non-admin user updates the item
       ...(userData.role !== 'admin' && { 
         isApproved: false,
@@ -749,6 +765,124 @@ exports.updateItem = async (req, res) => {
 };
 
 /**
+ * Update item quantity - NEW FUNCTION
+ */
+exports.updateItemQuantity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantity } = req.body;
+    const userData = verifyToken(req);
+    
+    // Find item
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Item not found' 
+      });
+    }
+    
+    // Check authorization
+    const isOwner = item.owner.toString() === userData.id;
+    const isAdmin = userData.role === 'admin';
+    
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to update quantity of this item' 
+      });
+    }
+    
+    // Validate quantity
+    if (!quantity || isNaN(quantity) || parseInt(quantity) < 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Quantity must be a non-negative number' 
+      });
+    }
+    
+    const newQuantity = parseInt(quantity);
+    
+    // Update quantity and status
+    const updatedItem = await Item.findByIdAndUpdate(
+      id,
+      { 
+        quantity: newQuantity,
+        status: newQuantity > 0 ? 'Available' : 'Sold Out'
+      },
+      { new: true }
+    );
+    
+    res.json({
+      success: true,
+      message: `Item quantity updated to ${newQuantity}`,
+      data: updatedItem
+    });
+    
+  } catch (err) {
+    console.error(`❌ Error updating item quantity ${req.params.id}:`, err);
+    
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid item ID' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating item quantity'
+    });
+  }
+};
+
+/**
+ * Check item availability - NEW FUNCTION
+ */
+exports.checkItemAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { requestedQuantity = 1 } = req.body;
+    
+    const item = await Item.findById(id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found',
+        available: false
+      });
+    }
+    
+    const available = item.status === 'Available' && 
+                     item.quantity >= parseInt(requestedQuantity);
+    
+    res.json({
+      success: true,
+      available,
+      currentQuantity: item.quantity,
+      maxAvailable: item.quantity,
+      status: item.status
+    });
+    
+  } catch (err) {
+    console.error(`❌ Error checking item availability ${req.params.id}:`, err);
+    
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid item ID' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Error checking item availability'
+    });
+  }
+};
+
+/**
  * Update item status
  */
 exports.updateItemStatus = async (req, res) => {
@@ -779,7 +913,7 @@ exports.updateItemStatus = async (req, res) => {
     }
     
     // Validate status
-    const validStatuses = ['Available', 'Sold', 'Under Negotiation', 'Unavailable'];
+    const validStatuses = ['Available', 'Sold', 'Sold Out', 'Under Negotiation', 'Unavailable'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ 
         success: false,

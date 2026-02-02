@@ -22,6 +22,12 @@ const orderSchema = mongoose.Schema(
       price: { 
         type: Number, 
         required: true 
+      },
+      itemSnapshot: {
+        title: String,
+        price: Number,
+        quantity: Number,
+        imageURL: String
       }
     }],
     totalAmount: { 
@@ -36,7 +42,7 @@ const orderSchema = mongoose.Schema(
       city: { type: String, required: true },
       state: { type: String, required: true },
       zipCode: { type: String, required: true },
-      country: { type: String, default: 'India' },
+      country: { type: String, default: 'Nepal' },
       notes: String
     },
     status: {
@@ -46,7 +52,7 @@ const orderSchema = mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash on Delivery', 'Credit Card', 'PayPal'],
+      enum: ['Cash on Delivery', 'Credit Card', 'PayPal', 'Online Payment'],
       default: 'Cash on Delivery'
     },
     paymentStatus: {
@@ -54,31 +60,72 @@ const orderSchema = mongoose.Schema(
       enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
       default: 'Pending'
     },
-    notes: String
+    notes: String,
+    
+    // Additional fields for better tracking
+    taxAmount: {
+      type: Number,
+      default: 0
+    },
+    shippingFee: {
+      type: Number,
+      default: 0
+    },
+    discount: {
+      type: Number,
+      default: 0
+    },
+    
+    // Tracking information
+    trackingNumber: String,
+    carrier: String,
+    estimatedDelivery: Date,
+    deliveredAt: Date,
+    
+    // Admin notes
+    adminNotes: String,
+    cancelledReason: String
   },
   {
     timestamps: true,
   }
 );
 
-// Update item status when order is placed
-orderSchema.pre('save', async function(next) {
-  if (this.isNew) {
-    try {
-      const Item = mongoose.model('Item');
-      
-      // Update each item's status to 'Sold'
-      for (const orderItem of this.items) {
-        await Item.findByIdAndUpdate(orderItem.item, {
-          status: 'Sold',
-          $set: { updatedAt: new Date() }
-        });
-      }
-    } catch (error) {
-      console.error('Error updating item status:', error);
-    }
+// Virtual for formatted total amount
+orderSchema.virtual('formattedTotal').get(function() {
+  return `₹${this.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+});
+
+// Virtual for total items count
+orderSchema.virtual('totalItems').get(function() {
+  return this.items.reduce((total, item) => total + item.quantity, 0);
+});
+
+// Pre-save hook to calculate total amount with tax
+orderSchema.pre('save', function(next) {
+  // Calculate subtotal from items
+  const subtotal = this.items.reduce((sum, item) => {
+    return sum + (item.price * item.quantity);
+  }, 0);
+  
+  // Add tax (8%) if not already calculated
+  // if (!this.taxAmount && subtotal > 0) {
+  //   this.taxAmount = subtotal * 0.08;
+  // }
+  
+  // Calculate total amount
+  this.totalAmount = subtotal + (this.shippingFee || 0) - (this.discount || 0);
+  
+  // Ensure total amount is not negative
+  if (this.totalAmount < 0) {
+    this.totalAmount = 0;
   }
+  
   next();
 });
+
+// Ensure virtuals are included in JSON
+orderSchema.set('toJSON', { virtuals: true });
+orderSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Order', orderSchema);

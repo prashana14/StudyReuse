@@ -5,6 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const jwt = require('jsonwebtoken');
 
 const {
   getAllItems,
@@ -16,9 +17,10 @@ const {
   updateItem,
   approveItem,
   rejectItem,
-  searchItems
+  searchItems,
+  updateItemQuantity,
+  checkItemAvailability
 } = require('../controller/itemController');
-const authMiddleware = require('../middleware/authMiddleware');
 
 // ======================
 // 1. Cloudinary Storage Configuration
@@ -118,15 +120,61 @@ const parseMultipartJSON = (req, res, next) => {
 };
 
 // ======================
-// 4. Routes - PROPER ORDER
+// 4. Authentication Middleware
+// ======================
+const authMiddleware = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.error('❌ Auth middleware error:', error.message);
+    return res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+};
+
+// Admin middleware
+const adminMiddleware = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Admin access required' });
+  }
+  next();
+};
+
+// ======================
+// 5. DEBUG MIDDLEWARE TO SEE WHAT'S HAPPENING
+// ======================
+router.use((req, res, next) => {
+  // console.log(`📡 ${req.method} ${req.originalUrl}`);
+  // console.log(`   Path: ${req.path}`);
+  // console.log(`   Params:`, req.params);
+  // console.log(`   Query:`, req.query);
+  next();
+});
+
+// ======================
+// 6. CORRECT ROUTE ORDER - CRITICAL FIX
 // ======================
 
-// GET Routes (Non-parameterized FIRST)
-router.get('/my', authMiddleware, getMyItems);
-router.get('/search', searchItems);
+// ======= PUBLIC ROUTES (NO AUTH NEEDED) =======
 router.get('/', getAllItems);
+router.get('/search', searchItems);
+router.post('/:id/check-availability', checkItemAvailability);
 
-// POST Route with file upload
+// ======= PROTECTED ROUTES (REQUIRE AUTH) =======
+// 🔥 CRITICAL: Specific routes MUST come BEFORE parameterized routes
+// The order matters! Express matches routes in the order they're defined.
+
+router.get('/my', authMiddleware, (req, res, next) => {
+  //console.log('✅ /my route matched! Calling getMyItems...');
+  next();
+}, getMyItems);
+
 router.post('/',
   authMiddleware,
   parseMultipartJSON,
@@ -135,7 +183,13 @@ router.post('/',
   createItem
 );
 
-// PUT Routes (Update operations)
+// ======= PARAMETERIZED ROUTES (WITH :id) =======
+// ⚠️ These should come AFTER specific routes like /my, /search, etc.
+
+// Quantity management
+router.put('/:id/quantity', authMiddleware, updateItemQuantity);
+
+// Update item with image
 router.put('/:id',
   authMiddleware,
   parseMultipartJSON,
@@ -144,19 +198,41 @@ router.put('/:id',
   updateItem
 );
 
-router.put('/:id/approve', authMiddleware, approveItem);
-router.put('/:id/reject', authMiddleware, rejectItem);
-
-// PATCH Routes
+// Status updates
 router.patch('/:id/status', authMiddleware, updateItemStatus);
-
-// DELETE Route
 router.delete('/:id', authMiddleware, deleteItem);
 
-// Parameterized GET Route (MUST BE LAST)
-router.get('/:id', getItemById);
+// Get single item by ID - THIS MUST BE AFTER /my
+router.get('/:id', (req, res, next) => {
+  // console.log(`🆔 /:id route matched with id=${req.params.id}`);
+  // console.log(`   Is it "my"? ${req.params.id === 'my'}`);
+  next();
+}, getItemById);
+
+// ======= ADMIN ROUTES =======
+router.put('/:id/approve', authMiddleware, adminMiddleware, approveItem);
+router.put('/:id/reject', authMiddleware, adminMiddleware, rejectItem);
 
 // ======================
-// 5. Export Router
+// 7. 404 HANDLER FOR ITEM ROUTES
 // ======================
+router.use('*', (req, res) => {
+  console.log(`❌ No matching route found for: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    message: `Item route not found: ${req.method} ${req.originalUrl}`
+  });
+});
+
+// ======================
+// 8. LOG ALL REGISTERED ROUTES
+// ======================
+//console.log('\n📋 Registered Item Routes:');
+router.stack.forEach((middleware) => {
+  if (middleware.route) {
+    const methods = Object.keys(middleware.route.methods).map(m => m.toUpperCase()).join(', ');
+    //console.log(`   ${methods} ${middleware.route.path}`);
+  }
+});
+
 module.exports = router;

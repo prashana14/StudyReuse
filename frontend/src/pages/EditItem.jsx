@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import apiService from "../services/api"; // Import apiService
+import apiService from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
 const EditItem = () => {
@@ -16,46 +16,79 @@ const EditItem = () => {
     title: "",
     description: "",
     price: "",
+    quantity: "1", // ADDED: Quantity field
     category: "",
     condition: "good",
-    imageFile: null, // CHANGED: Renamed from image to imageFile
+    faculty: "", // ADDED: Faculty field
+    imageFile: null,
     imagePreview: "",
   });
 
+  // 🔥 UPDATED: Match AddItem categories exactly (with labreports instead of furniture)
   const categories = [
-    "Study Guides",
-    "Textbooks", 
-    "Stationery",
-    "Lab Equipment",
-    "Electronics",
-    "Furniture",
-    "Other"
+    { value: "", label: "Select a category" },
+    { value: "books", label: "Books/Textbooks" },
+    { value: "notes", label: "Notes" },
+    { value: "electronics", label: "Electronics" },
+    { value: "stationery", label: "Stationery" },
+    { value: "labreports", label: "Lab Reports" }, // CHANGED: Furniture → Lab Reports
+    { value: "other", label: "Other" }
   ];
 
   const conditions = [
     { value: "new", label: "Brand New" },
-    { value: "like_new", label: "Like New" },
+    { value: "like-new", label: "Like New" }, // Match backend: "like-new"
     { value: "good", label: "Good" },
     { value: "fair", label: "Fair" },
-    { value: "needs_repair", label: "Needs Repair" }
+    { value: "poor", label: "Poor" } // Match backend: "poor"
+  ];
+
+  // Faculty options - match backend enum
+  const facultyOptions = [
+    { value: "", label: "Select Faculty (Optional)" },
+    { value: "BBA", label: "BBA" },
+    { value: "BITM", label: "BITM" },
+    { value: "BBS", label: "BBS" },
+    { value: "BBM", label: "BBM" },
+    { value: "BBA-F", label: "BBA-F" },
+    { value: "MBS", label: "MBS" },
+    { value: "MBA", label: "MBA" },
+    { value: "MITM", label: "MITM" },
+    { value: "MBA-F", label: "MBA-F" },
+    { value: "Other", label: "Other" }
+  ];
+
+  // Quantity options
+  const quantityOptions = [
+    { value: "1", label: "1 unit" },
+    { value: "2", label: "2 units" },
+    { value: "3", label: "3 units" },
+    { value: "4", label: "4 units" },
+    { value: "5", label: "5 units" },
+    { value: "10", label: "10 units" },
+    { value: "custom", label: "Custom amount..." }
   ];
 
   useEffect(() => {
     const fetchItem = async () => {
       try {
         setLoading(true);
-        // CHANGED: Use apiService.items.getById()
         const response = await apiService.items.getById(id);
         const item = response.data.data || response.data;
+        
+        console.log("Fetched item:", item);
         
         setFormData({
           title: item.title || "",
           description: item.description || "",
           price: item.price || "",
+          quantity: item.quantity ? item.quantity.toString() : "1", // ADDED: Quantity
           category: item.category || "",
           condition: item.condition || "good",
-          imageFile: null, // Keep null, we'll use imagePreview for existing image
-          imagePreview: item.imageURL || item.image || "", // Cloudinary URL
+          faculty: item.faculty || "", // ADDED: Faculty
+          imageFile: null,
+          imagePreview: item.imageURL || item.image || "",
+          showCustomQuantity: false
         });
       } catch (err) {
         console.error("Error fetching item:", err);
@@ -72,10 +105,29 @@ const EditItem = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Handle custom quantity input
+    if (name === "quantity") {
+      if (value === "custom") {
+        setFormData(prev => ({
+          ...prev,
+          [name]: "",
+          showCustomQuantity: true
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          showCustomQuantity: false
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    
     if (error) setError("");
     if (success) setSuccess("");
   };
@@ -93,7 +145,7 @@ const EditItem = () => {
 
     setFormData(prev => ({
       ...prev,
-      imageFile: file, // CHANGED: Store as imageFile
+      imageFile: file,
       imagePreview: URL.createObjectURL(file)
     }));
     
@@ -105,23 +157,32 @@ const EditItem = () => {
     e.preventDefault();
     
     // Validation
+    const validationErrors = [];
+    
     if (!formData.title.trim()) {
-      setError("Title is required");
-      return;
+      validationErrors.push("Title is required");
     }
     
     if (!formData.description.trim()) {
-      setError("Description is required");
-      return;
+      validationErrors.push("Description is required");
     }
     
     if (!formData.price || isNaN(formData.price) || parseFloat(formData.price) <= 0) {
-      setError("Please enter a valid price");
-      return;
+      validationErrors.push("Please enter a valid price");
     }
     
     if (!formData.category) {
-      setError("Please select a category");
+      validationErrors.push("Please select a category");
+    }
+
+    // ADDED: Quantity validation
+    const quantity = parseInt(formData.quantity) || 1;
+    if (!formData.quantity || quantity < 1) {
+      validationErrors.push("Quantity must be at least 1");
+    }
+
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]);
       return;
     }
 
@@ -134,24 +195,27 @@ const EditItem = () => {
         id,
         title: formData.title,
         price: parseFloat(formData.price),
+        quantity: quantity,
+        faculty: formData.faculty || 'Other',
         hasNewImage: !!formData.imageFile
       });
 
-      // 🔥 UPDATED: Use apiService.items.update() with FormData
-      // Pass the existing form data and optional new image file
+      // 🔥 UPDATED: Include quantity and faculty in update
       const response = await apiService.items.update(
         id,
         {
           title: formData.title.trim(),
           description: formData.description.trim(),
           price: formData.price,
+          quantity: quantity, // ADDED: Include quantity
           category: formData.category,
           condition: formData.condition,
+          faculty: formData.faculty || 'Other' // ADDED: Include faculty
         },
-        formData.imageFile // Pass the image file (or null if no new image)
+        formData.imageFile
       );
 
-      console.log("✅ Cloudinary update successful:", response.data);
+      console.log("✅ Item update successful:", response.data);
       setSuccess(response.data.message || "Item updated successfully!");
       
       // Redirect after delay
@@ -162,7 +226,6 @@ const EditItem = () => {
     } catch (err) {
       console.error("❌ Error updating item:", err);
       
-      // Handle specific error types
       if (err.response?.status === 401) {
         setError("Session expired. Please login again.");
         setTimeout(() => navigate("/login"), 2000);
@@ -269,7 +332,7 @@ const EditItem = () => {
             color: "#6c757d",
             fontSize: "16px"
           }}>
-            Update your item details and images
+            Update your item details, quantity, and images
           </p>
         </div>
         
@@ -531,7 +594,7 @@ const EditItem = () => {
               Item Details
             </h3>
 
-            <div style={{ marginBottom: "25px" }}>
+            <div style={{ marginBottom: "20px" }}>
               <label style={{
                 display: "block",
                 marginBottom: "8px",
@@ -548,23 +611,19 @@ const EditItem = () => {
                 placeholder="e.g., Calculus Textbook, Engineering Calculator"
                 style={{
                   width: "100%",
-                  padding: "14px",
+                  padding: "12px",
                   border: "1px solid #dee2e6",
                   borderRadius: "8px",
                   fontSize: "16px",
                   transition: "all 0.3s"
                 }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#4361ee";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#dee2e6";
-                }}
+                onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
                 required
               />
             </div>
 
-            <div style={{ marginBottom: "25px" }}>
+            <div style={{ marginBottom: "20px" }}>
               <label style={{
                 display: "block",
                 marginBottom: "8px",
@@ -578,23 +637,19 @@ const EditItem = () => {
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Describe your item in detail..."
-                rows="4"
+                rows="3"
                 style={{
                   width: "100%",
-                  padding: "14px",
+                  padding: "12px",
                   border: "1px solid #dee2e6",
                   borderRadius: "8px",
                   fontSize: "16px",
                   resize: "vertical",
                   transition: "all 0.3s",
-                  minHeight: "100px"
+                  minHeight: "80px"
                 }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#4361ee";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#dee2e6";
-                }}
+                onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
                 required
               />
             </div>
@@ -602,8 +657,8 @@ const EditItem = () => {
             <div style={{ 
               display: "grid", 
               gridTemplateColumns: "1fr 1fr", 
-              gap: "20px",
-              marginBottom: "25px"
+              gap: "15px",
+              marginBottom: "20px"
             }}>
               <div>
                 <label style={{
@@ -624,22 +679,91 @@ const EditItem = () => {
                   min="0"
                   style={{
                     width: "100%",
-                    padding: "14px",
+                    padding: "12px",
                     border: "1px solid #dee2e6",
                     borderRadius: "8px",
                     fontSize: "16px",
                     transition: "all 0.3s"
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#4361ee";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#dee2e6";
-                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                  onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
                   required
                 />
               </div>
 
+              {/* Quantity Field - NEW */}
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "600",
+                  color: "#495057"
+                }}>
+                  Quantity *
+                </label>
+                <select
+                  name="quantity"
+                  value={formData.showCustomQuantity ? "custom" : formData.quantity}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 40px 12px 16px",
+                    border: "1px solid #dee2e6",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    background: "white",
+                    cursor: "pointer",
+                    transition: "all 0.3s",
+                    appearance: "none",
+                    backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    backgroundSize: "16px"
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                  onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
+                  required
+                >
+                  {quantityOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Custom Quantity Input */}
+                {formData.showCustomQuantity && (
+                  <div style={{ marginTop: "10px" }}>
+                    <input
+                      type="number"
+                      name="quantity"
+                      placeholder="Enter custom quantity"
+                      value={formData.quantity}
+                      onChange={handleChange}
+                      min="1"
+                      max="999"
+                      style={{ 
+                        width: "100%",
+                        padding: "12px",
+                        border: "1px solid #4361ee",
+                        borderRadius: "8px",
+                        fontSize: "16px",
+                        transition: "all 0.3s"
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                      onBlur={(e) => e.target.style.borderColor = "#4361ee"}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "1fr 1fr", 
+              gap: "15px",
+              marginBottom: "20px"
+            }}>
               <div>
                 <label style={{
                   display: "block",
@@ -655,25 +779,64 @@ const EditItem = () => {
                   onChange={handleChange}
                   style={{
                     width: "100%",
-                    padding: "14px",
+                    padding: "12px 40px 12px 16px",
                     border: "1px solid #dee2e6",
                     borderRadius: "8px",
                     fontSize: "16px",
                     background: "white",
                     cursor: "pointer",
-                    transition: "all 0.3s"
+                    transition: "all 0.3s",
+                    appearance: "none",
+                    backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    backgroundSize: "16px"
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#4361ee";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#dee2e6";
-                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                  onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
                   required
                 >
-                  <option value="">Select a category</option>
                   {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "600",
+                  color: "#495057"
+                }}>
+                  Faculty (Optional)
+                </label>
+                <select
+                  name="faculty"
+                  value={formData.faculty}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 40px 12px 16px",
+                    border: "1px solid #dee2e6",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    background: "white",
+                    cursor: "pointer",
+                    transition: "all 0.3s",
+                    appearance: "none",
+                    backgroundImage: "url('data:image/svg+xml;charset=UTF-8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%234361ee\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>')",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    backgroundSize: "16px"
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#4361ee"}
+                  onBlur={(e) => e.target.style.borderColor = "#dee2e6"}
+                >
+                  {facultyOptions.map(faculty => (
+                    <option key={faculty.value} value={faculty.value}>
+                      {faculty.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -695,7 +858,7 @@ const EditItem = () => {
                     style={{
                       flex: "1",
                       minWidth: "110px",
-                      padding: "14px",
+                      padding: "12px",
                       border: `1px solid ${
                         formData.condition === cond.value ? "#4361ee" : "#dee2e6"
                       }`,
@@ -736,10 +899,10 @@ const EditItem = () => {
                       letterSpacing: "0.5px"
                     }}>
                       {cond.value === "new" && "NEW"}
-                      {cond.value === "like_new" && "LIKE NEW"}
+                      {cond.value === "like-new" && "LIKE NEW"}
                       {cond.value === "good" && "GOOD"}
                       {cond.value === "fair" && "FAIR"}
-                      {cond.value === "needs_repair" && "REPAIR"}
+                      {cond.value === "poor" && "POOR"}
                     </div>
                     <span style={{
                       fontSize: "14px",

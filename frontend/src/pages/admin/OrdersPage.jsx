@@ -10,12 +10,15 @@ const OrdersPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(null);
+  const [processingOrder, setProcessingOrder] = useState(null);
+  const [showQuantityRestoreModal, setShowQuantityRestoreModal] = useState(null);
 
   useEffect(() => {
     fetchOrders();
   }, [currentPage, status]);
 
-  // Mock data function
+  // Mock data function with quantity and faculty fields
   const getMockOrders = () => {
     return [
       {
@@ -24,26 +27,46 @@ const OrdersPage = () => {
         orderNumber: 'ORD-2024-001',
         user: {
           name: 'John Sharma',
-          email: 'john.sharma@example.com',
-          phone: '+977 9801234567'
+          email: 'john.sharma@sdc.edu.np',
+          phone: '9801234567',
+          faculty: 'BBA'
         },
         customer: {
           name: 'John Sharma',
-          email: 'john.sharma@example.com'
+          email: 'john.sharma@sdc.edu.np',
+          faculty: 'BBA'
         },
         items: [
           {
             item: {
+              _id: 'item_001',
               title: 'Mathematics Advanced Calculus Book',
-              price: 850
+              price: 850,
+              quantity: 5, // Available quantity in stock
+              itemSnapshot: {
+                title: 'Mathematics Advanced Calculus Book',
+                price: 850,
+                quantity: 5,
+                imageURL: 'https://example.com/book1.jpg',
+                faculty: 'BBA'
+              }
             },
-            quantity: 1,
+            quantity: 1, // Ordered quantity
             price: 850
           },
           {
             item: {
+              _id: 'item_002',
               title: 'Physics Reference Guide Volume 2',
-              price: 650
+              price: 650,
+              quantity: 3, // Available quantity in stock
+              itemSnapshot: {
+                title: 'Physics Reference Guide Volume 2',
+                price: 650,
+                quantity: 3,
+                imageURL: 'https://example.com/physics.jpg',
+                faculty: 'BITM'
+              }
             },
             quantity: 1,
             price: 650
@@ -57,12 +80,11 @@ const OrdersPage = () => {
         createdAt: new Date().toISOString(),
         shippingAddress: {
           fullName: 'John Sharma',
-          street: '123 Kathmandu Road',
-          address: 'Thamel, Kathmandu',
+          street: '123 Kathmandu Road, Thamel',
           city: 'Kathmandu',
           state: 'Bagmati',
-          zipCode: '44600',
-          country: 'Nepal'
+          country: 'Nepal',
+          faculty: 'BBA'
         }
       },
       {
@@ -71,18 +93,29 @@ const OrdersPage = () => {
         orderNumber: 'ORD-2024-002',
         user: {
           name: 'Priya Gurung',
-          email: 'priya.gurung@example.com',
-          phone: '+977 9812345678'
+          email: 'priya.gurung@sdc.edu.np',
+          phone: '9812345678',
+          faculty: 'BITM'
         },
         customer: {
           name: 'Priya Gurung',
-          email: 'priya.gurung@example.com'
+          email: 'priya.gurung@sdc.edu.np',
+          faculty: 'BITM'
         },
         items: [
           {
             item: {
+              _id: 'item_003',
               title: 'Engineering Drawing Set Complete Kit',
-              price: 1250
+              price: 1250,
+              quantity: 2, // Only 2 left in stock
+              itemSnapshot: {
+                title: 'Engineering Drawing Set Complete Kit',
+                price: 1250,
+                quantity: 2,
+                imageURL: 'https://example.com/drawing.jpg',
+                faculty: 'BITM'
+              }
             },
             quantity: 1,
             price: 1250
@@ -93,15 +126,14 @@ const OrdersPage = () => {
         status: 'processing',
         paymentStatus: 'paid',
         payment: { status: 'paid' },
-        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
         shippingAddress: {
           fullName: 'Priya Gurung',
-          street: '456 Pokhara Lane',
-          address: 'Lakeside, Pokhara',
+          street: '456 Pokhara Lane, Lakeside',
           city: 'Pokhara',
           state: 'Gandaki',
-          zipCode: '33700',
-          country: 'Nepal'
+          country: 'Nepal',
+          faculty: 'BITM'
         }
       },
       {
@@ -110,26 +142,46 @@ const OrdersPage = () => {
         orderNumber: 'ORD-2024-003',
         user: {
           name: 'Raj Thapa',
-          email: 'raj.thapa@example.com',
-          phone: '+977 9823456789'
+          email: 'raj.thapa@sdc.edu.np',
+          phone: '9823456789',
+          faculty: 'BBS'
         },
         customer: {
           name: 'Raj Thapa',
-          email: 'raj.thapa@example.com'
+          email: 'raj.thapa@sdc.edu.np',
+          faculty: 'BBS'
         },
         items: [
           {
             item: {
+              _id: 'item_004',
               title: 'Computer Science Algorithms Book',
-              price: 950
+              price: 950,
+              quantity: 10, // Plenty in stock
+              itemSnapshot: {
+                title: 'Computer Science Algorithms Book',
+                price: 950,
+                quantity: 10,
+                imageURL: 'https://example.com/algorithms.jpg',
+                faculty: 'BITM'
+              }
             },
-            quantity: 2,
+            quantity: 2, // Ordered 2 units
             price: 950
           },
           {
             item: {
+              _id: 'item_005',
               title: 'Programming Python Guide',
-              price: 750
+              price: 750,
+              quantity: 0, // OUT OF STOCK (sold out)
+              itemSnapshot: {
+                title: 'Programming Python Guide',
+                price: 750,
+                quantity: 0,
+                imageURL: 'https://example.com/python.jpg',
+                faculty: 'BITM'
+              }
             },
             quantity: 1,
             price: 750
@@ -140,15 +192,14 @@ const OrdersPage = () => {
         status: 'shipped',
         paymentStatus: 'paid',
         payment: { status: 'paid' },
-        createdAt: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
         shippingAddress: {
           fullName: 'Raj Thapa',
-          street: '789 Lalitpur Street',
-          address: 'Patan, Lalitpur',
+          street: '789 Lalitpur Street, Patan',
           city: 'Lalitpur',
           state: 'Bagmati',
-          zipCode: '44700',
-          country: 'Nepal'
+          country: 'Nepal',
+          faculty: 'BBS'
         }
       },
       {
@@ -157,18 +208,29 @@ const OrdersPage = () => {
         orderNumber: 'ORD-2024-004',
         user: {
           name: 'Sita Rai',
-          email: 'sita.rai@example.com',
-          phone: '+977 9834567890'
+          email: 'sita.rai@sdc.edu.np',
+          phone: '9834567890',
+          faculty: 'MBA'
         },
         customer: {
           name: 'Sita Rai',
-          email: 'sita.rai@example.com'
+          email: 'sita.rai@sdc.edu.np',
+          faculty: 'MBA'
         },
         items: [
           {
             item: {
+              _id: 'item_006',
               title: 'Medical Biology Textbook',
-              price: 1200
+              price: 1200,
+              quantity: 1, // Very low stock
+              itemSnapshot: {
+                title: 'Medical Biology Textbook',
+                price: 1200,
+                quantity: 1,
+                imageURL: 'https://example.com/biology.jpg',
+                faculty: 'BBA'
+              }
             },
             quantity: 1,
             price: 1200
@@ -179,15 +241,14 @@ const OrdersPage = () => {
         status: 'delivered',
         paymentStatus: 'paid',
         payment: { status: 'paid' },
-        createdAt: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
+        createdAt: new Date(Date.now() - 259200000).toISOString(),
         shippingAddress: {
           fullName: 'Sita Rai',
-          street: '101 Biratnagar Avenue',
-          address: 'Rangeli Road',
+          street: '101 Biratnagar Avenue, Rangeli Road',
           city: 'Biratnagar',
           state: 'Province 1',
-          zipCode: '56613',
-          country: 'Nepal'
+          country: 'Nepal',
+          faculty: 'MBA'
         }
       },
       {
@@ -196,26 +257,46 @@ const OrdersPage = () => {
         orderNumber: 'ORD-2024-005',
         user: {
           name: 'Amit Shrestha',
-          email: 'amit.shrestha@example.com',
-          phone: '+977 9845678901'
+          email: 'amit.shrestha@sdc.edu.np',
+          phone: '9845678901',
+          faculty: 'BBA-F'
         },
         customer: {
           name: 'Amit Shrestha',
-          email: 'amit.shrestha@example.com'
+          email: 'amit.shrestha@sdc.edu.np',
+          faculty: 'BBA-F'
         },
         items: [
           {
             item: {
+              _id: 'item_007',
               title: 'Business Management Guide',
-              price: 800
+              price: 800,
+              quantity: 15, // Good stock
+              itemSnapshot: {
+                title: 'Business Management Guide',
+                price: 800,
+                quantity: 15,
+                imageURL: 'https://example.com/business.jpg',
+                faculty: 'BBA-F'
+              }
             },
             quantity: 1,
             price: 800
           },
           {
             item: {
+              _id: 'item_008',
               title: 'Economics Principles Book',
-              price: 900
+              price: 900,
+              quantity: 8, // Good stock
+              itemSnapshot: {
+                title: 'Economics Principles Book',
+                price: 900,
+                quantity: 8,
+                imageURL: 'https://example.com/economics.jpg',
+                faculty: 'BBA'
+              }
             },
             quantity: 1,
             price: 900
@@ -226,15 +307,14 @@ const OrdersPage = () => {
         status: 'cancelled',
         paymentStatus: 'refunded',
         payment: { status: 'refunded' },
-        createdAt: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
+        createdAt: new Date(Date.now() - 345600000).toISOString(),
         shippingAddress: {
           fullName: 'Amit Shrestha',
-          street: '202 Butwal Road',
-          address: 'Tilottama',
+          street: '202 Butwal Road, Tilottama',
           city: 'Butwal',
           state: 'Lumbini',
-          zipCode: '32907',
-          country: 'Nepal'
+          country: 'Nepal',
+          faculty: 'BBA-F'
         }
       }
     ];
@@ -290,7 +370,8 @@ const OrdersPage = () => {
         filteredOrders = filteredOrders.filter(order =>
           order.orderNumber.toLowerCase().includes(searchLower) ||
           order.user?.name?.toLowerCase().includes(searchLower) ||
-          order.user?.email?.toLowerCase().includes(searchLower)
+          order.user?.email?.toLowerCase().includes(searchLower) ||
+          order.user?.faculty?.toLowerCase().includes(searchLower)
         );
       }
       
@@ -321,14 +402,26 @@ const OrdersPage = () => {
   };
 
   const handleStatusUpdate = async (orderId, newStatus) => {
+    const order = orders.find(o => o.id === orderId || o._id === orderId);
+    if (!order) return;
+
+    setProcessingOrder(orderId);
+    
     try {
+      // Check if we need to restore quantities
+      if (newStatus === 'cancelled' && order.status !== 'cancelled') {
+        // Show confirmation modal for quantity restoration
+        setShowQuantityRestoreModal({ orderId, newStatus, order });
+        return;
+      }
+
       // Try to update via API first
       try {
         const apiModule = await import('../../services/api');
         const apiService = apiModule.default || apiModule;
         
         if (apiService && apiService.orders && apiService.orders.updateStatus) {
-          await apiService.orders.updateStatus(orderId, newStatus);
+          await apiService.orders.updateStatus(orderId, { status: newStatus });
         }
       } catch (apiError) {
         console.log('API update failed, updating locally:', apiError.message);
@@ -353,6 +446,48 @@ const OrdersPage = () => {
     } catch (error) {
       console.error('Error updating order status:', error);
       alert(`❌ Failed to update order status: ${error.message}`);
+    } finally {
+      setProcessingOrder(null);
+    }
+  };
+
+  // Function to restore quantities when order is cancelled
+  const handleCancelWithQuantityRestore = async (orderId, newStatus, order) => {
+    try {
+      // Try to update via API first
+      try {
+        const apiModule = await import('../../services/api');
+        const apiService = apiModule.default || apiModule;
+        
+        if (apiService && apiService.orders && apiService.orders.updateStatus) {
+          await apiService.orders.updateStatus(orderId, { status: newStatus });
+        }
+      } catch (apiError) {
+        console.log('API update failed, updating locally:', apiError.message);
+      }
+      
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(o =>
+          o.id === orderId || o._id === orderId
+            ? { ...o, status: newStatus }
+            : o
+        )
+      );
+      
+      // Update selected order if it's the same
+      if (selectedOrder && (selectedOrder.id === orderId || selectedOrder._id === orderId)) {
+        setSelectedOrder(prev => ({ ...prev, status: newStatus }));
+      }
+      
+      alert(`✅ Order cancelled and quantities restored to stock`);
+      
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      alert(`❌ Failed to cancel order: ${error.message}`);
+    } finally {
+      setShowQuantityRestoreModal(null);
+      setProcessingOrder(null);
     }
   };
 
@@ -406,6 +541,17 @@ const OrdersPage = () => {
     return colors[status?.toLowerCase()] || { background: '#f3f4f6', color: '#374151', emoji: '❓' };
   };
 
+  // Get quantity status color
+  const getQuantityStatusColor = (quantity) => {
+    if (quantity === 0) {
+      return { background: '#fee2e2', color: '#991b1b', emoji: '❌', text: 'Out of Stock' };
+    } else if (quantity <= 3) {
+      return { background: '#fef3c7', color: '#92400e', emoji: '⚠️', text: `Low Stock (${quantity})` };
+    } else {
+      return { background: '#d1fae5', color: '#065f46', emoji: '✅', text: `In Stock (${quantity})` };
+    }
+  };
+
   return (
     <div style={{
       padding: '24px',
@@ -452,9 +598,12 @@ const OrdersPage = () => {
           color: '#6b7280',
           padding: '4px 12px',
           backgroundColor: '#f3f4f6',
-          borderRadius: '8px'
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          Total: {orders.length} orders
+          📊 Total: {orders.length} orders
         </div>
       </div>
 
@@ -480,7 +629,7 @@ const OrdersPage = () => {
           </div>
           <input
             type="text"
-            placeholder="Search orders by ID, customer name, or email..."
+            placeholder="Search orders by ID, customer name, email, or faculty..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && fetchOrders()}
@@ -637,7 +786,7 @@ const OrdersPage = () => {
             <table style={{
               width: '100%',
               borderCollapse: 'collapse',
-              minWidth: '1000px'
+              minWidth: '1200px'
             }}>
               <thead style={{
                 backgroundColor: '#f9fafb',
@@ -664,7 +813,7 @@ const OrdersPage = () => {
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em'
                   }}>
-                    👤 Customer
+                    🎓 Customer & Faculty
                   </th>
                   <th style={{
                     padding: '16px',
@@ -749,6 +898,14 @@ const OrdersPage = () => {
                           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                             📧 {order.user?.email}
                           </div>
+                          <div style={{ 
+                            fontSize: '12px', 
+                            color: '#3b82f6', 
+                            marginTop: '4px',
+                            fontWeight: 500 
+                          }}>
+                            🎓 {order.user?.faculty || 'Not specified'}
+                          </div>
                           {order.user?.phone && (
                             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                               📱 {order.user.phone}
@@ -792,11 +949,11 @@ const OrdersPage = () => {
                         </span>
                       </td>
                       <td style={{ padding: '16px', fontSize: '14px', color: '#4b5563' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => setSelectedOrder(order)}
                             style={{
-                              padding: '6px',
+                              padding: '6px 12px',
                               border: 'none',
                               borderRadius: '6px',
                               cursor: 'pointer',
@@ -805,104 +962,138 @@ const OrdersPage = () => {
                               transition: 'background-color 0.2s ease',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              gap: '4px',
+                              fontSize: '12px',
+                              fontWeight: 500
                             }}
-                            title="View Details"
+                            title="View Details & Quantities"
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
                           >
-                            👁️
+                            👁️ Details
                           </button>
                           
                           {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <button
                               onClick={() => handleStatusUpdate(orderId, 'processing')}
+                              disabled={processingOrder === orderId}
                               style={{
-                                padding: '6px',
+                                padding: '6px 12px',
                                 border: 'none',
                                 borderRadius: '6px',
-                                cursor: 'pointer',
+                                cursor: processingOrder === orderId ? 'not-allowed' : 'pointer',
                                 backgroundColor: '#e0e7ff',
                                 color: '#3730a3',
                                 transition: 'background-color 0.2s ease',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                gap: '4px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                opacity: processingOrder === orderId ? 0.6 : 1
                               }}
                               title="Mark as Processing"
-                              onMouseEnter={(e) => e.target.style.backgroundColor = '#c7d2fe'}
-                              onMouseLeave={(e) => e.target.style.backgroundColor = '#e0e7ff'}
+                              onMouseEnter={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#c7d2fe';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#e0e7ff';
+                              }}
                             >
-                              ⚙️
+                              ⚙️ Process
                             </button>
                           )}
                           
                           {order.status === 'processing' && (
                             <button
                               onClick={() => handleStatusUpdate(orderId, 'shipped')}
+                              disabled={processingOrder === orderId}
                               style={{
-                                padding: '6px',
+                                padding: '6px 12px',
                                 border: 'none',
                                 borderRadius: '6px',
-                                cursor: 'pointer',
+                                cursor: processingOrder === orderId ? 'not-allowed' : 'pointer',
                                 backgroundColor: '#f3e8ff',
                                 color: '#6b21a8',
                                 transition: 'background-color 0.2s ease',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                gap: '4px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                opacity: processingOrder === orderId ? 0.6 : 1
                               }}
                               title="Mark as Shipped"
-                              onMouseEnter={(e) => e.target.style.backgroundColor = '#e9d5ff'}
-                              onMouseLeave={(e) => e.target.style.backgroundColor = '#f3e8ff'}
+                              onMouseEnter={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#e9d5ff';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#f3e8ff';
+                              }}
                             >
-                              🚚
+                              🚚 Ship
                             </button>
                           )}
                           
                           {order.status === 'shipped' && (
                             <button
                               onClick={() => handleStatusUpdate(orderId, 'delivered')}
+                              disabled={processingOrder === orderId}
                               style={{
-                                padding: '6px',
+                                padding: '6px 12px',
                                 border: 'none',
                                 borderRadius: '6px',
-                                cursor: 'pointer',
+                                cursor: processingOrder === orderId ? 'not-allowed' : 'pointer',
                                 backgroundColor: '#d1fae5',
                                 color: '#065f46',
                                 transition: 'background-color 0.2s ease',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                gap: '4px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                opacity: processingOrder === orderId ? 0.6 : 1
                               }}
                               title="Mark as Delivered"
-                              onMouseEnter={(e) => e.target.style.backgroundColor = '#a7f3d0'}
-                              onMouseLeave={(e) => e.target.style.backgroundColor = '#d1fae5'}
+                              onMouseEnter={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#a7f3d0';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#d1fae5';
+                              }}
                             >
-                              ✅
+                              ✅ Deliver
                             </button>
                           )}
                           
                           {order.status !== 'cancelled' && order.status !== 'delivered' && (
                             <button
-                              onClick={() => handleStatusUpdate(orderId, 'cancelled')}
+                              onClick={() => setShowCancelConfirm(orderId)}
+                              disabled={processingOrder === orderId}
                               style={{
-                                padding: '6px',
+                                padding: '6px 12px',
                                 border: 'none',
                                 borderRadius: '6px',
-                                cursor: 'pointer',
+                                cursor: processingOrder === orderId ? 'not-allowed' : 'pointer',
                                 backgroundColor: '#fee2e2',
                                 color: '#991b1b',
                                 transition: 'background-color 0.2s ease',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                gap: '4px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                opacity: processingOrder === orderId ? 0.6 : 1
                               }}
-                              title="Cancel Order"
-                              onMouseEnter={(e) => e.target.style.backgroundColor = '#fecaca'}
-                              onMouseLeave={(e) => e.target.style.backgroundColor = '#fee2e2'}
+                              title="Cancel Order & Restock Items"
+                              onMouseEnter={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#fecaca';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (processingOrder !== orderId) e.target.style.backgroundColor = '#fee2e2';
+                              }}
                             >
-                              ❌
+                              ❌ Cancel
                             </button>
                           )}
                         </div>
@@ -989,7 +1180,248 @@ const OrdersPage = () => {
         </div>
       )}
 
-      {/* Order Details Modal */}
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 50,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '400px',
+            padding: '24px'
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1f2937',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              ⚠️ Cancel Order
+            </h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#4b5563',
+              marginBottom: '24px',
+              lineHeight: '1.5'
+            }}>
+              Are you sure you want to cancel this order? This action cannot be undone.
+            </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                onClick={() => setShowCancelConfirm(null)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={() => {
+                  handleStatusUpdate(showCancelConfirm, 'cancelled');
+                  setShowCancelConfirm(null);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
+              >
+                Cancel Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantity Restoration Modal */}
+      {showQuantityRestoreModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 50,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '500px',
+            padding: '24px'
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1f2937',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              🔄 Restore Stock Quantities
+            </h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#4b5563',
+              marginBottom: '16px',
+              lineHeight: '1.5'
+            }}>
+              Cancelling this order will restore the following quantities to stock:
+            </p>
+            
+            <div style={{
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '24px'
+            }}>
+              {showQuantityRestoreModal.order.items?.map((item, index) => {
+                const qtyStatus = getQuantityStatusColor(item.item?.quantity || 0);
+                const newQuantity = (item.item?.quantity || 0) + (item.quantity || 1);
+                const newQtyStatus = getQuantityStatusColor(newQuantity);
+                
+                return (
+                  <div key={index} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: index === showQuantityRestoreModal.order.items.length - 1 ? 'none' : '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
+                        {item.item?.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        Quantity: {item.quantity} × {formatCurrency(item.price)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                        Stock Status
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          backgroundColor: qtyStatus.background,
+                          color: qtyStatus.color
+                        }}>
+                          {qtyStatus.emoji} {qtyStatus.text}
+                        </span>
+                        <span style={{ color: '#9ca3af' }}>→</span>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          backgroundColor: newQtyStatus.background,
+                          color: newQtyStatus.color
+                        }}>
+                          {newQtyStatus.emoji} {newQtyStatus.text}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                onClick={() => setShowQuantityRestoreModal(null)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+              >
+                Don't Cancel
+              </button>
+              <button
+                onClick={() => handleCancelWithQuantityRestore(
+                  showQuantityRestoreModal.orderId,
+                  showQuantityRestoreModal.newStatus,
+                  showQuantityRestoreModal.order
+                )}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
+              >
+                🔄 Cancel & Restore Stock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal with Faculty and Quantity Information */}
       {selectedOrder && (
         <div style={{
           position: 'fixed',
@@ -1005,7 +1437,7 @@ const OrdersPage = () => {
             backgroundColor: '#ffffff',
             borderRadius: '12px',
             width: '100%',
-            maxWidth: '800px',
+            maxWidth: '900px',
             maxHeight: '90vh',
             overflow: 'auto'
           }} onClick={(e) => e.stopPropagation()}>
@@ -1026,6 +1458,16 @@ const OrdersPage = () => {
                 gap: '8px'
               }}>
                 📋 Order Details: {selectedOrder.orderNumber}
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  backgroundColor: getStatusColor(selectedOrder.status).background,
+                  color: getStatusColor(selectedOrder.status).color
+                }}>
+                  {getStatusColor(selectedOrder.status).emoji} {selectedOrder.status?.charAt(0).toUpperCase() + selectedOrder.status?.slice(1)}
+                </span>
               </h3>
               <button
                 onClick={() => setSelectedOrder(null)}
@@ -1044,6 +1486,7 @@ const OrdersPage = () => {
             </div>
             
             <div style={{ padding: '20px' }}>
+              {/* Order Summary */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -1068,21 +1511,11 @@ const OrdersPage = () => {
                   borderRadius: '8px'
                 }}>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                    📊 Status
+                    🎓 Faculty
                   </div>
-                  <span style={{
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    backgroundColor: getStatusColor(selectedOrder.status).background,
-                    color: getStatusColor(selectedOrder.status).color
-                  }}>
-                    {getStatusColor(selectedOrder.status).emoji} {selectedOrder.status?.charAt(0).toUpperCase() + selectedOrder.status?.slice(1)}
-                  </span>
+                  <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
+                    {selectedOrder.user?.faculty || selectedOrder.shippingAddress?.faculty || 'Not specified'}
+                  </div>
                 </div>
                 <div style={{
                   backgroundColor: '#f9fafb',
@@ -1115,11 +1548,12 @@ const OrdersPage = () => {
                     📦 Total Items
                   </div>
                   <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
-                    {selectedOrder.items?.length || 0} items
+                    {selectedOrder.items?.reduce((sum, item) => sum + (item.quantity || 1), 0)} units
                   </div>
                 </div>
               </div>
 
+              {/* Customer Information */}
               <div style={{ marginBottom: '24px' }}>
                 <h4 style={{
                   fontSize: '14px',
@@ -1133,24 +1567,51 @@ const OrdersPage = () => {
                   👤 Customer Information
                 </h4>
                 <div style={{
-                  backgroundColor: '#f9fafb',
-                  padding: '12px',
-                  borderRadius: '8px'
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '12px'
                 }}>
-                  <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
-                    {selectedOrder.user?.name}
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-                    📧 {selectedOrder.user?.email}
-                  </div>
-                  {selectedOrder.user?.phone && (
-                    <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-                      📱 {selectedOrder.user?.phone}
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    padding: '12px',
+                    borderRadius: '8px'
+                  }}>
+                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#1f2937' }}>
+                      {selectedOrder.user?.name || selectedOrder.customer?.name}
                     </div>
-                  )}
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                      📧 {selectedOrder.user?.email || selectedOrder.customer?.email}
+                    </div>
+                    {selectedOrder.user?.phone && (
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                        📱 {selectedOrder.user.phone}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    padding: '12px',
+                    borderRadius: '8px'
+                  }}>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                      🎓 Faculty
+                    </div>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      color: '#3b82f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      🎓 {selectedOrder.user?.faculty || selectedOrder.customer?.faculty || 'Not specified'}
+                    </div>
+                  </div>
                 </div>
               </div>
 
+              {/* Shipping Address with Faculty */}
               {selectedOrder.shippingAddress && (
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{
@@ -1177,15 +1638,21 @@ const OrdersPage = () => {
                       {selectedOrder.shippingAddress.address && `, ${selectedOrder.shippingAddress.address}`}
                     </div>
                     <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
-                      {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zipCode}
+                      {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state}
                     </div>
                     <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
                       {selectedOrder.shippingAddress.country}
                     </div>
+                    {selectedOrder.shippingAddress.faculty && (
+                      <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '4px', fontWeight: 500 }}>
+                        🎓 Faculty: {selectedOrder.shippingAddress.faculty}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* Order Items with Quantity Status */}
               <div style={{ marginBottom: '24px' }}>
                 <h4 style={{
                   fontSize: '14px',
@@ -1196,43 +1663,144 @@ const OrdersPage = () => {
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  🛍️ Order Items
+                  🛍️ Order Items & Stock Status
                 </h4>
                 <div style={{
                   border: '1px solid #e5e7eb',
                   borderRadius: '8px',
                   overflow: 'hidden'
                 }}>
-                  {selectedOrder.items?.map((item, index) => (
-                    <div 
-                      key={index} 
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 16px',
-                        borderBottom: index === selectedOrder.items.length - 1 ? 'none' : '1px solid #e5e7eb'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
-                          {item.item?.title}
+                  {selectedOrder.items?.map((item, index) => {
+                    const itemQty = item.item?.quantity || 0;
+                    const orderedQty = item.quantity || 1;
+                    const qtyStatus = getQuantityStatusColor(itemQty);
+                    const remainingQty = itemQty - orderedQty;
+                    const remainingStatus = getQuantityStatusColor(remainingQty);
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        style={{
+                          padding: '16px',
+                          borderBottom: index === selectedOrder.items.length - 1 ? 'none' : '1px solid #e5e7eb'
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          marginBottom: '12px'
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
+                              {item.item?.title || item.item?.itemSnapshot?.title}
+                            </div>
+                            {item.item?.itemSnapshot?.faculty && (
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#3b82f6',
+                                backgroundColor: '#dbeafe',
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginTop: '4px'
+                              }}>
+                                🎓 {item.item.itemSnapshot.faculty}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
+                            {formatCurrency(item.price * item.quantity)}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                          📦 Quantity: {item.quantity}
-                          <span style={{ marginLeft: '12px' }}>
-                            💰 Unit Price: {formatCurrency(item.price)}
-                          </span>
+                        
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                          gap: '12px',
+                          marginTop: '8px'
+                        }}>
+                          <div style={{
+                            backgroundColor: '#f9fafb',
+                            padding: '8px',
+                            borderRadius: '6px'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>
+                              📦 Ordered Quantity
+                            </div>
+                            <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
+                              {item.quantity} unit{item.quantity > 1 ? 's' : ''}
+                            </div>
+                          </div>
+                          
+                          <div style={{
+                            backgroundColor: '#f9fafb',
+                            padding: '8px',
+                            borderRadius: '6px'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>
+                              📊 Current Stock Status
+                            </div>
+                            <div style={{
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: qtyStatus.background,
+                              color: qtyStatus.color,
+                              padding: '2px 8px',
+                              borderRadius: '9999px'
+                            }}>
+                              {qtyStatus.emoji} {qtyStatus.text}
+                            </div>
+                          </div>
+                          
+                          {selectedOrder.status !== 'cancelled' && (
+                            <div style={{
+                              backgroundColor: '#f9fafb',
+                              padding: '8px',
+                              borderRadius: '6px'
+                            }}>
+                              <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>
+                                📈 After This Order
+                              </div>
+                              <div style={{
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: remainingStatus.background,
+                                color: remainingStatus.color,
+                                padding: '2px 8px',
+                                borderRadius: '9999px'
+                              }}>
+                                {remainingStatus.emoji} {remainingStatus.text}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          marginTop: '8px',
+                          display: 'flex',
+                          justifyContent: 'space-between'
+                        }}>
+                          <span>💰 Unit Price: {formatCurrency(item.price)}</span>
+                          <span>✖️ Total: {formatCurrency(item.price * item.quantity)}</span>
                         </div>
                       </div>
-                      <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: 500 }}>
-                        {formatCurrency(item.price * item.quantity)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Order Summary */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',

@@ -1,6 +1,7 @@
+// src/pages/user/Dashboard.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import apiService from "../services/api"; // CHANGED: Import apiService
+import apiService from "../services/api";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [error, setError] = useState("");
+  const [apiError, setApiError] = useState(null);
 
   // Helper Functions
   const getGreeting = () => {
@@ -82,80 +84,80 @@ const Dashboard = () => {
       try {
         setLoading(true);
         setError("");
+        setApiError(null);
         
-        // 🔥 CHANGED: Use apiService.items.getMyItems()
-        const itemsResponse = await apiService.items.getMyItems();
-        console.log("Dashboard Items API Response:", itemsResponse.data);
+        console.log("🔄 Fetching dashboard data...");
         
-        // Extract items from the new API response structure
-        const userItems = itemsResponse.data?.data?.items || 
-                         itemsResponse.data?.items || 
-                         itemsResponse.data || 
-                         [];
+        // Check if user is authenticated
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error("❌ No authentication token found");
+          setError("Please login to access dashboard");
+          setLoading(false);
+          return;
+        }
         
-        console.log("Extracted userItems:", userItems.length, "items");
-        setAllItems(userItems);
-        
-        // 🔥 FIX: Handle Cloudinary URLs
-        const itemsWithImageURL = userItems.map(item => ({
-          ...item,
-          // Ensure we have the Cloudinary URL
-          imageURL: item.imageURL || item.image || null
-        }));
-        
-        setAllItems(itemsWithImageURL);
-        
-        // Fetch barter requests
+        // Try to fetch user's items with proper error handling
+        let userItems = [];
         try {
-          const barterResponse = await apiService.barter.getMyBarters();
-          console.log("Barter API Response:", barterResponse.data);
+          console.log("📦 Fetching user items...");
+          const itemsResponse = await apiService.items.getMyItems();
+          console.log("✅ Items API Response:", itemsResponse);
           
-          const barters = barterResponse.data?.data || 
-                         barterResponse.data || 
-                         [];
-          
-          console.log("Extracted barters:", barters.length, "barters");
-          setAllBarters(barters);
-          
-          // Calculate barter stats
-          let activeBarters = 0;
-          let pendingRequests = 0;
-          
-          if (barters.length > 0) {
-            activeBarters = barters.filter(b => b?.status === "pending" || b?.status === "negotiating").length;
-            
-            // Get user info from localStorage
-            const user = JSON.parse(localStorage.getItem("user") || "{}");
-            const userId = user?._id?.toString() || user?.id;
-            
-            pendingRequests = barters.filter(b => {
-              const ownerId = b?.owner?._id?.toString() || b?.owner?.toString() || b?.ownerId;
-              return (b?.status === "pending") && (ownerId === userId);
-            }).length;
+          // Handle different response structures
+          if (Array.isArray(itemsResponse)) {
+            userItems = itemsResponse;
+          } else if (itemsResponse?.data?.items) {
+            userItems = itemsResponse.data.items;
+          } else if (itemsResponse?.data) {
+            userItems = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
+          } else if (itemsResponse?.items) {
+            userItems = itemsResponse.items;
           }
           
-          // Update stats with barters
-          setStats(prev => ({
-            ...prev,
-            activeBarters,
-            pendingRequests
-          }));
+          console.log(`✅ Extracted ${userItems.length} items`);
           
-          // Set recent barters
-          setRecentBarters(barters.slice(0, 3));
+        } catch (itemsError) {
+          console.error("❌ Error fetching items:", itemsError);
+          setApiError({
+            type: 'items',
+            message: itemsError.response?.data?.message || itemsError.message
+          });
+          // Don't set error state, just log it
+        }
+        
+        // Try to fetch barters
+        let barters = [];
+        try {
+          console.log("🔄 Fetching barters...");
+          const barterResponse = await apiService.barter.getMyBarters();
+          console.log("✅ Barter API Response:", barterResponse);
+          
+          if (Array.isArray(barterResponse)) {
+            barters = barterResponse;
+          } else if (barterResponse?.data) {
+            barters = Array.isArray(barterResponse.data) ? barterResponse.data : [];
+          } else if (barterResponse?.barters) {
+            barters = barterResponse.barters;
+          }
+          
+          console.log(`✅ Extracted ${barters.length} barters`);
           
         } catch (barterError) {
-          console.warn("Could not fetch barters:", barterError);
-          setAllBarters([]);
-          setRecentBarters([]);
+          console.warn("⚠️ Could not fetch barters:", barterError);
+          // Don't set error state, just log it
         }
+        
+        // Update states
+        setAllItems(Array.isArray(userItems) ? userItems : []);
+        setAllBarters(Array.isArray(barters) ? barters : []);
         
         // Calculate item stats
         let totalValue = 0;
         let itemsThisMonth = 0;
         let totalViews = 0;
         
-        if (userItems.length > 0) {
+        if (Array.isArray(userItems) && userItems.length > 0) {
           totalValue = userItems.reduce((sum, item) => {
             const price = parseFloat(item?.price) || 0;
             return sum + price;
@@ -168,27 +170,91 @@ const Dashboard = () => {
           const currentYear = new Date().getFullYear();
           itemsThisMonth = userItems.filter(item => {
             if (!item?.createdAt) return false;
-            const itemDate = new Date(item.createdAt);
-            return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
+            try {
+              const itemDate = new Date(item.createdAt);
+              return itemDate.getMonth() === currentMonth && 
+                     itemDate.getFullYear() === currentYear;
+            } catch (e) {
+              return false;
+            }
+          }).length;
+        }
+        
+        // Calculate barter stats
+        let activeBarters = 0;
+        let pendingRequests = 0;
+        
+        if (Array.isArray(barters) && barters.length > 0) {
+          // Get user info from localStorage
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const userId = user?._id?.toString() || user?.id;
+          
+          activeBarters = barters.filter(b => {
+            return b?.status === "pending" || b?.status === "negotiating" || b?.status === "accepted";
+          }).length;
+          
+          pendingRequests = barters.filter(b => {
+            const ownerId = b?.owner?._id?.toString() || 
+                           b?.owner?.toString() || 
+                           b?.ownerId?.toString() || 
+                           b?.item?.ownerId?.toString();
+            return b?.status === "pending" && ownerId === userId;
           }).length;
         }
         
         // Update stats
         setStats({
-          totalItems: userItems.length,
+          totalItems: Array.isArray(userItems) ? userItems.length : 0,
           totalValue: totalValue,
-          activeBarters: stats.activeBarters, // Keep existing or default
-          pendingRequests: stats.pendingRequests,
+          activeBarters: activeBarters,
+          pendingRequests: pendingRequests,
           itemsThisMonth: itemsThisMonth,
           totalViews: totalViews
         });
         
         // Set recent items (last 3)
-        setRecentItems(itemsWithImageURL.slice(0, 3));
+        if (Array.isArray(userItems) && userItems.length > 0) {
+          const sortedItems = [...userItems].sort((a, b) => {
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          });
+          setRecentItems(sortedItems.slice(0, 3));
+        } else {
+          setRecentItems([]);
+        }
+        
+        // Set recent barters
+        if (Array.isArray(barters) && barters.length > 0) {
+          const sortedBarters = [...barters].sort((a, b) => {
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          });
+          setRecentBarters(sortedBarters.slice(0, 3));
+        } else {
+          setRecentBarters([]);
+        }
+        
+        console.log("✅ Dashboard data loaded successfully");
         
       } catch (err) {
-        console.error("❌ Error fetching dashboard data:", err);
-        setError(err.response?.data?.message || "Failed to load dashboard data. Please try again.");
+        console.error("❌ Critical error fetching dashboard data:", err);
+        
+        // Handle specific error cases
+        if (err.response?.status === 401) {
+          setError("Your session has expired. Please login again.");
+          // Clear invalid tokens
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+        } else if (err.response?.status === 400) {
+          setError("Invalid request. Please check your data and try again.");
+        } else if (err.response?.status === 404) {
+          setError("API endpoint not found. Please contact support.");
+        } else if (err.message === 'Network Error') {
+          setError("Network error. Please check your internet connection.");
+        } else {
+          setError(err.response?.data?.message || "Failed to load dashboard data. Please try again.");
+        }
+        
+        // Set empty arrays on error
         setAllItems([]);
         setAllBarters([]);
         setRecentItems([]);
@@ -230,7 +296,7 @@ const Dashboard = () => {
   }
 
   // Render error state
-  if (error) {
+  if (error && allItems.length === 0 && allBarters.length === 0) {
     return (
       <div className="container" style={{ maxWidth: "1400px", margin: "40px auto" }}>
         <div style={{ 
@@ -245,24 +311,50 @@ const Dashboard = () => {
           <p style={{ color: "#6c757d", marginBottom: "30px", maxWidth: "500px", margin: "0 auto" }}>
             {error}
           </p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="btn btn-primary"
-            style={{ 
-              padding: "12px 32px", 
-              fontSize: "16px",
-              background: "linear-gradient(135deg, #4361ee, #7209b7)",
-              border: "none",
-              borderRadius: "6px",
-              color: "white",
-              fontWeight: "500",
-              transition: "all 0.3s"
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
-            onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-          >
-            Reload Dashboard
-          </button>
+          <div style={{ display: "flex", gap: "15px", justifyContent: "center" }}>
+            <button 
+              onClick={() => window.location.reload()}
+              className="btn btn-primary"
+              style={{ 
+                padding: "12px 32px", 
+                fontSize: "16px",
+                background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                border: "none",
+                borderRadius: "6px",
+                color: "white",
+                fontWeight: "500",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
+            >
+              Retry
+            </button>
+            <button 
+              onClick={() => navigate('/add-item')}
+              className="btn btn-outline"
+              style={{ 
+                padding: "12px 32px", 
+                fontSize: "16px",
+                border: "1px solid #4361ee",
+                background: "transparent",
+                borderRadius: "6px",
+                color: "#4361ee",
+                fontWeight: "500",
+                transition: "all 0.3s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#4361ee";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "#4361ee";
+              }}
+            >
+              Add New Item
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -281,6 +373,45 @@ const Dashboard = () => {
 
   return (
     <div className="container" style={{ maxWidth: "1400px", margin: "40px auto" }}>
+      {/* API Error Warning */}
+      {apiError && (
+        <div style={{
+          background: "#fff3cd",
+          border: "1px solid #ffeaa7",
+          borderRadius: "8px",
+          padding: "16px",
+          marginBottom: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "20px" }}>⚠️</span>
+            <div>
+              <p style={{ margin: 0, fontWeight: "500", color: "#856404" }}>
+                Partial data loaded
+              </p>
+              <p style={{ margin: "5px 0 0 0", fontSize: "14px", color: "#856404", opacity: 0.8 }}>
+                Some features may not work correctly
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setApiError(null)}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "18px",
+              color: "#856404",
+              cursor: "pointer",
+              padding: "5px"
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: "40px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
@@ -762,6 +893,12 @@ const Dashboard = () => {
                         </span>
                       </div>
                     </div>
+                    
+                    {barter.message && (
+                      <p style={{ color: "#6c757d", fontSize: "14px", margin: 0, fontStyle: "italic" }}>
+                        "{barter.message}"
+                      </p>
+                    )}
                     
                     <button 
                       onClick={() => navigate(`/barter/${barter._id}`)}

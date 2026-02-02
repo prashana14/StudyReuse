@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/CartProvider";
 
 const ItemCard = ({ item }) => {
   const [imageSrc, setImageSrc] = useState('');
@@ -11,31 +11,66 @@ const ItemCard = ({ item }) => {
   
   // Get quantity in cart
   const quantityInCart = getItemQuantity(item._id);
+  
+  // Calculate available quantity
+  const availableQuantity = item.quantity || 0;
+  const canAddToCart = item.status === 'Available' && 
+                      availableQuantity > 0 && 
+                      quantityInCart < availableQuantity;
 
-  // Get status color
-  const getStatusColor = (status) => {
+  // Get status color - UPDATED
+  const getStatusColor = (status, quantity) => {
+    if (quantity <= 0) return '#dc3545'; // Red for sold out
     switch(status) {
       case 'Available': return '#28a745';
       case 'Sold': return '#dc3545';
+      case 'Sold Out': return '#dc3545';
       case 'Under Negotiation': return '#ffc107';
       case 'Unavailable': return '#6c757d';
       default: return '#6c757d';
     }
   };
 
-  // Get status text
-  const getStatusText = (status) => {
+  // Get status text - UPDATED
+  const getStatusText = (status, quantity) => {
+    if (quantity <= 0) return 'SOLD OUT';
     switch(status) {
       case 'Available': return 'AVAILABLE';
       case 'Sold': return 'SOLD';
+      case 'Sold Out': return 'SOLD OUT';
       case 'Under Negotiation': return 'NEGOTIATION';
       case 'Unavailable': return 'UNAVAILABLE';
       default: return 'UNKNOWN';
     }
   };
 
-  // ✅ SIMPLIFIED: Use Cloudinary URL directly
-  const imageUrl = item.imageURL || item.image; // Cloudinary provides full URL
+  // Get availability badge - NEW
+  const getAvailabilityBadge = () => {
+    if (availableQuantity <= 0) {
+      return {
+        text: 'SOLD OUT',
+        color: '#dc3545',
+        bgColor: '#f8d7da'
+      };
+    }
+    
+    if (availableQuantity <= 3) {
+      return {
+        text: `ONLY ${availableQuantity} LEFT`,
+        color: '#ff6b6b',
+        bgColor: '#fff5f5'
+      };
+    }
+    
+    return {
+      text: `${availableQuantity} AVAILABLE`,
+      color: '#28a745',
+      bgColor: '#d4edda'
+    };
+  };
+
+  // Image URL handling
+  const imageUrl = item.imageURL || item.image;
 
   useEffect(() => {
     if (!imageUrl || imageUrl.trim() === '') {
@@ -47,11 +82,9 @@ const ItemCard = ({ item }) => {
     setIsLoading(true);
     setHasError(false);
     
-    // Check if it's a Cloudinary URL
     const isCloudinaryUrl = imageUrl.includes('cloudinary.com');
     
     if (isCloudinaryUrl) {
-      // Cloudinary URLs are reliable, preload for better UX
       const img = new Image();
       img.src = imageUrl;
       
@@ -65,35 +98,37 @@ const ItemCard = ({ item }) => {
         setIsLoading(false);
       };
       
-      // Add timeout for safety
       setTimeout(() => {
         if (!img.complete) {
-          // Still try to show the image (Cloudinary might be slow)
           setImageSrc(imageUrl);
           setIsLoading(false);
         }
       }, 2000);
     } else {
-      // Handle non-Cloudinary URLs (legacy)
       setImageSrc(imageUrl);
       setIsLoading(false);
     }
   }, [imageUrl]);
 
-  // Add to cart handler
+  // Add to cart handler - UPDATED
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (item.status !== 'Available') {
-      alert(`This item is ${item.status}. Cannot add to cart.`);
+    if (!canAddToCart) {
+      if (availableQuantity <= 0) {
+        alert('This item is sold out.');
+      } else if (quantityInCart >= availableQuantity) {
+        alert(`Cannot add more. Only ${availableQuantity} available.`);
+      } else {
+        alert(`Item is ${item.status}. Cannot add to cart.`);
+      }
       return;
     }
     
     setIsAdding(true);
     addToCart(item);
     
-    // Reset button state after animation
     setTimeout(() => {
       setIsAdding(false);
     }, 1000);
@@ -115,7 +150,7 @@ const ItemCard = ({ item }) => {
     return 'ITEM';
   };
 
-  // Get placeholder background based on category
+  // Get placeholder background
   const getPlaceholderBackground = () => {
     const category = (item.category || '').toLowerCase();
     
@@ -167,6 +202,8 @@ const ItemCard = ({ item }) => {
     return conditionMap[condition] || condition;
   };
 
+  const availabilityBadge = getAvailabilityBadge();
+
   return (
     <div 
       className="card m-2 shadow-sm" 
@@ -193,7 +230,7 @@ const ItemCard = ({ item }) => {
         e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
       }}
     >
-      {/* Quantity badge if item is in cart */}
+      {/* Quantity in cart badge */}
       {quantityInCart > 0 && (
         <div style={{
           position: "absolute",
@@ -215,6 +252,24 @@ const ItemCard = ({ item }) => {
           <span>🛒</span> {quantityInCart} in cart
         </div>
       )}
+
+      {/* Availability Badge - NEW */}
+      <div style={{
+        position: "absolute",
+        top: "10px",
+        right: "10px",
+        background: availabilityBadge.bgColor,
+        color: availabilityBadge.color,
+        padding: "3px 8px",
+        borderRadius: "4px",
+        fontSize: "10px",
+        fontWeight: "600",
+        letterSpacing: "0.5px",
+        zIndex: 10,
+        border: `1px solid ${availabilityBadge.color}20`
+      }}>
+        {availabilityBadge.text}
+      </div>
 
       {/* Image Container */}
       <div style={{ 
@@ -284,25 +339,6 @@ const ItemCard = ({ item }) => {
             }}>
               {getPlaceholderText()}
             </div>
-          </div>
-        )}
-        
-        {/* Status Badge - TOP RIGHT (moved because cart badge is on left) */}
-        {item.status && (
-          <div style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            background: getStatusColor(item.status),
-            color: "white",
-            padding: "3px 8px",
-            borderRadius: "4px",
-            fontSize: "10px",
-            fontWeight: "600",
-            letterSpacing: "0.5px",
-            zIndex: 10
-          }}>
-            {getStatusText(item.status)}
           </div>
         )}
         
@@ -399,7 +435,30 @@ const ItemCard = ({ item }) => {
           )}
         </div>
         
-        {/* Owner Info (if available) */}
+        {/* Quantity Info - NEW */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px",
+          background: "#f8f9fa",
+          borderRadius: "6px",
+          fontSize: "12px",
+          color: "#495057"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <span style={{ fontSize: "14px" }}>📦</span>
+            <span>Stock:</span>
+          </div>
+          <div style={{ 
+            fontWeight: "600",
+            color: availableQuantity > 0 ? "#28a745" : "#dc3545"
+          }}>
+            {availableQuantity > 0 ? `${availableQuantity} units` : 'Out of stock'}
+          </div>
+        </div>
+        
+        {/* Owner Info */}
         {item.owner && typeof item.owner === 'object' && item.owner.name && (
           <div style={{
             display: "flex",
@@ -468,35 +527,35 @@ const ItemCard = ({ item }) => {
             View Details
           </Link>
           
-          {/* Add to Cart Button */}
+          {/* Add to Cart Button - UPDATED */}
           <button
             onClick={handleAddToCart}
-            disabled={isAdding || item.status !== 'Available'}
+            disabled={isAdding || !canAddToCart}
             style={{ 
               width: "100%",
-              background: isAdding ? "#28a745" : (item.status === 'Available' ? "#20c997" : "#6c757d"),
+              background: isAdding ? "#28a745" : (canAddToCart ? "#20c997" : "#6c757d"),
               border: "none",
               borderRadius: "6px",
               padding: "10px",
               fontWeight: "600",
               transition: "all 0.3s",
               color: "white",
-              cursor: item.status === 'Available' ? "pointer" : "not-allowed",
+              cursor: canAddToCart ? "pointer" : "not-allowed",
               fontSize: "13px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: "5px",
-              opacity: (isAdding || item.status === 'Available') ? 1 : 0.7
+              opacity: (isAdding || canAddToCart) ? 1 : 0.7
             }}
             onMouseEnter={(e) => {
-              if (item.status === 'Available' && !isAdding) {
+              if (canAddToCart && !isAdding) {
                 e.target.style.transform = "translateY(-1px)";
                 e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
               }
             }}
             onMouseLeave={(e) => {
-              if (item.status === 'Available' && !isAdding) {
+              if (canAddToCart && !isAdding) {
                 e.target.style.transform = "translateY(0)";
                 e.target.style.boxShadow = "none";
               }
@@ -514,7 +573,7 @@ const ItemCard = ({ item }) => {
                 }}></div>
                 Adding...
               </>
-            ) : item.status === 'Available' ? (
+            ) : canAddToCart ? (
               quantityInCart > 0 ? (
                 <>
                   <span>🛒</span> Add More ({quantityInCart} in cart)
@@ -524,6 +583,8 @@ const ItemCard = ({ item }) => {
                   <span>🛒</span> Add to Cart
                 </>
               )
+            ) : availableQuantity <= 0 ? (
+              '❌ Sold Out'
             ) : (
               `❌ ${item.status}`
             )}
@@ -546,10 +607,6 @@ const ItemCard = ({ item }) => {
           
           .card h5 {
             font-size: 14px !important;
-          }
-          
-          .buttons-container {
-            flex-direction: column !important;
           }
         }
       `}</style>
