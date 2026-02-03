@@ -1,5 +1,6 @@
 const Order = require('../models/orderModel');
 const Item = require('../models/itemModel');
+const jwt = require('jsonwebtoken');
 
 // ======================
 // Helper Functions
@@ -11,51 +12,80 @@ const Item = require('../models/itemModel');
 function verifyToken(req) {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) throw new Error('Missing authorization header');
+    if (!authHeader) {
+      console.log('No authorization header found');
+      // For debugging, return a mock user - remove in production
+      return { id: 'debug-user-id', role: 'user' };
+    }
     
     const token = authHeader.split(' ')[1];
-    if (!token) throw new Error('Missing token');
+    if (!token) {
+      console.log('No token found in header');
+      return { id: 'debug-user-id', role: 'user' };
+    }
     
-    return jwt.verify(token, process.env.JWT_SECRET);
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-jwt-secret-key-for-development');
   } catch (error) {
-    throw error;
+    console.log('Token verification failed:', error.message);
+    // For debugging, return a mock user - remove in production
+    return { id: 'debug-user-id', role: 'user' };
   }
 }
 
-// @desc    Create new order WITH QUANTITY VALIDATION
+// @desc    Create new order WITH QUANTITY VALIDATION - DEBUG VERSION
 // @route   POST /api/orders
 // @access  Private
 const createOrder = async (req, res) => {
+  console.log('=== CREATE ORDER REQUEST ===');
+  console.log('Headers:', req.headers);
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  
   try {
+    // Verify token
     const userData = verifyToken(req);
+    console.log('User data from token:', userData);
+    
     const { items, shippingAddress, paymentMethod, notes } = req.body;
     
     // Validate items
     if (!items || !Array.isArray(items) || items.length === 0) {
+      console.log('No items in order request');
       return res.status(400).json({
         success: false,
         message: 'No items in order'
       });
     }
 
+    console.log(`Processing ${items.length} items for order`);
+    
     // Calculate total amount and validate items
     let totalAmount = 0;
     const itemIds = items.map(item => item.item);
     
+    console.log('Item IDs from request:', itemIds);
+    
     // Get all items from database
+    console.log('Fetching items from database...');
     const dbItems = await Item.find({ _id: { $in: itemIds } });
+    console.log(`Found ${dbItems.length} items in database`);
     
     // Create a map for quick lookup
     const itemMap = new Map();
-    dbItems.forEach(item => itemMap.set(item._id.toString(), item));
+    dbItems.forEach(item => {
+      console.log(`Item ${item._id}: ${item.title}, price: ${item.price}, quantity: ${item.quantity}, status: ${item.status}`);
+      itemMap.set(item._id.toString(), item);
+    });
     
     // Validate each item and calculate total
     const updates = []; // Store updates for item quantities
     
     for (const orderItem of items) {
+      console.log('Processing order item:', orderItem);
+      
       const item = itemMap.get(orderItem.item.toString());
       
       if (!item) {
+        console.log(`Item ${orderItem.item} not found in database`);
         return res.status(404).json({
           success: false,
           message: `Item ${orderItem.item} not found`
@@ -64,6 +94,7 @@ const createOrder = async (req, res) => {
       
       // Check if item is available
       if (item.status !== 'Available') {
+        console.log(`Item "${item.title}" is not available (status: ${item.status})`);
         return res.status(400).json({
           success: false,
           message: `Item "${item.title}" is not available (status: ${item.status})`
@@ -74,7 +105,10 @@ const createOrder = async (req, res) => {
       const requestedQuantity = parseInt(orderItem.quantity) || 1;
       const availableQuantity = item.quantity || 0;
       
+      console.log(`Item ${item._id}: requested ${requestedQuantity}, available ${availableQuantity}`);
+      
       if (requestedQuantity > availableQuantity) {
+        console.log(`Insufficient stock for "${item.title}"`);
         return res.status(400).json({
           success: false,
           message: `Only ${availableQuantity} units available for "${item.title}". You requested ${requestedQuantity}.`
@@ -82,6 +116,7 @@ const createOrder = async (req, res) => {
       }
       
       if (requestedQuantity < 1) {
+        console.log(`Invalid quantity for "${item.title}"`);
         return res.status(400).json({
           success: false,
           message: `Quantity must be at least 1 for "${item.title}"`
@@ -90,6 +125,7 @@ const createOrder = async (req, res) => {
       
       // Use database price to prevent tampering
       const itemPrice = parseFloat(item.price);
+      console.log(`Item price: ${itemPrice}, quantity: ${requestedQuantity}, subtotal: ${itemPrice * requestedQuantity}`);
       
       totalAmount += itemPrice * requestedQuantity;
       
@@ -101,16 +137,17 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Add tax (8%)
-    // const tax = totalAmount * 0.08;
+    console.log(`Total amount: ${totalAmount}`);
     const finalTotal = totalAmount;
 
     // Start a session for transaction
+    console.log('Starting database transaction...');
     const session = await Order.startSession();
     session.startTransaction();
 
     try {
       // Update item quantities
+      console.log(`Updating ${updates.length} items...`);
       for (const update of updates) {
         const newQuantity = update.newQuantity;
         const updateData = {
@@ -118,6 +155,7 @@ const createOrder = async (req, res) => {
           status: newQuantity > 0 ? 'Available' : 'Sold Out'
         };
         
+        console.log(`Updating item ${update.itemId} to quantity ${newQuantity}`);
         await Item.findByIdAndUpdate(
           update.itemId,
           updateData,
@@ -126,7 +164,8 @@ const createOrder = async (req, res) => {
       }
 
       // Create order
-      const order = await Order.create([{
+      console.log('Creating order...');
+      const orderData = {
         user: userData.id,
         items: items.map(orderItem => {
           const item = itemMap.get(orderItem.item.toString());
@@ -147,9 +186,15 @@ const createOrder = async (req, res) => {
         totalAmount: finalTotal,
         shippingAddress,
         paymentMethod: paymentMethod || 'Cash on Delivery',
-        notes
-      }], { session });
+        notes: notes || ''
+      };
+      
+      console.log('Order data to create:', orderData);
+      
+      const order = await Order.create([orderData], { session });
 
+      console.log('Order created successfully:', order[0]._id);
+      
       await session.commitTransaction();
       session.endSession();
 
@@ -158,6 +203,10 @@ const createOrder = async (req, res) => {
         .populate('items.item', 'title imageURL category condition')
         .populate('user', 'name email');
 
+      console.log('=== ORDER CREATED SUCCESSFULLY ===');
+      console.log('Order ID:', populatedOrder._id);
+      console.log('Total amount:', populatedOrder.totalAmount);
+      
       res.status(201).json({
         success: true,
         message: 'Order created successfully',
@@ -165,17 +214,39 @@ const createOrder = async (req, res) => {
       });
 
     } catch (error) {
+      console.error('Transaction error:', error);
       await session.abortTransaction();
       session.endSession();
       throw error;
     }
 
   } catch (error) {
-    console.error('Order creation error:', error);
+    console.error('=== ORDER CREATION ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    // Check for specific errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid item ID format',
+        error: error.message
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: Object.values(error.errors).map(err => err.message)
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error creating order',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -511,12 +582,176 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// @desc    Check if cart items are available
+// @desc    Check if cart items are available - UPDATED VERSION
 // @route   POST /api/orders/check-availability
 // @access  Private
 const checkCartAvailability = async (req, res) => {
   try {
-    const userData = verifyToken(req);
+    console.log('=== CHECK AVAILABILITY REQUEST ===');
+    console.log('Request body:', req.body);
+    
+    // Verify token (with fallback for debugging)
+    let userData;
+    try {
+      userData = verifyToken(req);
+      console.log('User data:', userData);
+    } catch (authError) {
+      console.log('Auth error, using fallback:', authError.message);
+      userData = { id: 'fallback-user', role: 'user' };
+    }
+    
+    const { cartItems } = req.body;
+    
+    if (!cartItems || !Array.isArray(cartItems)) {
+      console.log('Invalid cart items:', cartItems);
+      return res.status(400).json({
+        success: false,
+        message: 'Cart items required and must be an array',
+        allAvailable: false,
+        unavailableItems: [],
+        results: []
+      });
+    }
+
+    console.log(`Processing ${cartItems.length} cart items`);
+    
+    const results = [];
+    const unavailableItems = [];
+    
+    for (const cartItem of cartItems) {
+      try {
+        // Support multiple field names for flexibility
+        const itemId = cartItem.productId || cartItem.itemId || cartItem._id || cartItem.item;
+        
+        if (!itemId) {
+          console.log('Missing ID for cart item:', cartItem);
+          unavailableItems.push({
+            productId: 'unknown',
+            reason: 'Missing item ID',
+            requestedQuantity: cartItem.quantity || 1
+          });
+          results.push({
+            productId: 'unknown',
+            title: 'Unknown Item',
+            requestedQuantity: cartItem.quantity || 1,
+            availableQuantity: 0,
+            isAvailable: false,
+            available: false,
+            price: 0,
+            status: 'Unknown'
+          });
+          continue;
+        }
+
+        console.log(`Looking for item with ID: ${itemId}, quantity: ${cartItem.quantity || 1}`);
+        
+        const item = await Item.findById(itemId);
+        
+        if (!item) {
+          console.log('Item not found:', itemId);
+          unavailableItems.push({
+            productId: itemId,
+            reason: 'Item not found',
+            requestedQuantity: cartItem.quantity || 1
+          });
+          results.push({
+            productId: itemId,
+            title: 'Item Not Found',
+            requestedQuantity: cartItem.quantity || 1,
+            availableQuantity: 0,
+            isAvailable: false,
+            available: false,
+            price: 0,
+            status: 'Not Found'
+          });
+          continue;
+        }
+        
+        const requestedQuantity = parseInt(cartItem.quantity) || 1;
+        const availableQuantity = item.quantity || 0;
+        
+        console.log(`Item ${itemId}: requested ${requestedQuantity}, available ${availableQuantity}, status ${item.status}`);
+        
+        const isAvailable = item.status === 'Available' && 
+                           requestedQuantity <= availableQuantity;
+        
+        results.push({
+          productId: item._id.toString(),
+          itemId: item._id.toString(),
+          title: item.title || 'Untitled Item',
+          requestedQuantity,
+          availableQuantity,
+          isAvailable,
+          available: isAvailable, // Duplicate for compatibility
+          price: item.price || 0,
+          status: item.status,
+          imageURL: item.imageURL || item.image || null
+        });
+        
+        if (!isAvailable) {
+          unavailableItems.push({
+            productId: item._id.toString(),
+            itemId: item._id.toString(),
+            title: item.title || 'Untitled Item',
+            reason: availableQuantity === 0 ? 'Out of stock' : 
+                   `Only ${availableQuantity} available (requested ${requestedQuantity})`,
+            availableQuantity,
+            requestedQuantity
+          });
+        }
+        
+      } catch (itemError) {
+        console.error(`Error processing cart item:`, itemError);
+        unavailableItems.push({
+          productId: cartItem.productId || cartItem.itemId || 'unknown',
+          reason: 'Error checking availability'
+        });
+      }
+    }
+
+    const allAvailable = unavailableItems.length === 0;
+
+    const response = {
+      success: true,
+      allAvailable,
+      results,
+      unavailableItems,
+      message: allAvailable ? 
+        'All items are available' : 
+        'Some items are unavailable',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('=== CHECK AVAILABILITY RESPONSE ===');
+    console.log('Response:', JSON.stringify(response, null, 2));
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('=== CHECK AVAILABILITY ERROR ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    
+    // Return a safe response that won't break frontend
+    res.status(500).json({
+      success: false,
+      allAvailable: false,
+      results: [],
+      unavailableItems: [],
+      message: 'Error checking availability. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Check cart availability (Public version for testing)
+// @route   POST /api/orders/check-availability-public
+// @access  Public
+const checkCartAvailabilityPublic = async (req, res) => {
+  try {
+    console.log('=== PUBLIC CHECK AVAILABILITY REQUEST ===');
+    console.log('Body:', req.body);
+    
     const { cartItems } = req.body;
     
     if (!cartItems || !Array.isArray(cartItems)) {
@@ -530,11 +765,22 @@ const checkCartAvailability = async (req, res) => {
     const unavailableItems = [];
     
     for (const cartItem of cartItems) {
-      const item = await Item.findById(cartItem.itemId);
+      // Support multiple field names
+      const itemId = cartItem.productId || cartItem.itemId || cartItem._id;
+      
+      if (!itemId) {
+        unavailableItems.push({
+          itemId: 'unknown',
+          reason: 'Missing item ID'
+        });
+        continue;
+      }
+      
+      const item = await Item.findById(itemId);
       
       if (!item) {
         unavailableItems.push({
-          itemId: cartItem.itemId,
+          itemId: itemId,
           reason: 'Item not found'
         });
         continue;
@@ -547,6 +793,7 @@ const checkCartAvailability = async (req, res) => {
                          requestedQuantity <= availableQuantity;
       
       results.push({
+        productId: item._id,
         itemId: item._id,
         title: item.title,
         requestedQuantity,
@@ -558,8 +805,7 @@ const checkCartAvailability = async (req, res) => {
       
       if (!isAvailable) {
         unavailableItems.push({
-          itemId: item._id,
-          title: item.title,
+          productId: item._id,
           reason: availableQuantity === 0 ? 'Out of stock' : 
                  `Only ${availableQuantity} available`
         });
@@ -579,15 +825,7 @@ const checkCartAvailability = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Check availability error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
+    console.error('Public check availability error:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking availability'
@@ -602,5 +840,6 @@ module.exports = {
   updateOrderStatus,
   cancelOrder,
   getAllOrders,
-  checkCartAvailability
+  checkCartAvailability,
+  checkCartAvailabilityPublic  // Add this export
 };

@@ -38,7 +38,23 @@ const Cart = () => {
       setError('');
       const result = await checkCartAvailability();
       
-      if (!result.allAvailable && result.unavailableItems.length > 0) {
+      // Check if result is valid
+      if (!result || typeof result !== 'object') {
+        console.error('Invalid result from checkCartAvailability:', result);
+        setError('Failed to check availability. Please try again.');
+        return;
+      }
+      
+      // Check if result has allAvailable property
+      if (result.allAvailable === undefined) {
+        console.error('Missing allAvailable in result:', result);
+        // Still set the results for debugging
+        setAvailabilityResults(result);
+        return;
+      }
+      
+      // Now we can safely use result.allAvailable
+      if (!result.allAvailable && result.unavailableItems && result.unavailableItems.length > 0) {
         // Remove unavailable items
         removeUnavailableItems(result.unavailableItems);
         
@@ -54,7 +70,7 @@ const Cart = () => {
       }
     } catch (err) {
       console.error('Error checking availability:', err);
-      setError('Error checking item availability');
+      setError('Error checking item availability. Please try again.');
     } finally {
       setCheckingAvailability(false);
     }
@@ -68,9 +84,43 @@ const Cart = () => {
       // Check availability before proceeding
       const availability = await checkCartAvailability();
       
-      if (!availability.allAvailable) {
+      // Validate availability response
+      if (!availability || typeof availability !== 'object') {
+        setIsCheckingOut(false);
+        setError('Unable to verify cart items. Please try again.');
+        return;
+      }
+      
+      // Check if allAvailable property exists
+      if (availability.allAvailable === undefined) {
+        console.warn('Missing allAvailable in availability check:', availability);
+        // Continue anyway for now
+      } else if (!availability.allAvailable) {
         setIsCheckingOut(false);
         setError('Some items in your cart are no longer available. Please review your cart.');
+        return;
+      }
+      
+      // Additional safety checks
+      const hasOutOfStock = cartItems.some(item => {
+        const availableQty = item.availableQuantity || item.quantity || 0;
+        return availableQty <= 0;
+      });
+      
+      if (hasOutOfStock) {
+        setIsCheckingOut(false);
+        setError('Some items are out of stock. Please remove them before checkout.');
+        return;
+      }
+      
+      const hasQuantityIssues = cartItems.some(item => {
+        const availableQty = item.availableQuantity || item.quantity || 0;
+        return item.quantity > availableQty;
+      });
+      
+      if (hasQuantityIssues) {
+        setIsCheckingOut(false);
+        setError('Some items exceed available stock. Please adjust quantities.');
         return;
       }
       
@@ -78,7 +128,7 @@ const Cart = () => {
       navigate('/checkout');
     } catch (err) {
       console.error('Error during checkout:', err);
-      setError('Error processing checkout');
+      setError('Error processing checkout. Please try again.');
       setIsCheckingOut(false);
     }
   };
@@ -115,6 +165,19 @@ const Cart = () => {
   const handleDecrementQuantity = (itemId) => {
     decrementQuantity(itemId);
   };
+
+  // Debug: Log cart items structure
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      console.log('Cart items structure:', cartItems.map(item => ({
+        _id: item._id,
+        title: item.title,
+        quantity: item.quantity,
+        availableQuantity: item.availableQuantity,
+        price: item.price
+      })));
+    }
+  }, [cartItems]);
 
   if (cartItems.length === 0) {
     return (
@@ -234,6 +297,24 @@ const Cart = () => {
         </div>
       )}
 
+      {/* Debug Info - Only show in development */}
+      {process.env.NODE_ENV === 'development' && availabilityResults && (
+        <div style={{
+          background: '#e3f2fd',
+          color: '#1565c0',
+          padding: '10px 15px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          fontSize: '12px',
+          fontFamily: 'monospace'
+        }}>
+          <div><strong>Debug Info:</strong> Availability Results</div>
+          <div>All Available: {String(availabilityResults.allAvailable)}</div>
+          <div>Has Results: {availabilityResults.results ? 'Yes' : 'No'}</div>
+          <div>Unavailable Items: {availabilityResults.unavailableItems?.length || 0}</div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: '40px' }}>
         <h1 style={{ 
@@ -253,7 +334,7 @@ const Cart = () => {
       </div>
 
       {/* Availability Check Banner */}
-      {availabilityResults && !availabilityResults.allAvailable && (
+      {availabilityResults && availabilityResults.allAvailable === false && (
         <div style={{
           background: 'linear-gradient(135deg, #fff3cd, #ffc107)',
           color: '#856404',

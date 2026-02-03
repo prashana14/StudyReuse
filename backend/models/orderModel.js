@@ -41,7 +41,6 @@ const orderSchema = mongoose.Schema(
       street: { type: String, required: true },
       city: { type: String, required: true },
       state: { type: String, required: true },
-      zipCode: { type: String, required: true },
       country: { type: String, default: 'Nepal' },
       notes: String
     },
@@ -52,7 +51,7 @@ const orderSchema = mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash on Delivery', 'Credit Card', 'PayPal', 'Online Payment'],
+      enum: ['Cash on Delivery'], // REMOVED other options, only Cash on Delivery
       default: 'Cash on Delivery'
     },
     paymentStatus: {
@@ -108,11 +107,6 @@ orderSchema.pre('save', function(next) {
     return sum + (item.price * item.quantity);
   }, 0);
   
-  // Add tax (8%) if not already calculated
-  // if (!this.taxAmount && subtotal > 0) {
-  //   this.taxAmount = subtotal * 0.08;
-  // }
-  
   // Calculate total amount
   this.totalAmount = subtotal + (this.shippingFee || 0) - (this.discount || 0);
   
@@ -127,5 +121,11 @@ orderSchema.pre('save', function(next) {
 // Ensure virtuals are included in JSON
 orderSchema.set('toJSON', { virtuals: true });
 orderSchema.set('toObject', { virtuals: true });
+
+// Indexes for better query performance
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ 'shippingAddress.city': 1 });
 
 module.exports = mongoose.model('Order', orderSchema);

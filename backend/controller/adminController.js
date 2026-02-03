@@ -41,9 +41,9 @@ exports.checkAdminLimit = async (req, res) => {
     
     res.json({
       success: true,
-      allowed: adminCount < 2,
+      allowed: adminCount < 5,
       currentCount: adminCount,
-      maxAllowed: 2
+      maxAllowed: 5
     });
   } catch (error) {
     console.error('Check admin limit error:', error);
@@ -51,7 +51,7 @@ exports.checkAdminLimit = async (req, res) => {
       success: false,
       allowed: false,
       currentCount: 0,
-      maxAllowed: 2,
+      maxAllowed: 5,
       message: 'Error checking admin limit'
     });
   }
@@ -72,15 +72,15 @@ exports.registerAdmin = async (req, res) => {
       });
     }
     
-    // Validate RIA email domain
-    const validateRIADomain = (email) => {
-      return email.endsWith('@ria.edu.np') || email.endsWith('.ria.edu.np');
+    // Validate SDC email domain
+    const validateSDCDomain = (email) => {
+      return email.endsWith('@sdc.edu.np') || email.endsWith('.ria.edu.np');
     };
     
-    if (!validateRIADomain(email)) {
+    if (!validateSDCDomain(email)) {
       return res.status(400).json({ 
         success: false,
-        message: "Only RIA email addresses are allowed for admin registration" 
+        message: "Only SDC email addresses are allowed for admin registration" 
       });
     }
     

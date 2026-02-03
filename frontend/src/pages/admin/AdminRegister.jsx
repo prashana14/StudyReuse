@@ -45,7 +45,7 @@ const AdminRegister = () => {
   // Function to validate name
   const validateName = (name) => {
     // Check if name has at least 2 characters and contains only letters and spaces
-    const nameRegex = /^[a-zA-Z\s]{2,50}$/;
+    const nameRegex = /^[a-zA-Z\s]{3,50}$/;
     return nameRegex.test(name.trim());
   };
 
@@ -65,7 +65,7 @@ const AdminRegister = () => {
     
     // ✅ Validate name before submission
     if (!validateName(formData.name)) {
-      setError("Please enter a valid name (2-50 characters, letters only)");
+      setError("Please enter a valid name (3-50 characters, letters only)");
       return;
     }
     
