@@ -921,7 +921,7 @@ const ItemDetails = () => {
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text"
               }}>
-                ₹ {item.price || "0"}
+                Rs. {item.price || "0"}
               </span>
               
               {item.category && (
@@ -1017,8 +1017,6 @@ const ItemDetails = () => {
                     alignItems: "center",
                     gap: "8px"
                   }}>
-                    <span>⚠️</span>
-                    Low stock - Order soon!
                   </div>
                 )}
               </div>
@@ -1212,7 +1210,7 @@ const ItemDetails = () => {
               </button>
             )}
             
-            <button 
+            {/* <button 
               onClick={() => alert("Added to favorites!")}
               style={{ 
                 padding: "16px 24px", 
@@ -1234,7 +1232,7 @@ const ItemDetails = () => {
               }}
             >
               ❤️ Add to Favorites
-            </button>
+            </button> */}
             
             <button 
               onClick={() => {

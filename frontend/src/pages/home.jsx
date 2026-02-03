@@ -314,7 +314,7 @@ const Home = () => {
                             WebkitTextFillColor: "transparent",
                             backgroundClip: "text"
                           }}>
-                            ₹ {item.price || 0}
+                            Rs. {item.price || 0}
                           </span>
                           <Link 
                             to={`/item/${item._id}`} 

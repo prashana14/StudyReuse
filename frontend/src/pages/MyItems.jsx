@@ -451,7 +451,7 @@ const MyItems = () => {
         </div>
         <div className="stat">
           <span className="stat-label">Total Value</span>
-          <span className="stat-value">₹{stats.totalValue.toLocaleString()}</span>
+          <span className="stat-value">Rs.{stats.totalValue.toLocaleString()}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Available</span>

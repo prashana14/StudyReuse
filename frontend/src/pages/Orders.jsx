@@ -420,7 +420,7 @@ const Orders = () => {
                   }}>
                     <span>Placed: {formatDate(order.createdAt)}</span>
                     <span>Items: {order.items?.length || 0}</span>
-                    <span>Total: ₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                    <span>Total: Rs.{order.totalAmount?.toFixed(2) || '0.00'}</span>
                     <span>Payment: {order.paymentMethod || 'Cash on Delivery'}</span>
                   </div>
                 </div>

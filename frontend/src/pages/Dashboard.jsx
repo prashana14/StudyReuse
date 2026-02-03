@@ -1263,7 +1263,7 @@ const Dashboard = () => {
                         fontWeight: "700", 
                         color: "#4361ee"
                       }}>
-                        ₹ {item.price || 0}
+                        Rs. {item.price || 0}
                       </span>
                       {item.category && (
                         <span style={{
