@@ -1,6 +1,7 @@
 const Order = require('../models/orderModel');
 const Item = require('../models/itemModel');
 const jwt = require('jsonwebtoken');
+const NotificationService = require('../services/notificationService');
 
 // ======================
 // Helper Functions
@@ -206,6 +207,50 @@ const createOrder = async (req, res) => {
       console.log('=== ORDER CREATED SUCCESSFULLY ===');
       console.log('Order ID:', populatedOrder._id);
       console.log('Total amount:', populatedOrder.totalAmount);
+      
+      // ============================================
+      // ADD NOTIFICATIONS AFTER SUCCESSFUL ORDER CREATION
+      // ============================================
+      try {
+        // Add notification for seller (item owner)
+        for (const orderItem of populatedOrder.items) {
+          const item = await Item.findById(orderItem.item);
+          if (item && item.owner.toString() !== userData.id) {
+            await NotificationService.create({
+              user: item.owner,
+              type: 'new_order',
+              title: 'New Order Received',
+              message: `${userData.name || 'A customer'} ordered ${orderItem.quantity}x "${item.title}"`,
+              action: 'view_order',
+              actionData: { orderId: populatedOrder._id },
+              link: `/orders/${populatedOrder._id}`,
+              relatedOrder: populatedOrder._id,
+              relatedItem: item._id,
+              relatedUser: userData.id,
+              isRead: false
+            });
+          }
+        }
+
+        // Add notification for buyer
+        await NotificationService.create({
+          user: userData.id,
+          type: 'new_order',
+          title: 'Order Confirmed',
+          message: `Your order #${populatedOrder._id.toString().slice(-6)} has been placed successfully`,
+          action: 'view_order',
+          actionData: { orderId: populatedOrder._id },
+          link: `/orders/${populatedOrder._id}`,
+          relatedOrder: populatedOrder._id,
+          isRead: false
+        });
+        
+        console.log('✅ Notifications created for order');
+      } catch (notifError) {
+        console.error('❌ Error creating notifications:', notifError);
+        // Don't fail the order if notifications fail
+      }
+      // ============================================
       
       res.status(201).json({
         success: true,
@@ -425,6 +470,23 @@ const updateOrderStatus = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
+      // Add notification for order status change
+      try {
+        await NotificationService.create({
+          user: order.user,
+          type: 'system',
+          title: `Order Status Updated`,
+          message: `Your order #${order._id.toString().slice(-6)} status changed to ${status}`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+      } catch (notifError) {
+        console.error('Error creating status notification:', notifError);
+      }
+
       res.json({
         success: true,
         message: 'Order status updated',
@@ -511,6 +573,42 @@ const cancelOrder = async (req, res) => {
 
       await session.commitTransaction();
       session.endSession();
+
+      // Add notification for order cancellation
+      try {
+        await NotificationService.create({
+          user: order.user,
+          type: 'system',
+          title: `Order Cancelled`,
+          message: `Your order #${order._id.toString().slice(-6)} has been cancelled`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+        
+        // Notify seller if they're different from buyer
+        for (const orderItem of order.items) {
+          const item = await Item.findById(orderItem.item);
+          if (item && item.owner.toString() !== userData.id) {
+            await NotificationService.create({
+              user: item.owner,
+              type: 'system',
+              title: `Order Cancelled`,
+              message: `Order #${order._id.toString().slice(-6)} for "${item.title}" has been cancelled`,
+              action: 'view_order',
+              actionData: { orderId: order._id },
+              link: `/orders/${order._id}`,
+              relatedOrder: order._id,
+              relatedItem: item._id,
+              isRead: false
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error('Error creating cancellation notification:', notifError);
+      }
 
       res.json({
         success: true,
@@ -841,5 +939,5 @@ module.exports = {
   cancelOrder,
   getAllOrders,
   checkCartAvailability,
-  checkCartAvailabilityPublic  // Add this export
+  checkCartAvailabilityPublic
 };

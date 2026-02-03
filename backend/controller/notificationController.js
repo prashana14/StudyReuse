@@ -1,5 +1,5 @@
-const Notification = require('../models/notificationModel');
 const jwt = require('jsonwebtoken');
+const NotificationService = require('../services/notificationService');
 
 // Helper to verify token
 function verifyToken(req) {
@@ -9,7 +9,7 @@ function verifyToken(req) {
   return jwt.verify(token, process.env.JWT_SECRET);
 }
 
-// ✅ FIXED: Return simple array for frontend
+// ✅ GET /api/notifications - Get all notifications for current user
 exports.getNotifications = async (req, res) => {
   try {
     const userData = verifyToken(req);
@@ -25,30 +25,19 @@ exports.getNotifications = async (req, res) => {
     } = req.query;
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const sortDirection = sortOrder === 'asc' ? 1 : -1;
     
-    // Build query
-    const query = { user: userData.id };
+    // Use NotificationService to get notifications
+    const notifications = await NotificationService.getUserNotifications(userData.id, {
+      limit: parseInt(limit),
+      skip: skip,
+      type: type,
+      isRead: isRead !== undefined ? (isRead === 'true') : null,
+      sortBy: sortBy,
+      sortOrder: sortOrder
+    });
     
-    if (type) {
-      query.type = type;
-    }
-    
-    if (isRead !== undefined) {
-      query.isRead = isRead === 'true';
-    }
-    
-    // Get notifications
-    const notifications = await Notification.find(query)
-      .populate('relatedItem', 'title image price')
-      .populate('relatedUser', 'name email profilePicture')
-      .populate('user', 'name email')
-      .sort({ [sortBy]: sortDirection })
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    // ✅ FIXED: Return array directly (simpler for frontend)
-    res.json(notifications);
+    // ✅ Return array directly (simpler for frontend)
+    res.json(notifications.notifications || []);
     
   } catch (err) {
     console.error('❌ Error fetching notifications:', err);
@@ -75,7 +64,6 @@ exports.getNotifications = async (req, res) => {
   }
 };
 
-
 // ✅ PUT /api/notifications/:id/read - Mark single notification as read
 exports.markAsRead = async (req, res) => {
   try {
@@ -84,12 +72,7 @@ exports.markAsRead = async (req, res) => {
     
     console.log(`📝 Marking notification ${id} as read for user ${userData.id}`);
     
-    const notification = await Notification.findOneAndUpdate(
-      { _id: id, user: userData.id },
-      { isRead: true },
-      { new: true }
-    ).populate('relatedItem', 'title')
-     .populate('relatedUser', 'name');
+    const notification = await NotificationService.markAsRead(id, userData.id);
     
     if (!notification) {
       return res.status(404).json({ 
@@ -123,10 +106,7 @@ exports.markAllAsRead = async (req, res) => {
     
     console.log(`📝 Marking all notifications as read for user ${userData.id}`);
     
-    const result = await Notification.updateMany(
-      { user: userData.id, isRead: false },
-      { isRead: true }
-    );
+    const result = await NotificationService.markAllAsRead(userData.id);
     
     console.log(`✅ Marked ${result.modifiedCount} notifications as read`);
     
@@ -154,19 +134,16 @@ exports.deleteNotification = async (req, res) => {
     
     console.log(`🗑️ Deleting notification ${id} for user ${userData.id}`);
     
-    const notification = await Notification.findOneAndDelete({
-      _id: id,
-      user: userData.id
-    });
+    const result = await NotificationService.deleteNotification(id, userData.id);
     
-    if (!notification) {
+    if (!result.success) {
       return res.status(404).json({ 
         success: false, 
         message: 'Notification not found or unauthorized' 
       });
     }
     
-    console.log(`✅ Notification deleted: ${notification._id}`);
+    console.log(`✅ Notification deleted: ${id}`);
     
     res.json({ 
       success: true, 
@@ -191,6 +168,7 @@ exports.deleteAllNotifications = async (req, res) => {
     
     console.log(`🗑️ Deleting all notifications for user ${userData.id}`);
     
+    // This function doesn't exist in NotificationService yet, so implement it here
     const result = await Notification.deleteMany({ user: userData.id });
     
     console.log(`✅ Deleted ${result.deletedCount} notifications`);
@@ -216,10 +194,7 @@ exports.getUnreadCount = async (req, res) => {
   try {
     const userData = verifyToken(req);
     
-    const count = await Notification.countDocuments({
-      user: userData.id,
-      isRead: false
-    });
+    const count = await NotificationService.getUnreadCount(userData.id);
     
     res.json({ 
       success: true, 
@@ -237,75 +212,179 @@ exports.getUnreadCount = async (req, res) => {
 };
 
 // ============================================
-// ✅ HELPER FUNCTIONS (For use in other controllers)
+// ✅ TEST ENDPOINTS (For development)
 // ============================================
 
-// Create a notification (for use in other controllers)
-exports.createNotification = async (notificationData) => {
+// ✅ POST /api/notifications/test - Create test notifications
+exports.createTestNotification = async (req, res) => {
   try {
-    console.log('📨 Creating notification:', notificationData);
+    const userData = verifyToken(req);
     
-    const notification = await Notification.create(notificationData);
+    const { type = 'item_approved', itemId = 'test_item_123' } = req.body;
     
-    // Populate if needed
-    const populated = await Notification.findById(notification._id)
-      .populate('relatedItem', 'title image')
-      .populate('relatedUser', 'name email')
-      .populate('user', 'name email');
+    console.log(`🧪 Creating test notification for user ${userData.id}, type: ${type}`);
     
-    console.log(`✅ Notification created: ${notification._id}`);
-    return populated || notification;
+    let notification;
+    
+    switch (type) {
+      case 'item_approved':
+        notification = await NotificationService.notifyItemApproved(
+          userData.id,
+          itemId,
+          'Test Item Title'
+        );
+        break;
+        
+      case 'item_rejected':
+        notification = await NotificationService.notifyItemRejected(
+          userData.id,
+          itemId,
+          'Test Item Title',
+          'Test rejection reason'
+        );
+        break;
+        
+      case 'new_order':
+        notification = await NotificationService.notifyNewOrder(
+          userData.id,
+          'test_order_123',
+          ['Test Item 1', 'Test Item 2'],
+          'Test Buyer',
+          true
+        );
+        break;
+        
+      case 'message':
+        notification = await NotificationService.notifyNewMessage(
+          userData.id,
+          'test_sender_123',
+          'Test Sender',
+          'This is a test message preview',
+          itemId
+        );
+        break;
+        
+      default:
+        notification = await NotificationService.create({
+          user: userData.id,
+          type: type,
+          title: `Test ${type} Notification`,
+          message: `This is a test ${type} notification`,
+          isRead: false
+        });
+    }
+    
+    if (!notification) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to create test notification'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Test notification created successfully',
+      data: { notification }
+    });
     
   } catch (err) {
-    console.error('❌ Error creating notification:', err);
-    return null;
+    console.error('❌ Error creating test notification:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating test notification',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
-// Create notification for item approval
+// ✅ GET /api/notifications/debug - Get notification debug info
+exports.getDebugInfo = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    // Get latest notification for debugging
+    const notifications = await NotificationService.getUserNotifications(userData.id, {
+      limit: 5,
+      skip: 0
+    });
+    
+    const debugInfo = {
+      userId: userData.id,
+      totalNotifications: notifications.total || 0,
+      latestNotifications: notifications.notifications.map(n => ({
+        id: n._id,
+        type: n.type,
+        action: n.action,
+        link: n.link,
+        relatedItem: n.relatedItem,
+        relatedOrder: n.relatedOrder,
+        title: n.title,
+        message: n.message,
+        isRead: n.isRead,
+        createdAt: n.createdAt
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: debugInfo
+    });
+    
+  } catch (err) {
+    console.error('❌ Error getting debug info:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting debug info',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+// ============================================
+// ✅ FORWARDING FUNCTIONS (For backward compatibility)
+// ============================================
+
+// Create a notification (for use in other controllers) - USING NEW SERVICE
+exports.createNotification = async (notificationData) => {
+  return await NotificationService.create(notificationData);
+};
+
+// Create notification for item approval - USING NEW SERVICE
 exports.notifyItemApproved = async (userId, itemId, itemTitle) => {
-  return await this.createNotification({
-    user: userId,
-    type: 'item_approved',
-    title: 'Item Approved',
-    message: `Your item "${itemTitle}" has been approved and is now visible to everyone.`,
-    relatedItem: itemId,
-    isRead: false
-  });
+  return await NotificationService.notifyItemApproved(userId, itemId, itemTitle);
 };
 
-// Create notification for item rejection
+// Create notification for item rejection - USING NEW SERVICE
 exports.notifyItemRejected = async (userId, itemId, itemTitle, reason) => {
-  return await this.createNotification({
-    user: userId,
-    type: 'item_rejected',
-    title: 'Item Rejected',
-    message: `Your item "${itemTitle}" was rejected. Reason: ${reason}`,
-    relatedItem: itemId,
-    isRead: false
-  });
+  return await NotificationService.notifyItemRejected(userId, itemId, itemTitle, reason);
 };
 
-// Create notification for new message
-exports.notifyNewMessage = async (userId, senderId, senderName, messagePreview) => {
-  return await this.createNotification({
-    user: userId,
-    type: 'message',
-    title: 'New Message',
-    message: `New message from ${senderName}: ${messagePreview}`,
-    relatedUser: senderId,
-    isRead: false
-  });
+// Create notification for new message - USING NEW SERVICE
+exports.notifyNewMessage = async (userId, senderId, senderName, messagePreview, itemId) => {
+  return await NotificationService.notifyNewMessage(userId, senderId, senderName, messagePreview, itemId);
 };
 
-// Create system notification
+// Create system notification - USING NEW SERVICE
 exports.notifySystem = async (userId, title, message, data = {}) => {
-  return await this.createNotification({
-    user: userId,
-    type: 'system',
-    title: title || 'System Notification',
-    message,
-    data,
-    isRead: false
-  });
+  return await NotificationService.notifySystem(userId, title, message, data);
+};
+
+// Create welcome notification - USING NEW SERVICE
+exports.sendWelcomeNotification = async (userId) => {
+  return await NotificationService.sendWelcomeNotification(userId);
+};
+
+// Create new order notification - USING NEW SERVICE
+exports.notifyNewOrder = async (userId, orderId, itemTitles, buyerName, isBuyer = false) => {
+  return await NotificationService.notifyNewOrder(userId, orderId, itemTitles, buyerName, isBuyer);
+};
+
+// Create order status update notification - USING NEW SERVICE
+exports.notifyOrderStatusUpdate = async (userId, orderId, newStatus, isBuyer = true) => {
+  return await NotificationService.notifyOrderStatusUpdate(userId, orderId, newStatus, isBuyer);
+};
+
+// Create order cancellation notification - USING NEW SERVICE
+exports.notifyOrderCancelled = async (userId, orderId, reason = '', isSeller = false) => {
+  return await NotificationService.notifyOrderCancelled(userId, orderId, reason, isSeller);
 };

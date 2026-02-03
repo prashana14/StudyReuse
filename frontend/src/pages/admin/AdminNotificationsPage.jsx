@@ -64,7 +64,6 @@ const AdminNotificationsPage = () => {
           console.log('Notifications API response:', data);
         } catch (apiError) {
           console.log('Notifications API failed, trying fallback:', apiError.message);
-          // Fallback to getting items and generating notifications
           data = await generateNotificationsFromItems(params);
         }
       } else {
@@ -94,7 +93,6 @@ const AdminNotificationsPage = () => {
           notificationsList = data.data;
           paginationInfo.total = data.total || data.data.length || 0;
         } else {
-          // If data is empty or has different structure
           notificationsList = [];
         }
       }
@@ -102,10 +100,6 @@ const AdminNotificationsPage = () => {
       setNotifications(notificationsList);
       setTotalPages(paginationInfo.totalPages);
       setTotalItems(paginationInfo.total);
-      
-      if (notificationsList.length === 0) {
-        console.log('No notifications returned. Available admin methods:', Object.keys(apiService.admin));
-      }
       
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -116,12 +110,300 @@ const AdminNotificationsPage = () => {
     }
   };
 
-  // Fallback function to generate notifications from items if notification API is not available
+  // ======================
+  // CLICKABLE NOTIFICATION HANDLING
+  // ======================
+  const handleNotificationClick = async (notification) => {
+    try {
+      // Mark as read if unread
+      if (!notification.isRead) {
+        await handleMarkAsRead(notification._id);
+      }
+      
+      // Navigate based on notification data
+      const navigateTo = getNavigationTarget(notification);
+      
+      if (navigateTo) {
+        navigate(navigateTo);
+      }
+      
+    } catch (error) {
+      console.error('Error handling notification click:', error);
+    }
+  };
+
+  const getNavigationTarget = (notification) => {
+    // Priority 1: Use link field if available
+    if (notification.link) {
+      return notification.link;
+    }
+    
+    // Priority 2: Use action field
+    if (notification.action) {
+      switch (notification.action) {
+        case 'view_user':
+          return notification.relatedUser 
+            ? `/admin/users/${notification.relatedUser}`
+            : '/admin/users';
+        case 'view_item':
+          return notification.relatedItem 
+            ? `/admin/items/${notification.relatedItem}`
+            : '/admin/items';
+        case 'review_item':
+          return '/admin/items?status=pending';
+        case 'view_order':
+          return notification.relatedOrder 
+            ? `/admin/orders/${notification.relatedOrder}`
+            : '/admin/orders';
+        case 'view_message':
+          return '/admin/chats';
+        case 'system':
+          return '/admin/dashboard';
+        default:
+          break;
+      }
+    }
+    
+    // Priority 3: Use type field
+    if (notification.type) {
+      switch (notification.type) {
+        case 'new_user':
+          return notification.relatedUser 
+            ? `/admin/users/${notification.relatedUser}`
+            : '/admin/users';
+        case 'new_item':
+        case 'item_approved':
+        case 'item_rejected':
+        case 'item_flag':
+          return notification.relatedItem 
+            ? `/admin/items/${notification.relatedItem}`
+            : '/admin/items';
+        case 'user_blocked':
+        case 'user_verified':
+          return notification.relatedUser 
+            ? `/admin/users/${notification.relatedUser}`
+            : '/admin/users';
+        case 'new_order':
+          return notification.relatedOrder 
+            ? `/admin/orders/${notification.relatedOrder}`
+            : '/admin/orders';
+        case 'admin_alert':
+        case 'system':
+          return '/admin/dashboard';
+        case 'message':
+          return '/admin/chats';
+        case 'barter':
+        case 'trade':
+          return '/admin/barter';
+        default:
+          break;
+      }
+    }
+    
+    // Default: Stay on notifications page
+    return null;
+  };
+
+  const getActionLabel = (notification) => {
+    if (notification.action) {
+      switch (notification.action) {
+        case 'view_user':
+          return '👤 View User';
+        case 'view_item':
+          return '📦 View Item';
+        case 'review_item':
+          return '🔍 Review Item';
+        case 'view_order':
+          return '🛒 View Order';
+        case 'view_message':
+          return '💬 View Message';
+        case 'system':
+          return '⚙️ View System';
+        default:
+          return '📄 View Details';
+      }
+    }
+    
+    if (notification.type) {
+      switch (notification.type) {
+        case 'new_user':
+          return '👤 View User';
+        case 'new_item':
+          return '🔍 Review Item';
+        case 'item_approved':
+        case 'item_rejected':
+          return '📦 View Item';
+        case 'user_blocked':
+          return '👥 Manage User';
+        case 'new_order':
+          return '🛒 View Order';
+        case 'item_flag':
+          return '🚩 Review Flag';
+        case 'message':
+          return '💬 View Chat';
+        case 'barter':
+        case 'trade':
+          return '🔄 View Barter';
+        default:
+          return notification.relatedItem ? '📄 View Details' : 'ℹ️ View Info';
+      }
+    }
+    
+    return '📄 View Details';
+  };
+
+  const getNotificationIcon = (type) => {
+    const emojis = {
+      'item_approved': '✅',
+      'item_rejected': '❌',
+      'user_blocked': '🚫',
+      'new_user': '👤',
+      'new_item': '📦',
+      'item_flag': '🚩',
+      'system': '⚙️',
+      'admin_alert': '📢',
+      'new_order': '🛒',
+      'message': '💬',
+      'barter': '🔄',
+      'trade': '🤝',
+      'warning': '⚠️',
+      'info': 'ℹ️',
+      'success': '✅',
+      'error': '❌',
+      'default': '🔔'
+    };
+    return emojis[type] || emojis.default;
+  };
+
+  const getNotificationColor = (type) => {
+    const colors = {
+      'item_approved': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
+      'item_rejected': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
+      'user_blocked': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
+      'new_user': { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
+      'new_item': { bg: '#f3e8ff', text: '#7c3aed', border: '#e9d5ff' },
+      'item_flag': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
+      'system': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
+      'admin_alert': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
+      'new_order': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
+      'message': { bg: '#f0f9ff', text: '#0c4a6e', border: '#bae6fd' },
+      'barter': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
+      'trade': { bg: '#fce7f3', text: '#be185d', border: '#fbcfe8' },
+      'warning': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
+      'info': { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
+      'success': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
+      'error': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
+      'default': { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' }
+    };
+    return colors[type] || colors.default;
+  };
+
+  // ======================
+  // NOTIFICATION ACTIONS
+  // ======================
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      if (typeof apiService.admin.markAdminNotificationAsRead === 'function') {
+        await apiService.admin.markAdminNotificationAsRead(notificationId);
+      } else {
+        console.log('Mark as read API not available, updating locally');
+      }
+      
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif._id === notificationId 
+            ? { ...notif, isRead: true }
+            : notif
+        )
+      );
+      
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif._id === notificationId 
+            ? { ...notif, isRead: true }
+            : notif
+        )
+      );
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      if (typeof apiService.admin.markAllAdminNotificationsAsRead === 'function') {
+        await apiService.admin.markAllAdminNotificationsAsRead();
+      } else {
+        console.log('Mark all as read API not available, updating locally');
+      }
+      
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, isRead: true }))
+      );
+      
+      alert('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, isRead: true }))
+      );
+      alert('Notifications marked as read locally');
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId) => {
+    if (!window.confirm('Are you sure you want to delete this notification?')) {
+      return;
+    }
+    
+    try {
+      if (typeof apiService.admin.deleteAdminNotification === 'function') {
+        await apiService.admin.deleteAdminNotification(notificationId);
+      } else {
+        console.log('Delete notification API not available, removing locally');
+      }
+      
+      setNotifications(prev => 
+        prev.filter(notif => notif._id !== notificationId)
+      );
+      
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      setNotifications(prev => 
+        prev.filter(notif => notif._id !== notificationId)
+      );
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to clear all notifications? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      if (typeof apiService.admin.clearAllAdminNotifications === 'function') {
+        await apiService.admin.clearAllAdminNotifications();
+      } else {
+        console.log('Clear all notifications API not available, clearing locally');
+      }
+      
+      setNotifications([]);
+      setTotalPages(1);
+      setCurrentPage(1);
+      
+      alert('All notifications cleared');
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      setNotifications([]);
+      alert('Notifications cleared locally');
+    }
+  };
+
+  // Fallback function
   const generateNotificationsFromItems = async (params) => {
     try {
       console.log('Generating notifications from items data...');
       
-      // Get recent items to create notification-like data
       const itemsData = await apiService.admin.getItems({
         page: params.page,
         limit: params.limit,
@@ -137,46 +419,44 @@ const AdminNotificationsPage = () => {
         items = itemsData.data;
       }
       
-      // Convert items to notification format
       const generatedNotifications = items.map((item, index) => ({
         _id: `generated_${item._id || index}`,
         title: `New Item: ${item.title}`,
         message: `${item.title} has been listed by ${item.owner?.name || 'Unknown User'}`,
         type: 'new_item',
+        action: 'view_item',
         isRead: false,
         createdAt: item.createdAt || new Date().toISOString(),
         relatedItem: item._id,
         relatedUser: item.owner?._id,
-        metadata: {
-          price: item.price,
-          category: item.category,
-          status: item.status
-        }
+        link: `/admin/items/${item._id}`
       }));
       
-      // Add some system notifications
       const systemNotifications = [
         {
           _id: 'system_1',
           title: 'System Update',
           message: 'Platform maintenance scheduled for this weekend',
           type: 'system',
+          action: 'system',
           isRead: true,
-          createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          link: '/admin/dashboard'
         },
         {
           _id: 'system_2',
           title: 'New User Registered',
           message: 'A new user has joined the platform',
           type: 'new_user',
+          action: 'view_user',
           isRead: false,
-          createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          link: '/admin/users'
         }
       ];
       
       const allNotifications = [...generatedNotifications, ...systemNotifications];
       
-      // Apply filters
       let filteredNotifications = allNotifications;
       
       if (params.type) {
@@ -203,228 +483,11 @@ const AdminNotificationsPage = () => {
     }
   };
 
-  const handleNotificationClick = async (notification) => {
-    try {
-      // Mark as read if unread
-      if (!notification.isRead) {
-        await handleMarkAsRead(notification._id);
-      }
-      
-      // Navigate based on notification type
-      switch (notification.type) {
-        case 'new_user':
-          if (notification.relatedUser) {
-            navigate(`/admin/users/${notification.relatedUser}`);
-          } else {
-            navigate('/admin/users');
-          }
-          break;
-        case 'new_item':
-        case 'item_approved':
-        case 'item_rejected':
-          if (notification.relatedItem) {
-            navigate(`/admin/items/${notification.relatedItem}`);
-          } else {
-            navigate('/admin/items');
-          }
-          break;
-        case 'user_blocked':
-          if (notification.relatedUser) {
-            navigate(`/admin/users/${notification.relatedUser}`);
-          } else {
-            navigate('/admin/users');
-          }
-          break;
-        case 'new_order':
-          if (notification.relatedOrder) {
-            navigate(`/admin/orders/${notification.relatedOrder}`);
-          } else {
-            navigate('/admin/orders');
-          }
-          break;
-        default:
-          // For system notifications, just mark as read
-          console.log('System notification clicked:', notification);
-      }
-    } catch (error) {
-      console.error('Error handling notification click:', error);
-    }
-  };
-
-  const getActionLabel = (notification) => {
-    switch (notification.type) {
-      case 'new_user':
-        return '👤 View User';
-      case 'new_item':
-        return '🔍 Review Item';
-      case 'item_approved':
-      case 'item_rejected':
-        return '📦 View Item';
-      case 'user_blocked':
-        return '👥 Manage User';
-      case 'new_order':
-        return '🛒 View Order';
-      default:
-        return notification.relatedItem ? '📄 View Details' : 'ℹ️ View Info';
-    }
-  };
-
-  const handleMarkAsRead = async (notificationId) => {
-    try {
-      // Check if the API function exists
-      if (typeof apiService.admin.markAdminNotificationAsRead === 'function') {
-        await apiService.admin.markAdminNotificationAsRead(notificationId);
-      } else {
-        console.log('Mark as read API not available, updating locally');
-      }
-      
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif._id === notificationId 
-            ? { ...notif, isRead: true }
-            : notif
-        )
-      );
-      
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      // Still update UI even if API fails
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif._id === notificationId 
-            ? { ...notif, isRead: true }
-            : notif
-        )
-      );
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      // Check if the API function exists
-      if (typeof apiService.admin.markAllAdminNotificationsAsRead === 'function') {
-        await apiService.admin.markAllAdminNotificationsAsRead();
-      } else {
-        console.log('Mark all as read API not available, updating locally');
-      }
-      
-      // Update all notifications to read
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, isRead: true }))
-      );
-      
-      alert('All notifications marked as read');
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-      // Still update UI
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, isRead: true }))
-      );
-      alert('Notifications marked as read locally');
-    }
-  };
-
-  const handleDeleteNotification = async (notificationId) => {
-    if (!window.confirm('Are you sure you want to delete this notification?')) {
-      return;
-    }
-    
-    try {
-      // Check if the API function exists
-      if (typeof apiService.admin.deleteAdminNotification === 'function') {
-        await apiService.admin.deleteAdminNotification(notificationId);
-      } else {
-        console.log('Delete notification API not available, removing locally');
-      }
-      
-      // Remove from local state
-      setNotifications(prev => 
-        prev.filter(notif => notif._id !== notificationId)
-      );
-      
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      // Still remove from UI
-      setNotifications(prev => 
-        prev.filter(notif => notif._id !== notificationId)
-      );
-    }
-  };
-
-  const handleClearAll = async () => {
-    if (!window.confirm('Are you sure you want to clear all notifications? This action cannot be undone.')) {
-      return;
-    }
-    
-    try {
-      // Check if the API function exists
-      if (typeof apiService.admin.clearAllAdminNotifications === 'function') {
-        await apiService.admin.clearAllAdminNotifications();
-      } else {
-        console.log('Clear all notifications API not available, clearing locally');
-      }
-      
-      // Clear all notifications
-      setNotifications([]);
-      setTotalPages(1);
-      setCurrentPage(1);
-      
-      alert('All notifications cleared');
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-      // Still clear UI
-      setNotifications([]);
-      alert('Notifications cleared locally');
-    }
-  };
-
-  const getNotificationIcon = (type) => {
-    const emojis = {
-      'item_approved': '✅',
-      'item_rejected': '❌',
-      'user_blocked': '⚠️',
-      'new_user': '👤',
-      'new_item': '📦',
-      'item_flag': '🚩',
-      'system': '⚙️',
-      'admin_alert': '🚨',
-      'new_order': '🛒',
-      'warning': '⚠️',
-      'info': 'ℹ️',
-      'success': '✅',
-      'error': '❌',
-      'default': '🔔'
-    };
-    return emojis[type] || emojis.default;
-  };
-
-  const getNotificationColor = (type) => {
-    const colors = {
-      'item_approved': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
-      'item_rejected': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
-      'user_blocked': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
-      'new_user': { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
-      'new_item': { bg: '#f3e8ff', text: '#7c3aed', border: '#e9d5ff' },
-      'item_flag': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
-      'system': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
-      'admin_alert': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
-      'new_order': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
-      'warning': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
-      'info': { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
-      'success': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
-      'error': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
-      'default': { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' }
-    };
-    return colors[type] || colors.default;
-  };
-
   const formatTimeAgo = (dateString) => {
     try {
       const now = new Date();
       const date = new Date(dateString);
       
-      // Check if date is valid
       if (isNaN(date.getTime())) {
         return 'Recently';
       }
@@ -463,13 +526,19 @@ const AdminNotificationsPage = () => {
     { value: 'item_flag', label: '🚩 Flagged Items' },
     { value: 'system', label: '⚙️ System Alerts' },
     { value: 'new_order', label: '🛒 New Orders' },
+    { value: 'message', label: '💬 Messages' },
+    { value: 'barter', label: '🔄 Barters' },
+    { value: 'trade', label: '🤝 Trades' },
+    { value: 'admin_alert', label: '📢 Admin Alerts' },
     { value: 'warning', label: '⚠️ Warnings' },
     { value: 'info', label: 'ℹ️ Information' },
   ];
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  // Fixed inline styles - removed duplicate display properties
+  // ======================
+  // STYLES
+  // ======================
   const filterLabelStyle = {
     display: 'block',
     fontSize: '0.875rem',
@@ -528,10 +597,6 @@ const AdminNotificationsPage = () => {
     backgroundColor: '#1d4ed8',
     transform: 'translateY(-1px)',
     boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)'
-  };
-
-  const refreshButtonActiveStyle = {
-    transform: 'translateY(0)'
   };
 
   return (
@@ -1019,6 +1084,7 @@ const AdminNotificationsPage = () => {
               {notifications.map((notification, index) => {
                 const colors = getNotificationColor(notification.type);
                 const isLast = index === notifications.length - 1;
+                const actionLabel = getActionLabel(notification);
                 
                 return (
                   <div
@@ -1157,7 +1223,7 @@ const AdminNotificationsPage = () => {
                               e.currentTarget.style.transform = 'translateY(0)';
                             }}
                           >
-                            {getActionLabel(notification)}
+                            {actionLabel}
                             <span>→</span>
                           </button>
                         </div>
@@ -1203,7 +1269,7 @@ const AdminNotificationsPage = () => {
                                 borderRadius: '0.375rem'
                               }}>
                                 <span>👤</span>
-                                User ID: {typeof notification.relatedUser === 'string' 
+                                User: {typeof notification.relatedUser === 'string' 
                                   ? notification.relatedUser.substring(0, 8) 
                                   : 'Unknown'}
                               </span>
@@ -1221,7 +1287,7 @@ const AdminNotificationsPage = () => {
                                 borderRadius: '0.375rem'
                               }}>
                                 <span>📦</span>
-                                Item ID: {typeof notification.relatedItem === 'string'
+                                Item: {typeof notification.relatedItem === 'string'
                                   ? notification.relatedItem.substring(0, 8)
                                   : 'Unknown'}
                               </span>

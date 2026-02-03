@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
-import { Link } from "react-router-dom";
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const fetchNotifications = async () => {
     try {
@@ -16,20 +17,16 @@ const Notifications = () => {
       const res = await API.get("/notifications");
       console.log("✅ API Response:", res.data);
       
-      // ✅ FIXED: Handle all possible response formats
+      // ✅ Handle all possible response formats
       let notificationsArray = [];
       
       if (Array.isArray(res.data)) {
-        // Format 1: Direct array (after fixing notificationController.js)
         notificationsArray = res.data;
       } else if (res.data && Array.isArray(res.data.notifications)) {
-        // Format 2: Nested notifications array
         notificationsArray = res.data.notifications;
       } else if (res.data && res.data.data && Array.isArray(res.data.data.notifications)) {
-        // Format 3: Deep nested
         notificationsArray = res.data.data.notifications;
       } else if (res.data && Array.isArray(res.data.data)) {
-        // Format 4: Array in data field
         notificationsArray = res.data.data;
       }
       
@@ -45,13 +42,150 @@ const Notifications = () => {
     }
   };
 
+  // ======================
+  // CLICKABLE NOTIFICATION HANDLING - FIXED VERSION
+  // ======================
+  const handleNotificationClick = async (notification) => {
+    try {
+      console.log("🖱️ Notification clicked:", {
+        id: notification._id,
+        type: notification.type,
+        action: notification.action,
+        relatedItem: notification.relatedItem,
+        relatedOrder: notification.relatedOrder,
+        link: notification.link,
+        title: notification.title
+      });
+      
+      // First mark as read
+      await markRead(notification._id);
+      
+      // Navigate based on notification data
+      const navigateTo = getNavigationTarget(notification);
+      
+      if (navigateTo) {
+        console.log("📍 Navigating to:", navigateTo);
+        navigate(navigateTo);
+      } else {
+        console.log("⚠️ No navigation target found");
+      }
+      
+    } catch (err) {
+      console.error("Error handling notification click:", err);
+    }
+  };
+
+  const getNavigationTarget = (notification) => {
+    // DEBUG: Log the notification data
+    console.log("🔍 Processing notification for navigation:", {
+      type: notification.type,
+      action: notification.action,
+      link: notification.link,
+      relatedItem: notification.relatedItem,
+      relatedOrder: notification.relatedOrder
+    });
+    
+    // PRIORITY 1: Use direct link if available
+    if (notification.link && notification.link !== '/dashboard') {
+      console.log("✅ Using notification.link:", notification.link);
+      return notification.link;
+    }
+    
+    // PRIORITY 2: Handle item-related notifications
+    if (notification.relatedItem) {
+      // If it's an item approval/rejection/new item notification
+      if (notification.type === 'item_approved' || 
+          notification.type === 'item_rejected' || 
+          notification.type === 'new_item' ||
+          notification.action === 'view_item') {
+        const itemLink = `/item/${notification.relatedItem}`;
+        console.log("✅ Item notification, navigating to:", itemLink);
+        return itemLink;
+      }
+    }
+    
+    // PRIORITY 3: Use action field with related data
+    if (notification.action) {
+      switch (notification.action) {
+        case 'view_item':
+          if (notification.relatedItem) {
+            return `/item/${notification.relatedItem}`;
+          }
+          return '/items';
+          
+        case 'view_order':
+          if (notification.relatedOrder) {
+            return `/orders/${notification.relatedOrder}`;
+          }
+          return '/orders';
+          
+        case 'view_message':
+        case 'message':
+          return '/chats';
+          
+        case 'review_item':
+          return '/my-items';
+          
+        case 'view_user':
+          if (notification.relatedUser) {
+            return `/profile/${notification.relatedUser}`;
+          }
+          return '/profile';
+          
+        default:
+          break;
+      }
+    }
+    
+    // PRIORITY 4: Use type field with related data
+    if (notification.type) {
+      switch (notification.type) {
+        case 'message':
+          return '/chats';
+          
+        case 'new_order':
+          if (notification.relatedOrder) {
+            return `/orders/${notification.relatedOrder}`;
+          }
+          return '/orders';
+          
+        case 'item_approved':
+        case 'item_rejected':
+          if (notification.relatedItem) {
+            return `/item/${notification.relatedItem}`;
+          }
+          return '/my-items';
+          
+        case 'barter':
+        case 'trade':
+          return '/barter-requests';
+          
+        case 'new_item':
+          if (notification.relatedItem) {
+            return `/item/${notification.relatedItem}`;
+          }
+          return '/items';
+          
+        case 'system':
+        case 'admin_alert':
+          return '/dashboard';
+          
+        default:
+          break;
+      }
+    }
+    
+    // Default: Stay on notifications page
+    console.log("❌ No navigation target found");
+    return null;
+  };
+
   const markRead = async (id) => {
     if (!id) return;
     
     try {
       console.log(`📝 Marking notification ${id} as read`);
       
-      // Try different endpoint formats
       try {
         await API.put(`/notifications/${id}/read`);
       } catch {
@@ -87,11 +221,83 @@ const Notifications = () => {
     console.log("🔧 Notifications component mounted");
     fetchNotifications();
     
-    // Auto-refresh every 30 seconds (optional polling)
+    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
     
     return () => clearInterval(interval);
   }, []);
+
+  // Debug: Log notification data when it changes
+  useEffect(() => {
+    if (notifications.length > 0) {
+      console.log("📊 All notifications data:", notifications.map(n => ({
+        id: n._id,
+        type: n.type,
+        action: n.action,
+        relatedItem: n.relatedItem,
+        link: n.link,
+        title: n.title,
+        message: n.message
+      })));
+    }
+  }, [notifications]);
+
+  // ======================
+  // HELPER FUNCTIONS
+  // ======================
+  const getIcon = (type) => {
+    switch(type) {
+      case 'barter': return '🔄';
+      case 'message': return '💬';
+      case 'item_approved': return '✅';
+      case 'item_rejected': return '❌';
+      case 'new_order': return '🛒';
+      case 'system': return '⚙️';
+      case 'user_blocked': return '🚫';
+      case 'user_verified': return '✅';
+      case 'trade': return '🤝';
+      case 'new_user': return '👤';
+      case 'new_item': return '📦';
+      case 'item_flag': return '🚩';
+      case 'admin_alert': return '📢';
+      case 'order_updated': return '🔄';
+      case 'order_cancelled': return '❌';
+      default: return '🔔';
+    }
+  };
+
+  const getActionLabel = (notification) => {
+    if (notification.action && notification.action !== 'none') {
+      switch (notification.action) {
+        case 'view_item': return 'View Item';
+        case 'view_order': return 'View Order';
+        case 'view_message': return 'View Message';
+        case 'review_item': return 'Review Item';
+        case 'view_user': return 'View Profile';
+        case 'view_barter': return 'View Barter';
+        case 'view_trade': return 'View Trade';
+        case 'system': return 'View Details';
+        default: return 'View Details';
+      }
+    }
+    
+    if (notification.type) {
+      switch (notification.type) {
+        case 'message': return 'Open Chat';
+        case 'new_order': return 'View Order';
+        case 'item_approved': return 'View Item';
+        case 'item_rejected': return 'View Item';
+        case 'barter': return 'View Barter';
+        case 'trade': return 'View Trade';
+        case 'new_item': return 'View Item';
+        case 'order_updated': return 'View Order';
+        case 'order_cancelled': return 'View Order';
+        default: return 'View Details';
+      }
+    }
+    
+    return 'View Details';
+  };
 
   // ======================
   // RENDER FUNCTIONS
@@ -288,22 +494,13 @@ const Notifications = () => {
           const type = notification?.type || "system";
           const title = notification?.title || "Notification";
           const createdAt = notification?.createdAt || new Date().toISOString();
-          
-          // Get icon based on type
-          const getIcon = () => {
-            switch(type) {
-              case 'barter': return '';
-              case 'message': return '';
-              case 'item_approved': return '';
-              case 'item_rejected': return '';
-              case 'system': return '';
-              default: return '';
-            }
-          };
+          const actionLabel = getActionLabel(notification);
+          const icon = getIcon(type);
           
           return (
             <div 
               key={id}
+              onClick={() => handleNotificationClick(notification)}
               style={{
                 padding: "20px",
                 borderBottom: index < notifications.length - 1 ? "1px solid #e9ecef" : "none",
@@ -312,12 +509,46 @@ const Notifications = () => {
                 alignItems: "center",
                 gap: "15px",
                 cursor: "pointer",
-                transition: "background 0.2s"
+                transition: "all 0.2s ease",
+                position: "relative"
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = isRead ? "#f8f9fa" : "#e3f2fd"}
               onMouseLeave={(e) => e.currentTarget.style.background = isRead ? "white" : "#f0f9ff"}
-              onClick={() => !isRead && markRead(id)}
             >
+              {/* Unread indicator */}
+              {!isRead && (
+                <div style={{
+                  position: "absolute",
+                  left: "8px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#4361ee",
+                  borderRadius: "50%"
+                }}></div>
+              )}
+              
+              {/* Debug info (visible in development) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{
+                  position: "absolute",
+                  top: "5px",
+                  right: "5px",
+                  fontSize: "10px",
+                  color: "#666",
+                  background: "#f0f0f0",
+                  padding: "2px 5px",
+                  borderRadius: "3px",
+                  display: "flex",
+                  gap: "3px"
+                }}>
+                  {notification.relatedItem && <span title="Has Item">📦</span>}
+                  {notification.link && <span title={`Link: ${notification.link}`}>🔗</span>}
+                  <span title={`Type: ${type}`}>📝</span>
+                </div>
+              )}
+              
               <div style={{
                 width: "40px",
                 height: "40px",
@@ -327,29 +558,80 @@ const Notifications = () => {
                 alignItems: "center",
                 justifyContent: "center",
                 color: isRead ? "#6c757d" : "white",
-                fontSize: "18px"
+                fontSize: "18px",
+                marginLeft: isRead ? "0" : "10px"
               }}>
-                {getIcon()}
+                {icon}
               </div>
               
               <div style={{ flex: 1 }}>
-                <h4 style={{ margin: "0 0 5px 0", color: "#212529" }}>
-                  {title}
-                  {!isRead && <span style={{
-                    display: "inline-block",
-                    width: "8px",
-                    height: "8px",
-                    background: "#4361ee",
-                    borderRadius: "50%",
-                    marginLeft: "8px"
-                  }}></span>}
-                </h4>
-                <p style={{ margin: "0 0 8px 0", color: "#495057" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <h4 style={{ margin: "0 0 5px 0", color: "#212529", fontSize: "16px" }}>
+                    {title}
+                  </h4>
+                  <span style={{
+                    fontSize: "12px",
+                    color: "#6c757d",
+                    whiteSpace: "nowrap"
+                  }}>
+                    {new Date(createdAt).toLocaleDateString()} at {new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p style={{ margin: "0 0 8px 0", color: "#495057", fontSize: "14px" }}>
                   {message}
                 </p>
-                <small style={{ color: "#6c757d" }}>
-                  {new Date(createdAt).toLocaleDateString()} at {new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </small>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <small style={{ 
+                    color: "#6c757d",
+                    fontSize: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px"
+                  }}>
+                    {type.replace('_', ' ').toUpperCase()}
+                    {notification.relatedItem && (
+                      <span style={{
+                        background: "#e9ecef",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        fontSize: "10px"
+                      }}>
+                        ITEM
+                      </span>
+                    )}
+                    {notification.relatedOrder && (
+                      <span style={{
+                        background: "#e9ecef",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        fontSize: "10px"
+                      }}>
+                        ORDER
+                      </span>
+                    )}
+                  </small>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNotificationClick(notification);
+                    }}
+                    style={{
+                      padding: "4px 12px",
+                      background: "transparent",
+                      border: "1px solid #4361ee",
+                      color: "#4361ee",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}
+                  >
+                    {actionLabel}
+                    <span>→</span>
+                  </button>
+                </div>
               </div>
               
               {!isRead && (

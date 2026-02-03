@@ -23,6 +23,16 @@ class NotificationService {
         return null;
       }
       
+      // Generate link if not provided
+      if (!notificationData.link) {
+        notificationData.link = this.generateLink(notificationData);
+      }
+      
+      // Generate action if not provided
+      if (!notificationData.action) {
+        notificationData.action = this.generateAction(notificationData);
+      }
+      
       const notification = await Notification.create(notificationData);
       return await this.populateNotification(notification._id);
     } catch (error) {
@@ -52,6 +62,84 @@ class NotificationService {
     }
   }
   
+  // Generate link based on notification data
+  static generateLink(notificationData) {
+    // If link already exists, use it
+    if (notificationData.link) return notificationData.link;
+    
+    // Generate based on type/action
+    switch (notificationData.type || notificationData.action) {
+      case 'item_approved':
+      case 'item_rejected':
+      case 'new_item':
+      case 'item_flag':
+        return notificationData.relatedItem ? `/item/${notificationData.relatedItem}` : '/my-items';
+      
+      case 'new_order':
+      case 'order_updated':
+      case 'order_cancelled':
+        return notificationData.relatedOrder ? `/orders/${notificationData.relatedOrder}` : '/orders';
+      
+      case 'message':
+      case 'new_message':
+        return '/chats';
+      
+      case 'barter':
+      case 'trade':
+      case 'barter_request':
+        return notificationData.relatedItem ? `/barter/${notificationData.relatedItem}` : '/barter-requests';
+      
+      case 'user_blocked':
+      case 'user_verified':
+      case 'new_user':
+        return notificationData.relatedUser ? `/profile/${notificationData.relatedUser}` : '/profile';
+      
+      case 'system':
+      case 'admin_alert':
+        return '/dashboard';
+      
+      default:
+        return '/notifications';
+    }
+  }
+  
+  // Generate action based on notification data
+  static generateAction(notificationData) {
+    switch (notificationData.type) {
+      case 'item_approved':
+      case 'item_rejected':
+      case 'new_item':
+      case 'item_flag':
+        return 'view_item';
+      
+      case 'new_order':
+      case 'order_updated':
+      case 'order_cancelled':
+        return 'view_order';
+      
+      case 'message':
+      case 'new_message':
+        return 'view_message';
+      
+      case 'barter':
+      case 'trade':
+      case 'barter_request':
+        return 'view_barter';
+      
+      case 'user_blocked':
+      case 'user_verified':
+      case 'new_user':
+        return 'view_user';
+      
+      case 'system':
+      case 'admin_alert':
+        return 'system';
+      
+      default:
+        return 'none';
+    }
+  }
+  
   // Send item approval notification
   static async notifyItemApproved(userId, itemId, itemTitle) {
     try {
@@ -66,6 +154,8 @@ class NotificationService {
         title: 'Item Approved 🎉',
         message: `Your item "${itemTitle}" has been approved and is now visible to everyone.`,
         relatedItem: itemId,
+        action: 'view_item',
+        actionData: { itemId },
         link: `/item/${itemId}`, // Link to item page
         isRead: false
       });
@@ -89,6 +179,8 @@ class NotificationService {
         title: 'Item Needs Changes ⚠️',
         message: `Your item "${itemTitle}" requires changes. Reason: ${reason}`,
         relatedItem: itemId,
+        action: 'view_item',
+        actionData: { itemId },
         link: `/item/${itemId}/edit`, // Link to edit item page
         isRead: false
       });
@@ -98,60 +190,48 @@ class NotificationService {
     }
   }
   
-  // Send new message notification - FIXED: Added itemId parameter
+  // Send new message notification
   static async notifyNewMessage(receiverId, senderId, senderName, messagePreview, itemId) {
-  try {
-    if (!receiverId || !senderId || !senderName) {
-      console.error('❌ Missing parameters for notifyNewMessage');
+    try {
+      if (!receiverId || !senderId || !senderName) {
+        console.error('❌ Missing parameters for notifyNewMessage');
+        return null;
+      }
+      
+      const preview = messagePreview || 'New message received';
+      
+      const notificationData = {
+        user: receiverId,
+        type: 'message',
+        title: `New Message from ${senderName} ✉️`,
+        message: preview.length > 50 
+          ? `${preview.substring(0, 50)}...` 
+          : preview,
+        relatedUser: senderId,
+        relatedItem: itemId,
+        action: 'view_message',
+        actionData: { 
+          senderId,
+          itemId: itemId,
+          chatType: 'item_chat'
+        },
+        link: itemId ? `/chats?itemId=${itemId}` : '/chats',
+        isRead: false
+      };
+      
+      console.log('✅ Creating notification with data:', {
+        receiverId,
+        senderName,
+        itemId,
+        link: notificationData.link
+      });
+      
+      return await this.create(notificationData);
+    } catch (error) {
+      console.error('❌ Error in notifyNewMessage:', error);
       return null;
     }
-    
-    // CRITICAL: ItemId is required for chat notifications
-    if (!itemId) {
-      console.error('❌ notifyNewMessage called without itemId! This will break chat links!');
-      console.error('Parameters:', { receiverId, senderId, senderName, messagePreview, itemId });
-      // Still create notification but it won't have proper chat link
-    }
-    
-    const preview = messagePreview || 'New message received';
-    
-    const notificationData = {
-      user: receiverId,
-      type: 'message',
-      title: `New Message from ${senderName} ✉️`,
-      message: preview.length > 50 
-        ? `${preview.substring(0, 50)}...` 
-        : preview,
-      relatedUser: senderId,
-      isRead: false
-    };
-    
-    // Store itemId in multiple places for reliability
-    if (itemId) {
-      notificationData.relatedItem = itemId;
-      notificationData.data = {
-        itemId: itemId,
-        senderId: senderId,
-        notificationType: 'chat_message'
-      };
-    }
-    
-    // Always link to chats list, not specific chat (safer)
-    notificationData.link = '/chats';
-    
-    console.log('✅ Creating notification with data:', {
-      receiverId,
-      senderName,
-      itemId,
-      link: notificationData.link
-    });
-    
-    return await this.create(notificationData);
-  } catch (error) {
-    console.error('❌ Error in notifyNewMessage:', error);
-    return null;
   }
-}
   
   // Send barter request notification
   static async notifyBarterRequest(receiverId, senderId, senderName, itemTitle, itemId) {
@@ -168,11 +248,251 @@ class NotificationService {
         message: `${senderName} wants to barter for your "${itemTitle}"`,
         relatedUser: senderId,
         relatedItem: itemId,
+        action: 'view_barter',
+        actionData: { itemId, senderId },
         link: `/barter/${itemId}`, // Link to barter page
         isRead: false
       });
     } catch (error) {
       console.error('❌ Error in notifyBarterRequest:', error.message);
+      return null;
+    }
+  }
+  
+  // Send trade notification
+  static async notifyTrade(receiverId, senderId, senderName, itemTitle, itemId, tradeId) {
+    try {
+      if (!receiverId || !senderId || !senderName || !itemTitle || !itemId || !tradeId) {
+        console.error('❌ Missing parameters for notifyTrade');
+        return null;
+      }
+      
+      return await this.create({
+        user: receiverId,
+        type: 'trade',
+        title: 'Trade Request 🤝',
+        message: `${senderName} wants to trade for your "${itemTitle}"`,
+        relatedUser: senderId,
+        relatedItem: itemId,
+        action: 'view_barter',
+        actionData: { itemId, senderId, tradeId },
+        link: `/barter/trade/${tradeId}`, // Link to specific trade
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyTrade:', error.message);
+      return null;
+    }
+  }
+  
+  // Send new order notification
+  static async notifyNewOrder(userId, orderId, itemTitles, buyerName, isBuyer = false) {
+    try {
+      if (!userId || !orderId) {
+        console.error('❌ Missing parameters for notifyNewOrder');
+        return null;
+      }
+      
+      const itemList = Array.isArray(itemTitles) 
+        ? itemTitles.join(', ') 
+        : itemTitles;
+      
+      const title = isBuyer 
+        ? 'Order Confirmed ✅' 
+        : 'New Order Received 🛒';
+      
+      const message = isBuyer
+        ? `Your order #${orderId.toString().slice(-6)} has been placed successfully`
+        : `${buyerName || 'A customer'} ordered ${itemList}`;
+      
+      return await this.create({
+        user: userId,
+        type: 'new_order',
+        title: title,
+        message: message,
+        relatedOrder: orderId,
+        action: 'view_order',
+        actionData: { orderId },
+        link: `/orders/${orderId}`, // Link to order page
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyNewOrder:', error.message);
+      return null;
+    }
+  }
+  
+  // Send order status update notification
+  static async notifyOrderStatusUpdate(userId, orderId, newStatus, isBuyer = true) {
+    try {
+      if (!userId || !orderId || !newStatus) {
+        console.error('❌ Missing parameters for notifyOrderStatusUpdate');
+        return null;
+      }
+      
+      const statusMap = {
+        'Pending': 'is pending',
+        'Processing': 'is being processed',
+        'Shipped': 'has been shipped',
+        'Delivered': 'has been delivered',
+        'Cancelled': 'has been cancelled'
+      };
+      
+      const statusText = statusMap[newStatus] || `status changed to ${newStatus}`;
+      
+      return await this.create({
+        user: userId,
+        type: 'order_updated',
+        title: `Order ${newStatus === 'Cancelled' ? 'Cancelled' : 'Updated'} ${newStatus === 'Cancelled' ? '❌' : '🔄'}`,
+        message: `Your order #${orderId.toString().slice(-6)} ${statusText}`,
+        relatedOrder: orderId,
+        action: 'view_order',
+        actionData: { orderId, status: newStatus },
+        link: `/orders/${orderId}`,
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyOrderStatusUpdate:', error.message);
+      return null;
+    }
+  }
+  
+  // Send order cancellation notification
+  static async notifyOrderCancelled(userId, orderId, reason = '', isSeller = false) {
+    try {
+      if (!userId || !orderId) {
+        console.error('❌ Missing parameters for notifyOrderCancelled');
+        return null;
+      }
+      
+      const title = isSeller ? 'Order Cancelled by Buyer ❌' : 'Order Cancelled ❌';
+      const message = isSeller
+        ? `Order #${orderId.toString().slice(-6)} was cancelled by the buyer${reason ? `: ${reason}` : ''}`
+        : `Your order #${orderId.toString().slice(-6)} has been cancelled${reason ? `: ${reason}` : ''}`;
+      
+      return await this.create({
+        user: userId,
+        type: 'order_cancelled',
+        title: title,
+        message: message,
+        relatedOrder: orderId,
+        action: 'view_order',
+        actionData: { orderId },
+        link: `/orders/${orderId}`,
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyOrderCancelled:', error.message);
+      return null;
+    }
+  }
+  
+  // Send user blocked notification
+  static async notifyUserBlocked(userId, reason, blockedByAdmin = 'Admin') {
+    try {
+      if (!userId || !reason) {
+        console.error('❌ Missing parameters for notifyUserBlocked');
+        return null;
+      }
+      
+      return await this.create({
+        user: userId,
+        type: 'user_blocked',
+        title: 'Account Blocked 🚫',
+        message: `Your account has been blocked by ${blockedByAdmin}. Reason: ${reason}`,
+        action: 'view_user',
+        actionData: { userId },
+        link: '/profile',
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyUserBlocked:', error.message);
+      return null;
+    }
+  }
+  
+  // Send user verified notification
+  static async notifyUserVerified(userId) {
+    try {
+      if (!userId) {
+        console.error('❌ Missing parameters for notifyUserVerified');
+        return null;
+      }
+      
+      return await this.create({
+        user: userId,
+        type: 'user_verified',
+        title: 'Account Verified ✅',
+        message: 'Your account has been verified and is now active',
+        action: 'view_user',
+        actionData: { userId },
+        link: '/profile',
+        isRead: false
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyUserVerified:', error.message);
+      return null;
+    }
+  }
+  
+  // Send new user notification (for admin)
+  static async notifyNewUser(userId, userName) {
+    try {
+      if (!userId || !userName) {
+        console.error('❌ Missing parameters for notifyNewUser');
+        return null;
+      }
+      
+      return await this.create({
+        user: userId, // This would be admin's ID, need to get admin ID
+        type: 'new_user',
+        title: 'New User Registered 👤',
+        message: `${userName} has registered on the platform`,
+        relatedUser: userId,
+        action: 'view_user',
+        actionData: { userId },
+        link: `/admin/users/${userId}`,
+        isRead: false,
+        fromAdmin: true,
+        adminAction: true
+      });
+    } catch (error) {
+      console.error('❌ Error in notifyNewUser:', error.message);
+      return null;
+    }
+  }
+  
+  // Send item flagged notification (for admin)
+  static async notifyItemFlagged(itemId, itemTitle, reason, reportedBy) {
+    try {
+      if (!itemId || !itemTitle || !reason || !reportedBy) {
+        console.error('❌ Missing parameters for notifyItemFlagged');
+        return null;
+      }
+      
+      // This would be sent to admin, so we need to get admin ID
+      // For now, we'll return null as admin ID needs to be fetched
+      return null;
+      
+      // Example implementation:
+      // const admin = await User.findOne({ role: 'admin' });
+      // if (!admin) return null;
+      
+      // return await this.create({
+      //   user: admin._id,
+      //   type: 'item_flag',
+      //   title: 'Item Flagged 🚩',
+      //   message: `Item "${itemTitle}" has been flagged by ${reportedBy}. Reason: ${reason}`,
+      //   relatedItem: itemId,
+      //   action: 'view_item',
+      //   actionData: { itemId },
+      //   link: `/admin/items/${itemId}`,
+      //   isRead: false,
+      //   fromAdmin: false,
+      //   adminAction: true
+      // });
+    } catch (error) {
+      console.error('❌ Error in notifyItemFlagged:', error.message);
       return null;
     }
   }
@@ -190,12 +510,20 @@ class NotificationService {
         type: 'system',
         title: title,
         message: message,
+        action: 'system',
         isRead: false
       };
       
       // Add link if provided in data
       if (data.link) {
         notificationData.link = data.link;
+      } else if (data.action) {
+        notificationData.action = data.action;
+        notificationData.actionData = data.actionData;
+        notificationData.link = this.generateLink({
+          ...notificationData,
+          type: data.action
+        });
       }
       
       // Add additional data
@@ -230,7 +558,8 @@ class NotificationService {
         type: 'system',
         title: 'Welcome to StudyReuse! 🎓',
         message: `Welcome ${user.name}! Thanks for joining our community. Start by browsing items or listing your own study materials!`,
-        link: '/', // Link to home page
+        action: 'none',
+        link: '/dashboard',
         isRead: false
       });
     } catch (error) {
@@ -366,6 +695,41 @@ class NotificationService {
     } catch (error) {
       console.error('❌ Error in cleanupOldNotifications:', error.message);
       return 0;
+    }
+  }
+  
+  // Send admin notification (for admin panel)
+  static async sendAdminNotification(adminId, title, message, data = {}) {
+    try {
+      if (!adminId || !title || !message) {
+        console.error('❌ Missing parameters for sendAdminNotification');
+        return null;
+      }
+      
+      const notificationData = {
+        user: adminId,
+        type: 'admin_alert',
+        title: title,
+        message: message,
+        action: 'system',
+        fromAdmin: true,
+        adminAction: true,
+        isRead: false
+      };
+      
+      if (data.link) {
+        notificationData.link = data.link;
+      }
+      
+      if (data.action) {
+        notificationData.action = data.action;
+        notificationData.actionData = data.actionData;
+      }
+      
+      return await this.create(notificationData);
+    } catch (error) {
+      console.error('❌ Error in sendAdminNotification:', error.message);
+      return null;
     }
   }
 }
