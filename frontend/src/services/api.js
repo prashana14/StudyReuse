@@ -326,16 +326,42 @@ const notificationAPI = {
 };
 
 // ======================
-// 10. REVIEW API Methods
+// 10. REVIEW API Methods - FIXED VERSION
 // ======================
 const reviewAPI = {
-  create: (itemId, rating, comment) => API.post(`/items/${itemId}/reviews`, { rating, comment }),
-  getItemReviews: (itemId, params = {}) => API.get(`/items/${itemId}/reviews`, { params }),
+  // ✅ Create review - using correct endpoint
+  create: (itemId, rating, comment) => API.post('/reviews', { 
+    itemId, 
+    rating, 
+    comment 
+  }),
+  
+  // ✅ Get reviews for item - using correct endpoint
+  getItemReviews: (itemId, params = {}) => API.get(`/reviews/item/${itemId}`, { params }),
+  
+  // ✅ Get user's reviews
   getMyReviews: (params = {}) => API.get('/reviews/my', { params }),
+  
+  // ✅ Update review
   updateReview: (reviewId, rating, comment) => API.put(`/reviews/${reviewId}`, { rating, comment }),
+  
+  // ✅ Delete review
   deleteReview: (reviewId) => API.delete(`/reviews/${reviewId}`),
+  
+  // ✅ Get reviews for a user
   getUserReviews: (userId) => API.get(`/users/${userId}/reviews`),
+  
+  // ✅ Get average rating for item
   getAverageRating: (itemId) => API.get(`/items/${itemId}/rating`),
+  
+  // ✅ Debug endpoint to check reviews
+  debug: (itemId) => API.get(`/reviews/debug/${itemId}`),
+  
+  // ✅ Simple endpoint for testing
+  simple: (itemId) => API.get(`/reviews/simple/${itemId}`),
+  
+  // ✅ Force refresh reviews
+  forceRefresh: (itemId) => API.get(`/reviews/force-refresh/${itemId}`)
 };
 
 // ======================

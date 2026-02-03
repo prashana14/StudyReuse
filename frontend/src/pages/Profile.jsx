@@ -10,9 +10,7 @@ const Profile = () => {
     name: "",
     email: "",
     joinedDate: "",
-    totalItems: 0,
-    activeBarters: 0,
-    completedTrades: 0
+    joinYear: ""
   });
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -30,45 +28,31 @@ const Profile = () => {
         const storedUser = JSON.parse(localStorage.getItem("user")) || user;
         
         if (storedUser) {
+          // Get join year from user data or use current year
+          let joinYear = "";
+          if (storedUser.createdAt) {
+            const date = new Date(storedUser.createdAt);
+            joinYear = date.getFullYear().toString();
+          } else if (storedUser.joinedDate) {
+            // Try to extract year from joinedDate string
+            const yearMatch = storedUser.joinedDate.match(/\d{4}/);
+            joinYear = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
+          } else {
+            // If no join date in data, use current year
+            joinYear = new Date().getFullYear().toString();
+          }
+          
           setProfileData({
             name: storedUser.name || "",
             email: storedUser.email || "",
-            joinedDate: "2024", // You should store join date in your user model
-            totalItems: 0,
-            activeBarters: 0,
-            completedTrades: 0
+            joinedDate: `Since ${joinYear}`,
+            joinYear: joinYear
           });
           
           setFormData({
             name: storedUser.name || "",
             email: storedUser.email || ""
           });
-
-          // Fetch user stats
-          try {
-            const itemsRes = await API.get("/items/my");
-            const barterRes = await API.get("/barter/my");
-            
-            if (itemsRes.data) {
-              setProfileData(prev => ({
-                ...prev,
-                totalItems: itemsRes.data.length
-              }));
-            }
-            
-            if (barterRes.data) {
-              const active = barterRes.data.filter(b => b.status === "pending").length;
-              const completed = barterRes.data.filter(b => b.status === "accepted").length;
-              
-              setProfileData(prev => ({
-                ...prev,
-                activeBarters: active,
-                completedTrades: completed
-              }));
-            }
-          } catch (err) {
-            console.log("Could not fetch stats:", err);
-          }
         }
       } catch (err) {
         console.error("Error fetching profile:", err);
@@ -113,15 +97,23 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="container" style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
-        <div className="loading" style={{ margin: "0 auto", width: "50px", height: "50px", borderWidth: "4px" }}></div>
+      <div style={{ maxWidth: "1200px", margin: "40px auto", textAlign: "center", padding: "60px" }}>
+        <div style={{ 
+          margin: "0 auto", 
+          width: "50px", 
+          height: "50px", 
+          border: "4px solid #e0e0e0",
+          borderTop: "4px solid #4361ee",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite"
+        }}></div>
         <p style={{ marginTop: "20px", color: "#6c757d" }}>Loading profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="container" style={{ maxWidth: "1200px", margin: "40px auto" }}>
+    <div style={{ maxWidth: "1200px", margin: "40px auto", padding: "0 20px" }}>
       {/* Header */}
       <div style={{ marginBottom: "40px" }}>
         <h1 style={{ 
@@ -130,18 +122,25 @@ const Profile = () => {
           background: "linear-gradient(135deg, #4361ee, #7209b7)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
-          backgroundClip: "text"
+          backgroundClip: "text",
+          fontWeight: "700"
         }}>
           My Profile
         </h1>
         <p style={{ color: "#6c757d", fontSize: "1.125rem" }}>
-          Manage your account information and track your activity
+          Manage your account information and settings
         </p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "30px" }}>
         {/* Sidebar - Profile Card */}
-        <div className="card" style={{ padding: "30px", height: "fit-content" }}>
+        <div style={{ 
+          background: "white",
+          borderRadius: "12px",
+          padding: "30px",
+          boxShadow: "0 2px 20px rgba(0,0,0,0.08)",
+          height: "fit-content"
+        }}>
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
             <div style={{
               width: "120px",
@@ -158,7 +157,7 @@ const Profile = () => {
             }}>
               {profileData.name ? profileData.name.charAt(0).toUpperCase() : "U"}
             </div>
-            <h2 style={{ marginBottom: "8px" }}>{profileData.name}</h2>
+            <h2 style={{ marginBottom: "8px", fontSize: "1.5rem", color: "#212529" }}>{profileData.name}</h2>
             <p style={{ color: "#6c757d", marginBottom: "20px" }}>{profileData.email}</p>
             <span style={{
               display: "inline-block",
@@ -169,22 +168,30 @@ const Profile = () => {
               fontSize: "14px",
               fontWeight: "500"
             }}>
-              Member since {profileData.joinedDate}
+              {profileData.joinedDate}
             </span>
           </div>
 
-          <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-              <span style={{ color: "#6c757d" }}>Total Items</span>
-              <span style={{ fontWeight: "600" }}>{profileData.totalItems}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-              <span style={{ color: "#6c757d" }}>Active Barters</span>
-              <span style={{ fontWeight: "600" }}>{profileData.activeBarters}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-              <span style={{ color: "#6c757d" }}>Completed Trades</span>
-              <span style={{ fontWeight: "600" }}>{profileData.completedTrades}</span>
+          {/* Simple Stats - Just for visual */}
+          <div style={{ 
+            borderTop: "1px solid #f0f0f0", 
+            paddingTop: "20px",
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: "10px"
+          }}>
+            <div style={{ 
+              background: "#f8f9fa",
+              padding: "12px",
+              borderRadius: "8px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "#4361ee" }}>
+                {profileData.joinYear}
+              </div>
+              <div style={{ fontSize: "12px", color: "#6c757d", marginTop: "4px" }}>
+                Joined Year
+              </div>
             </div>
           </div>
         </div>
@@ -192,16 +199,37 @@ const Profile = () => {
         {/* Main Content */}
         <div>
           {/* Account Settings Card */}
-          <div className="card" style={{ padding: "30px", marginBottom: "30px" }}>
+          <div style={{ 
+            background: "white",
+            borderRadius: "12px",
+            padding: "30px",
+            marginBottom: "30px",
+            boxShadow: "0 2px 20px rgba(0,0,0,0.08)"
+          }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
-              <h2 style={{ margin: 0 }}>Account Settings</h2>
+              <h2 style={{ margin: 0, fontSize: "1.5rem", color: "#212529", fontWeight: "600" }}>Account Settings</h2>
               {!editMode ? (
                 <button 
                   onClick={() => setEditMode(true)}
-                  className="btn btn-outline"
-                  style={{ padding: "10px 20px" }}
+                  style={{ 
+                    padding: "10px 20px",
+                    border: "2px solid #4361ee",
+                    background: "transparent",
+                    borderRadius: "8px",
+                    color: "#4361ee",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    transition: "all 0.3s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "#eef2ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "transparent";
+                  }}
                 >
-                Edit Profile
+                  Edit Profile
                 </button>
               ) : (
                 <div style={{ display: "flex", gap: "10px" }}>
@@ -213,17 +241,49 @@ const Profile = () => {
                         email: profileData.email
                       });
                     }}
-                    className="btn btn-outline"
-                    style={{ padding: "10px 20px" }}
+                    style={{ 
+                      padding: "10px 20px",
+                      border: "2px solid #6c757d",
+                      background: "transparent",
+                      borderRadius: "8px",
+                      color: "#6c757d",
+                      fontWeight: "600",
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      transition: "all 0.3s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "#f8f9fa";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "transparent";
+                    }}
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={handleSave}
-                    className="btn btn-primary"
-                    style={{ padding: "10px 20px" }}
+                    style={{ 
+                      padding: "10px 20px",
+                      border: "none",
+                      background: "linear-gradient(135deg, #4361ee, #7209b7)",
+                      borderRadius: "8px",
+                      color: "white",
+                      fontWeight: "600",
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      transition: "all 0.3s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = "translateY(-2px)";
+                      e.target.style.boxShadow = "0 4px 15px rgba(67, 97, 238, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "none";
+                    }}
                   >
-                  Save Changes
+                    Save Changes
                   </button>
                 </div>
               )}
@@ -231,25 +291,73 @@ const Profile = () => {
 
             {editMode ? (
               <div style={{ display: "grid", gap: "20px" }}>
-                <div className="form-group">
-                  <label className="form-label">Full Name</label>
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    color: "#495057",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}>
+                    Full Name
+                  </label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="form-control"
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      transition: "all 0.3s",
+                      outline: "none"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#4361ee";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.boxShadow = "none";
+                    }}
                     placeholder="Enter your full name"
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Email Address</label>
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    color: "#495057",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  }}>
+                    Email Address
+                  </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="form-control"
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      transition: "all 0.3s",
+                      outline: "none"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#4361ee";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(67, 97, 238, 0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.boxShadow = "none";
+                    }}
                     placeholder="Enter your email"
                   />
                 </div>
@@ -257,30 +365,51 @@ const Profile = () => {
             ) : (
               <div style={{ display: "grid", gap: "20px" }}>
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#6c757d", fontSize: "14px" }}>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    color: "#6c757d", 
+                    fontSize: "14px"
+                  }}>
                     Full Name
                   </label>
-                  <p style={{ fontSize: "18px", fontWeight: "500" }}>{profileData.name}</p>
+                  <p style={{ fontSize: "18px", fontWeight: "500", color: "#212529" }}>{profileData.name}</p>
                 </div>
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#6c757d", fontSize: "14px" }}>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    color: "#6c757d", 
+                    fontSize: "14px"
+                  }}>
                     Email Address
                   </label>
-                  <p style={{ fontSize: "18px", fontWeight: "500" }}>{profileData.email}</p>
+                  <p style={{ fontSize: "18px", fontWeight: "500", color: "#212529" }}>{profileData.email}</p>
                 </div>
                 <div>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#6c757d", fontSize: "14px" }}>
-                    Account Type
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    color: "#6c757d", 
+                    fontSize: "14px"
+                  }}>
+                    Member Since
                   </label>
-                  <p style={{ fontSize: "18px", fontWeight: "500" }}>Student Account</p>
+                  <p style={{ fontSize: "18px", fontWeight: "500", color: "#212529" }}>{profileData.joinedDate}</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Security Settings */}
-          <div className="card" style={{ padding: "30px", marginBottom: "30px" }}>
-            <h2 style={{ marginBottom: "30px" }}>Security</h2>
+          <div style={{ 
+            background: "white",
+            borderRadius: "12px",
+            padding: "30px",
+            marginBottom: "30px",
+            boxShadow: "0 2px 20px rgba(0,0,0,0.08)"
+          }}>
+            <h2 style={{ marginBottom: "30px", fontSize: "1.5rem", color: "#212529", fontWeight: "600" }}>Security</h2>
             <div style={{ display: "grid", gap: "20px" }}>
               <div style={{ 
                 display: "flex", 
@@ -288,19 +417,27 @@ const Profile = () => {
                 alignItems: "center",
                 padding: "20px",
                 border: "1px solid #e0e0e0",
-                borderRadius: "10px"
+                borderRadius: "10px",
+                background: "#f8f9fa"
               }}>
                 <div>
-                  <h3 style={{ marginBottom: "8px", fontSize: "16px" }}>Change Password</h3>
-                  <p style={{ color: "#6c757d", fontSize: "14px" }}>Update your password regularly</p>
+                  <h3 style={{ marginBottom: "8px", fontSize: "16px", color: "#212529", fontWeight: "600" }}>Change Password</h3>
+                  <p style={{ color: "#6c757d", fontSize: "14px" }}>Password change feature is under development</p>
                 </div>
-                <button 
-                  className="btn btn-outline"
-                  style={{ padding: "10px 20px" }}
-                  onClick={() => navigate("/change-password")}
-                >
-                  Change
-                </button>
+                <div style={{ 
+                  padding: "6px 12px",
+                  background: "#fff3cd",
+                  color: "#856404",
+                  borderRadius: "20px",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}>
+                  <span>⏳</span>
+                  <span>Coming Soon</span>
+                </div>
               </div>
               
               <div style={{ 
@@ -309,10 +446,11 @@ const Profile = () => {
                 alignItems: "center",
                 padding: "20px",
                 border: "1px solid #e0e0e0",
-                borderRadius: "10px"
+                borderRadius: "10px",
+                background: "#f8f9fa"
               }}>
                 <div>
-                  <h3 style={{ marginBottom: "8px", fontSize: "16px" }}>Two-Factor Authentication</h3>
+                  <h3 style={{ marginBottom: "8px", fontSize: "16px", color: "#212529", fontWeight: "600" }}>Two-Factor Authentication</h3>
                   <p style={{ color: "#6c757d", fontSize: "14px" }}>Add an extra layer of security</p>
                 </div>
                 <span style={{
@@ -330,51 +468,136 @@ const Profile = () => {
           </div>
 
           {/* Danger Zone */}
-          <div className="card" style={{ 
+          <div style={{ 
+            background: "#fff5f5",
+            borderRadius: "12px",
             padding: "30px", 
             border: "2px solid #ffebee",
-            background: "#fff5f5"
+            boxShadow: "0 2px 20px rgba(0,0,0,0.08)"
           }}>
-            <h2 style={{ marginBottom: "20px", color: "#e63946" }}>⚠️ Danger Zone</h2>
-            <p style={{ color: "#6c757d", marginBottom: "20px" }}>
-              These actions are irreversible. Please proceed with caution.
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div style={{
+                width: "32px",
+                height: "32px",
+                background: "#e63946",
+                color: "white",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "16px"
+              }}>
+                ⚠️
+              </div>
+              <h2 style={{ margin: 0, color: "#e63946", fontSize: "1.5rem", fontWeight: "600" }}>Danger Zone</h2>
+            </div>
+            <p style={{ color: "#721c24", marginBottom: "20px", fontSize: "14px", lineHeight: "1.5" }}>
+              These actions are irreversible and will permanently affect your account. 
+              Please proceed with caution.
             </p>
-            <div style={{ display: "flex", gap: "20px" }}>
+            <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
               <button 
                 onClick={() => {
-                  if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+                  if (window.confirm(`Are you sure you want to delete your account? 
+This action cannot be undone. 
+All your data since ${profileData.joinYear} will be permanently lost.`)) {
                     // Handle account deletion
                     logout();
                     navigate("/");
                   }
                 }}
-                className="btn"
                 style={{ 
                   background: "#e63946",
                   color: "white",
-                  padding: "12px 24px"
+                  padding: "12px 24px",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 4px 15px rgba(230, 57, 70, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "none";
                 }}
               >
-              Delete Account
+                <span>🗑️</span>
+                <span>Delete Account</span>
               </button>
               <button 
                 onClick={() => {
-                  logout();
-                  navigate("/");
+                  if (window.confirm("Are you sure you want to logout?")) {
+                    logout();
+                    navigate("/");
+                  }
                 }}
-                className="btn btn-outline"
                 style={{ 
-                  borderColor: "#e63946",
+                  border: "2px solid #e63946",
+                  background: "transparent",
                   color: "#e63946",
-                  padding: "12px 24px"
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "#ffe6e6";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "transparent";
                 }}
               >
-              Logout
+                <span>🚪</span>
+                <span>Logout</span>
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 900px) {
+          .profile-container {
+            grid-template-columns: 1fr !important;
+          }
+          
+          .profile-sidebar {
+            order: 2;
+          }
+          
+          .profile-main {
+            order: 1;
+          }
+        }
+        
+        @media (max-width: 600px) {
+          .danger-zone-buttons {
+            flex-direction: column;
+          }
+          
+          .danger-zone-buttons button {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
 };
