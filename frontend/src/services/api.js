@@ -275,7 +275,6 @@ const itemAPI = {
   create: async (itemData, imageFile) => {
     // Use the updated createItemFormData which now includes quantity and faculty
     const formData = createItemFormData(itemData, imageFile);
-    //console.log('Creating item with formData:', formData);
     return API_MULTIPART.post('/items', formData);
   },
   update: async (id, itemData, imageFile = null) => {
@@ -353,15 +352,6 @@ const reviewAPI = {
   
   // ✅ Get average rating for item
   getAverageRating: (itemId) => API.get(`/items/${itemId}/rating`),
-  
-  // ✅ Debug endpoint to check reviews
-  debug: (itemId) => API.get(`/reviews/debug/${itemId}`),
-  
-  // ✅ Simple endpoint for testing
-  simple: (itemId) => API.get(`/reviews/simple/${itemId}`),
-  
-  // ✅ Force refresh reviews
-  forceRefresh: (itemId) => API.get(`/reviews/force-refresh/${itemId}`)
 };
 
 // ======================
@@ -378,15 +368,49 @@ const barterAPI = {
 };
 
 // ======================
-// 12. CHAT API Methods
+// 12. CHAT API Methods (UPDATED TO MATCH YOUR BACKEND)
 // ======================
 const chatAPI = {
-  getConversations: () => API.get('/chat/conversations'),
-  getConversation: (userId) => API.get(`/chat/conversations/${userId}`),
-  getMessages: (conversationId, params = {}) => API.get(`/chat/conversations/${conversationId}/messages`, { params }),
-  sendMessage: (conversationId, message) => API.post(`/chat/conversations/${conversationId}/messages`, { message }),
-  markAsRead: (conversationId) => API.put(`/chat/conversations/${conversationId}/read`),
-  deleteConversation: (conversationId) => API.delete(`/chat/conversations/${conversationId}`),
+  // ✅ Send message & create chat if doesn't exist
+  sendMessage: (itemId, receiverId, message) => 
+    API.post('/chat', { itemId, receiverId, message }),
+  
+  // ✅ Get chat by ID
+  getChatById: (chatId) => API.get(`/chat/${chatId}`),
+  
+  // ✅ Get chats by item ID
+  getChatByItemId: (itemId) => API.get(`/chat/item/${itemId}`),
+  
+  // ✅ Get all chats for current user
+  getUserChats: () => API.get('/chat/user/chats'),
+  
+  // ✅ Create or get existing chat
+  createOrGetChat: (itemId, receiverId) => 
+    API.post('/chat/create', { itemId, receiverId }),
+  
+  // ✅ Mark messages as read
+  markMessagesAsRead: (chatId) => API.patch(`/chat/${chatId}/read`),
+  
+  // ✅ Delete chat
+  deleteChat: (chatId) => API.delete(`/chat/${chatId}`),
+  
+  // ✅ Get unread count
+  getUnreadCount: () => API.get('/chat/user/unread'),
+  
+  // ✅ Get chat messages for polling
+  getChatMessages: (chatId) => API.get(`/chat/${chatId}`),
+  
+  // ✅ Test connection
+  testConnection: () => API.get('/chat/test/connection'),
+  
+  // ✅ Get chat participants info
+  getChatParticipants: (chatId) => API.get(`/chat/${chatId}/participants`),
+  
+  // 🔄 Polling helper - fetch latest messages
+  pollMessages: (chatId) => API.get(`/chat/${chatId}`),
+  
+  // 🔄 Simple send message (for ChatBox.jsx)
+  sendSimpleMessage: (data) => API.post('/chat', data)
 };
 
 // ======================
@@ -449,7 +473,7 @@ const apiService = {
   patch: (url, data, config) => API.patch(url, data, config),
   delete: (url, config) => API.delete(url, config),
   
-  // Admin API (Matches your adminService.js exactly)
+  // Admin API
   admin: adminAPI,
   
   // User API
@@ -470,7 +494,7 @@ const apiService = {
   // Barter API
   barter: barterAPI,
   
-  // Chat API
+  // Chat API (UPDATED)
   chat: chatAPI,
   
   // Upload API
@@ -487,6 +511,46 @@ const apiService = {
   helpers: {
     createItemFormData,
     validateImageFile,
+    
+    // Chat-specific helpers
+    formatMessageTime: (dateString) => {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) {
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else if (diffDays === 1) {
+          return 'Yesterday';
+        } else if (diffDays < 7) {
+          return `${diffDays}d ago`;
+        } else {
+          return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+      } catch {
+        return '';
+      }
+    },
+    
+    getChatStatus: (lastMessageTime) => {
+      if (!lastMessageTime) return '';
+      try {
+        const date = new Date(lastMessageTime);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+        return `${Math.floor(diffMinutes / 1440)}d ago`;
+      } catch {
+        return '';
+      }
+    },
     
     formatPrice: (price) => {
       if (!price && price !== 0) return '₹0';
@@ -705,17 +769,7 @@ const apiService = {
       } catch {
         return null;
       }
-    },
-    
-    // Debug helper
-    // debug: () => {
-    //   console.log('API Service Debug Info:');
-    //   console.log('Base URL:', API_BASE_URL);
-    //   console.log('User Token exists:', !!localStorage.getItem('token'));
-    //   console.log('Admin Token exists:', !!localStorage.getItem('adminToken'));
-    //   console.log('User Data:', localStorage.getItem('user'));
-    //   console.log('Admin Data:', localStorage.getItem('adminData'));
-    // }
+    }
   }
 };
 
