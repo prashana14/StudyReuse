@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState, useContext } from "react";
+import { Link } from "react-router-dom";
 import API from "../services/api";
+import { useNotification } from "../context/NotificationContext"; // ADD THIS IMPORT
+import { AuthContext } from "../context/AuthContext"; // Add if needed
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
-
+  
+  // USE THE NOTIFICATION CONTEXT
+  const { handleNotificationClick, getActionLabel } = useNotification();
+  
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -43,9 +47,9 @@ const Notifications = () => {
   };
 
   // ======================
-  // CLICKABLE NOTIFICATION HANDLING - FIXED VERSION
+  // CLICKABLE NOTIFICATION HANDLING - USE CONTEXT
   // ======================
-  const handleNotificationClick = async (notification) => {
+  const handleClick = async (notification) => {
     try {
       console.log("🖱️ Notification clicked:", {
         id: notification._id,
@@ -57,130 +61,16 @@ const Notifications = () => {
         title: notification.title
       });
       
-      // First mark as read
-      await markRead(notification._id);
-      
-      // Navigate based on notification data
-      const navigateTo = getNavigationTarget(notification);
-      
-      if (navigateTo) {
-        console.log("📍 Navigating to:", navigateTo);
-        navigate(navigateTo);
-      } else {
-        console.log("⚠️ No navigation target found");
-      }
+      // Use the context handler which has the proper navigation logic
+      handleNotificationClick(notification);
       
     } catch (err) {
       console.error("Error handling notification click:", err);
     }
   };
 
-  const getNavigationTarget = (notification) => {
-    // DEBUG: Log the notification data
-    console.log("🔍 Processing notification for navigation:", {
-      type: notification.type,
-      action: notification.action,
-      link: notification.link,
-      relatedItem: notification.relatedItem,
-      relatedOrder: notification.relatedOrder
-    });
-    
-    // PRIORITY 1: Use direct link if available
-    if (notification.link && notification.link !== '/dashboard') {
-      console.log("✅ Using notification.link:", notification.link);
-      return notification.link;
-    }
-    
-    // PRIORITY 2: Handle item-related notifications
-    if (notification.relatedItem) {
-      // If it's an item approval/rejection/new item notification
-      if (notification.type === 'item_approved' || 
-          notification.type === 'item_rejected' || 
-          notification.type === 'new_item' ||
-          notification.action === 'view_item') {
-        const itemLink = `/item/${notification.relatedItem}`;
-        console.log("✅ Item notification, navigating to:", itemLink);
-        return itemLink;
-      }
-    }
-    
-    // PRIORITY 3: Use action field with related data
-    if (notification.action) {
-      switch (notification.action) {
-        case 'view_item':
-          if (notification.relatedItem) {
-            return `/item/${notification.relatedItem}`;
-          }
-          return '/items';
-          
-        case 'view_order':
-          if (notification.relatedOrder) {
-            return `/orders/${notification.relatedOrder}`;
-          }
-          return '/orders';
-          
-        case 'view_message':
-        case 'message':
-          return '/chats';
-          
-        case 'review_item':
-          return '/my-items';
-          
-        case 'view_user':
-          if (notification.relatedUser) {
-            return `/profile/${notification.relatedUser}`;
-          }
-          return '/profile';
-          
-        default:
-          break;
-      }
-    }
-    
-    // PRIORITY 4: Use type field with related data
-    if (notification.type) {
-      switch (notification.type) {
-        case 'message':
-          return '/chats';
-          
-        case 'new_order':
-          if (notification.relatedOrder) {
-            return `/orders/${notification.relatedOrder}`;
-          }
-          return '/orders';
-          
-        case 'item_approved':
-        case 'item_rejected':
-          if (notification.relatedItem) {
-            return `/item/${notification.relatedItem}`;
-          }
-          return '/my-items';
-          
-        case 'barter':
-        case 'trade':
-          return '/barter-requests';
-          
-        case 'new_item':
-          if (notification.relatedItem) {
-            return `/item/${notification.relatedItem}`;
-          }
-          return '/items';
-          
-        case 'system':
-        case 'admin_alert':
-          return '/dashboard';
-          
-        default:
-          break;
-      }
-    }
-    
-    // Default: Stay on notifications page
-    console.log("❌ No navigation target found");
-    return null;
-  };
-
-  const markRead = async (id) => {
+  const markRead = async (id, e) => {
+    if (e) e.stopPropagation();
     if (!id) return;
     
     try {
@@ -264,39 +154,6 @@ const Notifications = () => {
       case 'order_cancelled': return '❌';
       default: return '🔔';
     }
-  };
-
-  const getActionLabel = (notification) => {
-    if (notification.action && notification.action !== 'none') {
-      switch (notification.action) {
-        case 'view_item': return 'View Item';
-        case 'view_order': return 'View Order';
-        case 'view_message': return 'View Message';
-        case 'review_item': return 'Review Item';
-        case 'view_user': return 'View Profile';
-        case 'view_barter': return 'View Barter';
-        case 'view_trade': return 'View Trade';
-        case 'system': return 'View Details';
-        default: return 'View Details';
-      }
-    }
-    
-    if (notification.type) {
-      switch (notification.type) {
-        case 'message': return 'Open Chat';
-        case 'new_order': return 'View Order';
-        case 'item_approved': return 'View Item';
-        case 'item_rejected': return 'View Item';
-        case 'barter': return 'View Barter';
-        case 'trade': return 'View Trade';
-        case 'new_item': return 'View Item';
-        case 'order_updated': return 'View Order';
-        case 'order_cancelled': return 'View Order';
-        default: return 'View Details';
-      }
-    }
-    
-    return 'View Details';
   };
 
   // ======================
@@ -494,13 +351,13 @@ const Notifications = () => {
           const type = notification?.type || "system";
           const title = notification?.title || "Notification";
           const createdAt = notification?.createdAt || new Date().toISOString();
-          const actionLabel = getActionLabel(notification);
+          const actionLabel = getActionLabel(notification); // Use context function
           const icon = getIcon(type);
           
           return (
             <div 
               key={id}
-              onClick={() => handleNotificationClick(notification)}
+              onClick={() => handleClick(notification)} // Use the wrapper function
               style={{
                 padding: "20px",
                 borderBottom: index < notifications.length - 1 ? "1px solid #e9ecef" : "none",
@@ -613,7 +470,7 @@ const Notifications = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleNotificationClick(notification);
+                      handleClick(notification);
                     }}
                     style={{
                       padding: "4px 12px",
@@ -636,10 +493,7 @@ const Notifications = () => {
               
               {!isRead && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    markRead(id);
-                  }}
+                  onClick={(e) => markRead(id, e)}
                   style={{
                     padding: "6px 12px",
                     background: "transparent",

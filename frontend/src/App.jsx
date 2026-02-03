@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom"; // Removed BrowserRouter
+import { Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
 import { useAdminAuth } from "./context/AdminAuthContext";
@@ -58,52 +58,49 @@ function App() {
   }
 
   return (
-    <NotificationProvider>
-      <CartProvider>
-        {/* REMOVED BrowserRouter wrapper - it's already in main.jsx */}
-        <Routes>
-          {/* Admin Routes - No Navbar/Footer */}
-          <Route 
-            path="/admin/login" 
-            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />} 
-          />
-          <Route 
-            path="/admin/register" 
-            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminRegister />} 
-          />
-          
-          {/* Admin Protected Routes with Layout */}
-          <Route 
-            path="/admin" 
-            element={
-              <AdminProtectedRoute>
-                <AdminLayout />
-              </AdminProtectedRoute>
-            }
-          >
-            {/* These will render in AdminLayout's Outlet */}
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="items" element={<ItemsPage />} />
-            <Route path="orders" element={<OrdersPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="notifications" element={<AdminNotificationsPage />} />
-          </Route>
-          
-          {/* All other routes show normal Navbar/Footer */}
-          <Route path="*" element={
-            <>
-              <Navbar />
-              <div className="min-h-[calc(100vh-140px)]">
-                <MainRoutes user={user} />
-              </div>
-              <Footer />
-            </>
-          } />
-        </Routes>
-      </CartProvider>
-    </NotificationProvider>
+    <CartProvider>
+      <Routes>
+        {/* Admin Routes - No Navbar/Footer */}
+        <Route 
+          path="/admin/login" 
+          element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />} 
+        />
+        <Route 
+          path="/admin/register" 
+          element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminRegister />} 
+        />
+        
+        {/* Admin Protected Routes with Layout */}
+        <Route 
+          path="/admin" 
+          element={
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          }
+        >
+          {/* These will render in AdminLayout's Outlet */}
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="items" element={<ItemsPage />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="notifications" element={<AdminNotificationsPage />} />
+        </Route>
+        
+        {/* All other routes show normal Navbar/Footer */}
+        <Route path="*" element={
+          <>
+            <Navbar />
+            <div className="min-h-[calc(100vh-140px)]">
+              <MainRoutes user={user} />
+            </div>
+            <Footer />
+          </>
+        } />
+      </Routes>
+    </CartProvider>
   );
 }
 
@@ -114,6 +111,10 @@ function MainRoutes({ user }) {
       {/* Public routes */}
       <Route path="/" element={<Home />} />
       <Route path="/item/:id" element={<ItemDetails />} />
+      
+      {/* 🔥 CRITICAL FIX: Redirect /items/:id to /item/:id */}
+      <Route path="/items/:id" element={<Navigate to="/item/:id" replace />} />
+      
       <Route path="/search" element={<SearchResults />} />
       <Route path="/items" element={<Items />} />
       
@@ -154,6 +155,9 @@ function MainRoutes({ user }) {
           </ProtectedRoute>
         } 
       />
+      
+      {/* 🔥 ADDITIONAL ROUTE: For chat notifications without itemId */}
+      <Route path="/chat" element={<ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute>} />
       
       {/* Catch all */}
       <Route 

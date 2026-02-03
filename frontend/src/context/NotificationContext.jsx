@@ -19,6 +19,15 @@ export const NotificationProvider = ({ children, isAdmin = false }) => {
 
   const handleNotificationClick = useCallback(async (notification) => {
     try {
+      console.log('🚨 ====== NOTIFICATION CLICK START ======');
+      console.log('📋 Notification Data:', {
+        type: notification.type,
+        action: notification.action,
+        link: notification.link,
+        actionData: notification.actionData,
+        relatedItem: notification.relatedItem
+      });
+      
       // Mark as read if unread
       if (!notification.isRead && notification._id) {
         try {
@@ -27,134 +36,171 @@ export const NotificationProvider = ({ children, isAdmin = false }) => {
           } else {
             await apiService.notifications.markAsRead(notification._id);
           }
+          console.log('✅ Marked as read');
         } catch (error) {
           console.error('Error marking notification as read:', error);
         }
       }
 
-      // Priority 1: Use link field
+      // FUNCTION TO FIX NOTIFICATION LINKS
+      const fixNotificationLink = (link, notification) => {
+        if (!link) return null;
+        
+        console.log(`🔧 Fixing link: ${link}`);
+        
+        // Fix 1: /items/:id → /item/:id
+        if (link.startsWith('/items/') && !link.startsWith('/items?')) {
+          const fixedLink = link.replace('/items/', '/item/');
+          console.log(`  🔄 Fixed to: ${fixedLink}`);
+          return fixedLink;
+        }
+        
+        // Fix 2: /chats?itemId=xxx → /chat/xxx
+        if (link.includes('/chats') && link.includes('itemId=')) {
+          const itemId = new URLSearchParams(link.split('?')[1]).get('itemId');
+          if (itemId) {
+            const fixedLink = `/chat/${itemId}`;
+            console.log(`  🔄 Fixed to: ${fixedLink}`);
+            return fixedLink;
+          }
+        }
+        
+        // Fix 3: /chats (without itemId) → use actionData.itemId or relatedItem
+        if (link.includes('/chats')) {
+          const itemId = notification.actionData?.itemId || 
+                        (notification.relatedItem && notification.relatedItem._id);
+          if (itemId) {
+            const fixedLink = `/chat/${itemId}`;
+            console.log(`  🔄 Fixed to: ${fixedLink}`);
+            return fixedLink;
+          }
+        }
+        
+        console.log(`  ✅ Link is OK: ${link}`);
+        return link;
+      };
+
+      // PRIORITY 1: Handle fixed link
       if (notification.link) {
-        navigate(notification.link);
-        return;
+        const fixedLink = fixNotificationLink(notification.link, notification);
+        if (fixedLink) {
+          console.log(`📍 Navigating to fixed link: ${fixedLink}`);
+          navigate(fixedLink);
+          return;
+        }
       }
 
-      // Priority 2: Use action field
+      // PRIORITY 2: Handle based on action field
       if (notification.action) {
+        console.log(`🎯 Processing action: ${notification.action}`);
+        
         switch (notification.action) {
-          case 'view_user':
-            if (isAdmin) {
-              navigate(notification.actionData?.userId 
-                ? `/admin/users?userId=${notification.actionData.userId}`
-                : notification.relatedUser 
-                  ? `/admin/users/${notification.relatedUser}`
-                  : '/admin/users'
-              );
+          case 'view_message':
+            const chatItemId = notification.actionData?.itemId || 
+                              (notification.relatedItem && notification.relatedItem._id);
+            if (chatItemId) {
+              console.log(`💬 Going to chat with item: /chat/${chatItemId}`);
+              navigate(`/chat/${chatItemId}`);
             } else {
-              navigate(notification.relatedUser ? `/profile/${notification.relatedUser}` : '/profile');
+              console.log('❌ No itemId for chat, going to dashboard');
+              navigate('/dashboard');
             }
-            break;
+            return;
 
           case 'view_item':
-            if (isAdmin) {
-              navigate(notification.actionData?.itemId 
-                ? `/admin/items?itemId=${notification.actionData.itemId}`
-                : notification.relatedItem 
-                  ? `/admin/items/${notification.relatedItem}`
-                  : '/admin/items'
-              );
+            const itemId = notification.actionData?.itemId || 
+                          (notification.relatedItem && notification.relatedItem._id);
+            if (itemId) {
+              console.log(`📦 Going to item: /item/${itemId}`);
+              navigate(`/item/${itemId}`);
             } else {
-              navigate(notification.relatedItem ? `/item/${notification.relatedItem}` : '/items');
-            }
-            break;
-
-          case 'review_item':
-            if (isAdmin) {
-              navigate('/admin/items?status=pending');
-            } else {
+              console.log('❌ No itemId, going to my-items');
               navigate('/my-items');
             }
-            break;
+            return;
 
           case 'view_order':
-            if (isAdmin) {
-              navigate(notification.actionData?.orderId 
-                ? `/admin/orders?orderId=${notification.actionData.orderId}`
-                : notification.relatedOrder
-                  ? `/admin/orders/${notification.relatedOrder}`
-                  : '/admin/orders'
-              );
+            const orderId = notification.actionData?.orderId || 
+                           notification.relatedOrder;
+            if (orderId) {
+              console.log(`📋 Going to order: /orders/${orderId}`);
+              navigate(`/orders/${orderId}`);
             } else {
-              navigate(notification.relatedOrder ? `/orders/${notification.relatedOrder}` : '/orders');
+              console.log('❌ No orderId, going to orders');
+              navigate('/orders');
             }
-            break;
-
-          case 'view_message':
-            navigate('/chats');
-            break;
-
-          case 'system':
-            if (notification.link) {
-              navigate(notification.link);
-            }
-            break;
+            return;
 
           default:
-            if (isAdmin) {
-              navigate('/admin/notifications');
-            } else {
-              navigate('/notifications');
-            }
+            console.log(`⚠️ Unknown action: ${notification.action}`);
             break;
         }
-        return;
       }
 
-      // Priority 3: Use type field
+      // PRIORITY 3: Handle based on type field
       if (notification.type) {
+        console.log(`🔍 Processing type: ${notification.type}`);
+        
         switch (notification.type) {
           case 'message':
-            navigate('/chats');
-            break;
-          case 'new_order':
-            navigate(isAdmin ? '/admin/orders' : '/orders');
-            break;
+          case 'new_message':
+            const msgItemId = notification.actionData?.itemId || 
+                             (notification.relatedItem && notification.relatedItem._id);
+            if (msgItemId) {
+              console.log(`💬 Type:message -> /chat/${msgItemId}`);
+              navigate(`/chat/${msgItemId}`);
+            } else {
+              console.log('❌ No itemId for message type');
+              navigate('/dashboard');
+            }
+            return;
+
           case 'item_approved':
           case 'item_rejected':
-            navigate(notification.relatedItem 
-              ? (isAdmin ? `/admin/items/${notification.relatedItem}` : `/item/${notification.relatedItem}`)
-              : (isAdmin ? '/admin/items' : '/my-items')
-            );
-            break;
-          case 'barter':
+            const statusItemId = notification.actionData?.itemId || 
+                                (notification.relatedItem && notification.relatedItem._id);
+            if (statusItemId) {
+              console.log(`📊 Type:${notification.type} -> /item/${statusItemId}`);
+              navigate(`/item/${statusItemId}`);
+            } else {
+              console.log(`❌ No itemId for ${notification.type}, going to my-items`);
+              navigate('/my-items');
+            }
+            return;
+
+          case 'new_order':
+            const newOrderId = notification.actionData?.orderId || 
+                              notification.relatedOrder;
+            if (newOrderId) {
+              console.log(`🛒 Type:new_order -> /orders/${newOrderId}`);
+              navigate(`/orders/${newOrderId}`);
+            } else {
+              console.log('❌ No orderId for new_order, going to orders');
+              navigate('/orders');
+            }
+            return;
+
+          case 'barter_request':
           case 'trade':
-            navigate(isAdmin ? '/admin/barter' : '/barter-requests');
-            break;
-          case 'new_user':
-            navigate(isAdmin ? '/admin/users' : '/profile');
-            break;
-          case 'new_item':
-            navigate(notification.relatedItem 
-              ? (isAdmin ? `/admin/items/${notification.relatedItem}` : `/item/${notification.relatedItem}`)
-              : (isAdmin ? '/admin/items' : '/items')
-            );
-            break;
-          case 'user_blocked':
-          case 'user_verified':
-            navigate(isAdmin ? '/admin/users' : '/profile');
-            break;
+            console.log('🤝 Going to barter-requests');
+            navigate('/barter-requests');
+            return;
+
           default:
-            navigate(isAdmin ? '/admin/notifications' : '/notifications');
+            console.log(`⚠️ Unknown type: ${notification.type}`);
             break;
         }
-        return;
       }
 
-      // Default navigation
-      navigate(isAdmin ? '/admin/notifications' : '/notifications');
+      // FINAL FALLBACK
+      console.log('⚠️ Could not determine destination, going to dashboard');
+      navigate('/dashboard');
+
+      console.log('✅ ====== NOTIFICATION CLICK END ======');
 
     } catch (error) {
-      console.error('Error handling notification click:', error);
-      navigate(isAdmin ? '/admin/notifications' : '/notifications');
+      console.error('❌ ERROR in handleNotificationClick:', error);
+      navigate('/dashboard');
     }
   }, [navigate, isAdmin]);
 
@@ -164,13 +210,11 @@ export const NotificationProvider = ({ children, isAdmin = false }) => {
         case 'view_user':
           return isAdmin ? 'View User' : 'View Profile';
         case 'view_item':
-          return isAdmin ? 'View Item' : 'View Item';
-        case 'review_item':
-          return isAdmin ? 'Review Item' : 'Review Item';
+          return 'View Item';
         case 'view_order':
-          return isAdmin ? 'View Order' : 'View Order';
+          return 'View Order';
         case 'view_message':
-          return 'View Message';
+          return 'Open Chat';
         default:
           return 'View Details';
       }
@@ -179,17 +223,15 @@ export const NotificationProvider = ({ children, isAdmin = false }) => {
     if (notification.type) {
       switch (notification.type) {
         case 'message':
-          return 'View Chat';
-        case 'new_order':
-          return 'View Order';
+        case 'new_message':
+          return 'Open Chat';
         case 'item_approved':
         case 'item_rejected':
           return 'View Item';
-        case 'barter':
-        case 'trade':
+        case 'new_order':
+          return 'View Order';
+        case 'barter_request':
           return 'View Barter';
-        case 'new_user':
-          return isAdmin ? 'View User' : 'View Profile';
         default:
           return 'View Details';
       }
