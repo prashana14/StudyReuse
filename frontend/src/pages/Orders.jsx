@@ -16,57 +16,80 @@ const Orders = () => {
   }, []);
 
   const fetchUserOrders = async () => {
+  try {
+    setLoading(true);
+    setError('');
+    
+    console.log('🔄 Fetching user orders...');
+    
+    // CORRECT: The API call returns response.data directly (due to interceptor)
+    const response = await apiService.orders.getMyOrders();
+    
+    console.log('✅ API Response:', response);
+    console.log('Response data structure:', {
+      success: response?.success,
+      count: response?.count,
+      data: response?.data
+    });
+    
+    // IMPORTANT FIX: response is already response.data from backend
+    // So we need to access response.data (which is the orders array)
+    const ordersData = response?.data || [];
+    console.log(`📦 Setting ${ordersData.length} orders to state`);
+    
+    setOrders(ordersData);
+    
+  } catch (err) {
+    console.error('❌ Error fetching orders:', err);
+    console.error('Error details:', err);
+    
+    setError(err?.message || 'Failed to load orders');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     try {
-      setLoading(true);
-      setError('');
-      
-      const response = await apiService.orders.getUserOrders();
-      setOrders(response.data.data || []);
-      
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-      setError(err.response?.data?.message || 'Failed to load orders');
-    } finally {
-      setLoading(false);
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Invalid Date';
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   const getStatusColor = (status) => {
-    switch(status) {
-      case 'Pending': return '#ffc107';
-      case 'Processing': return '#0d6efd';
-      case 'Shipped': return '#17a2b8';
-      case 'Delivered': return '#28a745';
-      case 'Cancelled': return '#dc3545';
+    switch(status?.toLowerCase()) {
+      case 'pending': return '#ffc107';
+      case 'processing': return '#0d6efd';
+      case 'shipped': return '#17a2b8';
+      case 'delivered': return '#28a745';
+      case 'cancelled': return '#dc3545';
       default: return '#6c757d';
     }
   };
 
   const getStatusIcon = (status) => {
-    switch(status) {
-      case 'Pending': return '⏳';
-      case 'Processing': return '🔄';
-      case 'Shipped': return '🚚';
-      case 'Delivered': return '✅';
-      case 'Cancelled': return '❌';
+    switch(status?.toLowerCase()) {
+      case 'pending': return '⏳';
+      case 'processing': return '🔄';
+      case 'shipped': return '🚚';
+      case 'delivered': return '✅';
+      case 'cancelled': return '❌';
       default: return '📦';
     }
   };
 
   const filteredOrders = orders.filter(order => {
     if (statusFilter === 'all') return true;
-    return order.status === statusFilter;
+    return order.status?.toLowerCase() === statusFilter.toLowerCase();
   });
 
   const handleCancelOrder = async (orderId) => {
@@ -75,7 +98,8 @@ const Orders = () => {
     }
 
     try {
-      await apiService.orders.cancel(orderId);
+      // CORRECT: Use cancelOrder() not cancel()
+      await apiService.orders.cancelOrder(orderId);
       alert('Order cancelled successfully');
       fetchUserOrders(); // Refresh orders list
     } catch (err) {
@@ -144,13 +168,17 @@ const Orders = () => {
           color: '#d32f2f',
           padding: '15px 20px',
           borderRadius: '8px',
-          marginBottom: '20px'
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          <strong>Error:</strong> {error}
+          <div>
+            <strong>Error:</strong> {error}
+          </div>
           <button 
             onClick={fetchUserOrders}
             style={{ 
-              marginLeft: '15px',
               padding: '5px 15px',
               background: '#4361ee',
               color: 'white',
@@ -164,6 +192,21 @@ const Orders = () => {
           </button>
         </div>
       )}
+
+      {/* Debug Info (only in development) */}
+      {/* {process.env.NODE_ENV === 'development' && orders.length > 0 && (
+        <div style={{ 
+          background: '#eef2ff', 
+          padding: '12px 15px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          fontSize: '14px',
+          borderLeft: '4px solid #4361ee'
+        }}>
+          <strong>Debug:</strong> Loaded {orders.length} orders | 
+          Showing {filteredOrders.length} after filter
+        </div>
+      )} */}
 
       {/* Stats and Filters */}
       <div style={{ 
@@ -195,7 +238,7 @@ const Orders = () => {
           textAlign: 'center'
         }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#28a745' }}>
-            {orders.filter(o => o.status === 'Delivered').length}
+            {orders.filter(o => o.status?.toLowerCase() === 'delivered').length}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Delivered
@@ -210,7 +253,7 @@ const Orders = () => {
           textAlign: 'center'
         }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#ffc107' }}>
-            {orders.filter(o => o.status === 'Pending').length}
+            {orders.filter(o => o.status?.toLowerCase() === 'pending').length}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Pending
@@ -352,7 +395,7 @@ const Orders = () => {
                       fontWeight: '600', 
                       color: '#212529' 
                     }}>
-                      Order #{order._id.substring(order._id.length - 6).toUpperCase()}
+                      Order #{order._id?.substring(order._id.length - 6).toUpperCase()}
                     </span>
                     <span style={{ 
                       background: getStatusColor(order.status),
@@ -376,14 +419,14 @@ const Orders = () => {
                     flexWrap: 'wrap'
                   }}>
                     <span>Placed: {formatDate(order.createdAt)}</span>
-                    <span>Items: {order.items.length}</span>
-                    <span>Total: ₹{order.totalAmount.toFixed(2)}</span>
-                    <span>Payment: {order.paymentMethod}</span>
+                    <span>Items: {order.items?.length || 0}</span>
+                    <span>Total: ₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                    <span>Payment: {order.paymentMethod || 'Cash on Delivery'}</span>
                   </div>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  {order.status === 'Pending' && (
+                  {(order.status?.toLowerCase() === 'pending' || order.status?.toLowerCase() === 'processing') && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -454,20 +497,20 @@ const Orders = () => {
                     color: '#212529',
                     fontWeight: '600'
                   }}>
-                    Order Items ({order.items.length})
+                    Order Items ({order.items?.length || 0})
                   </h4>
                   
                   <div style={{ marginBottom: '20px' }}>
-                    {order.items.map((item, index) => (
+                    {order.items?.map((item, index) => (
                       <div 
-                        key={index} 
+                        key={item._id || index} 
                         style={{ 
                           display: 'flex', 
                           alignItems: 'center', 
                           gap: '15px',
                           padding: '15px 0',
                           borderBottom: '1px solid #e0e0e0',
-                          ...(index === order.items.length - 1 && { borderBottom: 'none' })
+                          ...(index === (order.items?.length || 0) - 1 && { borderBottom: 'none' })
                         }}
                       >
                         <div style={{ 
@@ -482,11 +525,15 @@ const Orders = () => {
                           flexShrink: 0,
                           border: '1px solid #dee2e6'
                         }}>
-                          {item.item?.imageURL ? (
+                          {item.itemSnapshot?.imageURL ? (
                             <img 
-                              src={item.item.imageURL} 
-                              alt={item.item.title}
+                              src={item.itemSnapshot.imageURL} 
+                              alt={item.itemSnapshot.title}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="color: #adb5bd; font-size: 20px">📦</div>';
+                              }}
                             />
                           ) : (
                             <div style={{ color: '#adb5bd', fontSize: '20px' }}>📦</div>
@@ -500,10 +547,10 @@ const Orders = () => {
                             color: '#212529',
                             marginBottom: '5px'
                           }}>
-                            {item.item?.title || 'Item not found'}
+                            {item.itemSnapshot?.title || item.item?.title || 'Item not found'}
                           </div>
                           <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                            Qty: {item.quantity} × ₹{item.price.toFixed(2)} = ₹{(item.price * item.quantity).toFixed(2)}
+                            Qty: {item.quantity || 1} × ₹{item.price?.toFixed(2) || '0.00'} = ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                           </div>
                           {item.item?.category && (
                             <span style={{ 
@@ -525,34 +572,36 @@ const Orders = () => {
                   </div>
 
                   {/* Shipping Address */}
-                  <div style={{ 
-                    marginTop: '20px',
-                    padding: '20px',
-                    background: 'white',
-                    borderRadius: '8px',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <h4 style={{ 
-                      fontSize: '16px', 
-                      marginBottom: '15px', 
-                      color: '#212529',
-                      fontWeight: '600'
+                  {order.shippingAddress && (
+                    <div style={{ 
+                      marginTop: '20px',
+                      padding: '20px',
+                      background: 'white',
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6'
                     }}>
-                      Shipping Address
-                    </h4>
-                    <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
-                      <div><strong>{order.shippingAddress.fullName}</strong></div>
-                      <div>{order.shippingAddress.street}</div>
-                      <div>{order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.zipCode}</div>
-                      <div>{order.shippingAddress.country}</div>
-                      <div>Phone: {order.shippingAddress.phone}</div>
-                      {order.shippingAddress.notes && (
-                        <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                          <strong>Notes:</strong> {order.shippingAddress.notes}
-                        </div>
-                      )}
+                      <h4 style={{ 
+                        fontSize: '16px', 
+                        marginBottom: '15px', 
+                        color: '#212529',
+                        fontWeight: '600'
+                      }}>
+                        Shipping Address
+                      </h4>
+                      <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
+                        <div><strong>{order.shippingAddress.fullName || 'N/A'}</strong></div>
+                        <div>{order.shippingAddress.street || ''}</div>
+                        <div>{order.shippingAddress.city || ''}, {order.shippingAddress.state || ''} - {order.shippingAddress.zipCode || ''}</div>
+                        <div>{order.shippingAddress.country || 'Nepal'}</div>
+                        <div>Phone: {order.shippingAddress.phone || 'N/A'}</div>
+                        {order.shippingAddress.notes && (
+                          <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
+                            <strong>Notes:</strong> {order.shippingAddress.notes}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Order Summary */}
                   <div style={{ 
@@ -568,7 +617,7 @@ const Orders = () => {
                       }}>
                         <span style={{ color: '#6c757d', fontSize: '14px' }}>Subtotal:</span>
                         <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                          ₹{(order.totalAmount).toFixed(2)}
+                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                       <div style={{ 
@@ -592,7 +641,7 @@ const Orders = () => {
                           Total:
                         </span>
                         <span style={{ fontSize: '18px', fontWeight: '700', color: '#4361ee' }}>
-                          ₹{(order.totalAmount).toFixed(2)}
+                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                     </div>
@@ -602,21 +651,21 @@ const Orders = () => {
                   <div style={{ 
                     marginTop: '20px',
                     padding: '15px',
-                    background: order.status === 'Pending' ? '#fff3cd' : '#d4edda',
+                    background: order.status?.toLowerCase() === 'pending' ? '#fff3cd' : '#d4edda',
                     borderRadius: '8px',
                     border: '1px solid',
-                    borderColor: order.status === 'Pending' ? '#ffeaa7' : '#c3e6cb'
+                    borderColor: order.status?.toLowerCase() === 'pending' ? '#ffeaa7' : '#c3e6cb'
                   }}>
                     <div style={{ 
                       fontSize: '14px', 
-                      color: order.status === 'Pending' ? '#856404' : '#155724',
+                      color: order.status?.toLowerCase() === 'pending' ? '#856404' : '#155724',
                       fontWeight: '600',
                       marginBottom: '5px'
                     }}>
-                      {order.status === 'Pending' ? '🕒 Awaiting Approval' : '✅ Order Approved'}
+                      {order.status?.toLowerCase() === 'pending' ? '🕒 Awaiting Approval' : '✅ Order Approved'}
                     </div>
-                    <div style={{ fontSize: '13px', color: order.status === 'Pending' ? '#856404' : '#155724' }}>
-                      {order.status === 'Pending' 
+                    <div style={{ fontSize: '13px', color: order.status?.toLowerCase() === 'pending' ? '#856404' : '#155724' }}>
+                      {order.status?.toLowerCase() === 'pending' 
                         ? 'This order is awaiting admin approval. You will receive a notification when approved.'
                         : 'This order has been approved and is being processed.'}
                     </div>
@@ -657,7 +706,7 @@ const Orders = () => {
               <div style={{ fontSize: '24px', marginBottom: '10px' }}>📋</div>
               <div style={{ fontWeight: '600', marginBottom: '5px' }}>Pending Approvals</div>
               <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                {orders.filter(o => o.status === 'Pending').length} orders waiting for approval
+                {orders.filter(o => o.status?.toLowerCase() === 'pending').length} orders waiting for approval
               </div>
               <Link 
                 to="/admin/orders" 
