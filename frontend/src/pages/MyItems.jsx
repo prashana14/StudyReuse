@@ -451,7 +451,7 @@ const MyItems = () => {
         </div>
         <div className="stat">
           <span className="stat-label">Total Value</span>
-          <span className="stat-value">Rs.{stats.totalValue.toLocaleString()}</span>
+          <span className="stat-value">Rs. {stats.totalValue.toLocaleString()}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Available</span>
@@ -571,7 +571,7 @@ const MyItems = () => {
                     
                     {/* Price and Actions */}
                     <div className="item-footer">
-                      <span className="item-price">₹{item.price}</span>
+                      <span className="item-price">Rs. {item.price}</span>
                       <div className="item-actions">
                         <Link to={`/item/${item._id}`} className="action-btn view-btn">
                           View
@@ -602,7 +602,7 @@ const MyItems = () => {
                 <div className="stat-card-icon">📊</div>
                 <div className="stat-card-content">
                   <p className="stat-card-label">Average Price</p>
-                  <p className="stat-card-value">₹{Math.round(stats.avgPrice).toLocaleString()}</p>
+                  <p className="stat-card-value">Rs. {Math.round(stats.avgPrice).toLocaleString()}</p>
                 </div>
               </div>
               <div className="stat-card">

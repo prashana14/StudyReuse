@@ -710,7 +710,6 @@ const Dashboard = () => {
               value={stats.totalValue.toLocaleString('en-IN')}
               icon="💰"
               color={{ start: "#38b000", end: "#2d9100" }}
-              suffix=" Rs."
             />
             
             <StatCard 
@@ -851,7 +850,7 @@ const Dashboard = () => {
                               fontWeight: "700", 
                               color: "#4361ee"
                             }}>
-                              ₹ {item.price || 0}
+                              Rs. {item.price || 0}
                             </span>
                             {item.category && (
                               <span style={{
@@ -922,7 +921,7 @@ const Dashboard = () => {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: "#6c757d", fontSize: "14px" }}>Avg. Item Price</span>
                     <span style={{ fontSize: "18px", fontWeight: "700", color: "#7209b7" }}>
-                      ₹ {stats.totalItems > 0 ? Math.round(stats.totalValue / stats.totalItems) : 0}
+                      Rs. {stats.totalItems > 0 ? Math.round(stats.totalValue / stats.totalItems) : 0}
                     </span>
                   </div>
                 </div>

@@ -344,7 +344,7 @@ const BarterRequests = () => {
                     
                     <div style={{ marginTop: "12px" }}>
                       <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0" }}>
-                        <strong>Value:</strong> ₹{request.offerItem?.price || "N/A"}
+                        <strong>Value:</strong> Rs. {request.offerItem?.price || "N/A"}
                       </p>
                       <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0" }}>
                         <strong>Condition:</strong> {request.offerItem?.condition || "N/A"}
@@ -428,7 +428,7 @@ const BarterRequests = () => {
                     
                     <div style={{ marginTop: "12px" }}>
                       <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0" }}>
-                        <strong>Value:</strong> ₹{request.item?.price || "N/A"}
+                        <strong>Value:</strong> Rs. {request.item?.price || "N/A"}
                       </p>
                       <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0" }}>
                         <strong>Condition:</strong> {request.item?.condition || "N/A"}
@@ -1201,7 +1201,7 @@ const BarterRequests = () => {
                     {selectedItemForBarter?.title}
                   </h4>
                   <p style={{ margin: "2px 0", color: "#6B7280", fontSize: "12px" }}>
-                    ₹{selectedItemForBarter?.price || "N/A"} • {selectedItemForBarter?.condition || "N/A"}
+                    Rs. {selectedItemForBarter?.price || "N/A"} • {selectedItemForBarter?.condition || "N/A"}
                   </p>
                 </div>
               </div>
@@ -1309,7 +1309,7 @@ const BarterRequests = () => {
                           {item.title}
                         </h4>
                         <p style={{ margin: "0", fontSize: "11px", color: "#6B7280" }}>
-                          ₹{item.price} • {item.condition}
+                          Rs. {item.price} • {item.condition}
                         </p>
                       </div>
                       {selectedOfferItem?._id === item._id && (

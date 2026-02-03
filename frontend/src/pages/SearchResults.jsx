@@ -29,12 +29,12 @@ const SORT_OPTIONS = [
 
 // Price ranges
 const PRICE_RANGES = [
-  { min: 0, max: 100, label: 'Under ₹100' },
-  { min: 100, max: 500, label: '₹100 - ₹500' },
-  { min: 500, max: 1000, label: '₹500 - ₹1,000' },
-  { min: 1000, max: 5000, label: '₹1,000 - ₹5,000' },
-  { min: 5000, max: 10000, label: '₹5,000 - ₹10,000' },
-  { min: 10000, max: null, label: 'Over ₹10,000' }
+  { min: 0, max: 100, label: 'Under Rs.100' },
+  { min: 100, max: 500, label: 'Rs.100 - Rs.500' },
+  { min: 500, max: 1000, label: 'Rs.500 - Rs.1,000' },
+  { min: 1000, max: 5000, label: 'Rs.1,000 - Rs.5,000' },
+  { min: 5000, max: 10000, label: 'Rs.5,000 - Rs.10,000' },
+  { min: 10000, max: null, label: 'Over Rs.10,000' }
 ];
 
 const SearchResults = () => {
@@ -347,7 +347,7 @@ const SearchResults = () => {
                   gap: "6px"
                 }}>
                   <span>💰</span>
-                  ₹{appliedFilters.minPrice || 0} - ₹{appliedFilters.maxPrice || "∞"}
+                  Rs. {appliedFilters.minPrice || 0} - Rs. {appliedFilters.maxPrice || "∞"}
                 </span>
               )}
               
@@ -566,7 +566,7 @@ const SearchResults = () => {
                 </label>
                 <input
                   type="number"
-                  placeholder="₹ Min"
+                  placeholder="Rs. Min"
                   value={filters.minPrice}
                   onChange={(e) => handleFilterChange('minPrice', e.target.value)}
                   style={{
@@ -584,7 +584,7 @@ const SearchResults = () => {
                 </label>
                 <input
                   type="number"
-                  placeholder="₹ Max"
+                  placeholder="Rs. Max"
                   value={filters.maxPrice}
                   onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
                   style={{

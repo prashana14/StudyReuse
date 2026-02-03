@@ -822,7 +822,7 @@ const Checkout = () => {
                         {item.title.length > 30 ? item.title.substring(0, 30) + '...' : item.title}
                       </div>
                       <div style={{ fontSize: '12px', color: '#6c757d' }}>
-                        Qty: {item.quantity} × ₹{parseFloat(item.price).toFixed(2)}
+                        Qty: {item.quantity} × Rs. {parseFloat(item.price).toFixed(2)}
                       </div>
                       {isLowStock && (
                         <div style={{ 
@@ -839,7 +839,7 @@ const Checkout = () => {
                     </div>
                     
                     <div style={{ fontSize: '14px', fontWeight: '600', color: '#4361ee' }}>
-                      ₹{(item.price * item.quantity).toFixed(2)}
+                      Rs. {(item.price * item.quantity).toFixed(2)}
                     </div>
                   </div>
                 );
@@ -856,7 +856,7 @@ const Checkout = () => {
             }}>
               <span style={{ color: '#6c757d', fontSize: '14px' }}>Subtotal</span>
               <span style={{ fontSize: '14px', fontWeight: '500' }}>
-                ₹{cartTotal.toFixed(2)}
+                Rs. {cartTotal.toFixed(2)}
               </span>
             </div>
             
@@ -884,7 +884,7 @@ const Checkout = () => {
                 Total Amount
               </span>
               <span style={{ fontSize: '20px', fontWeight: '700', color: '#4361ee' }}>
-                ₹{cartTotal.toFixed(2)}
+                Rs. {cartTotal.toFixed(2)}
               </span>
             </div>
           </div>

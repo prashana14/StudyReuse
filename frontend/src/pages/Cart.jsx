@@ -479,7 +479,6 @@ const Cart = () => {
                     zIndex: 1,
                     border: '1px solid #ffeaa7'
                   }}>
-                    ⚠️ LOW STOCK
                   </div>
                 )}
                 
@@ -583,7 +582,7 @@ const Cart = () => {
                       fontWeight: '700', 
                       color: isOutOfStock ? '#6c757d' : '#4361ee'
                     }}>
-                      ₹{parseFloat(item.price).toFixed(2)}
+                      Rs. {parseFloat(item.price).toFixed(2)}
                     </span>
                     
                     {item.category && (
@@ -719,7 +718,7 @@ const Cart = () => {
                   </div>
                   
                   <div style={{ fontSize: '16px', fontWeight: '600', color: isOutOfStock ? '#6c757d' : '#212529' }}>
-                    ₹{(item.price * item.quantity).toFixed(2)}
+                    Rs. {(item.price * item.quantity).toFixed(2)}
                   </div>
                   
                   <button 
@@ -799,7 +798,7 @@ const Cart = () => {
             }}>
               <span style={{ color: '#6c757d', fontSize: '16px' }}>Subtotal</span>
               <span style={{ fontSize: '16px', fontWeight: '500' }}>
-                ₹{cartTotal.toFixed(2)}
+                Rs. {cartTotal.toFixed(2)}
               </span>
             </div>
             
@@ -827,7 +826,7 @@ const Cart = () => {
                 Total
               </span>
               <span style={{ fontSize: '24px', fontWeight: '700', color: '#4361ee' }}>
-                ₹{cartTotal.toFixed(2)}
+                Rs. {cartTotal.toFixed(2)}
               </span>
             </div>
           </div>

@@ -555,7 +555,7 @@ const ItemDetails = () => {
                 <option value="">-- Select an item --</option>
                 {offerItems.map(offerItem => (
                   <option key={offerItem._id} value={offerItem._id}>
-                    {offerItem.title} (₹{offerItem.price || "0"})
+                    {offerItem.title} (Rs.{offerItem.price || "0"})
                   </option>
                 ))}
               </select>

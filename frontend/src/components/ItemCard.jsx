@@ -177,7 +177,7 @@ const ItemCard = ({ item }) => {
     
     if (numPrice === 0) return "Free";
     
-    return `₹${numPrice.toLocaleString('en-IN')}`;
+    return `Rs. ${numPrice.toLocaleString('en-IN')}`;
   };
 
   // Truncate title

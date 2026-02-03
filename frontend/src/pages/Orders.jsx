@@ -420,7 +420,7 @@ const Orders = () => {
                   }}>
                     <span>Placed: {formatDate(order.createdAt)}</span>
                     <span>Items: {order.items?.length || 0}</span>
-                    <span>Total: Rs.{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                    <span>Total: Rs. {order.totalAmount?.toFixed(2) || '0.00'}</span>
                     <span>Payment: {order.paymentMethod || 'Cash on Delivery'}</span>
                   </div>
                 </div>
@@ -550,7 +550,7 @@ const Orders = () => {
                             {item.itemSnapshot?.title || item.item?.title || 'Item not found'}
                           </div>
                           <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                            Qty: {item.quantity || 1} × ₹{item.price?.toFixed(2) || '0.00'} = ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                            Qty: {item.quantity || 1} × Rs. {item.price?.toFixed(2) || '0.00'} = ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                           </div>
                           {item.item?.category && (
                             <span style={{ 
@@ -617,7 +617,7 @@ const Orders = () => {
                       }}>
                         <span style={{ color: '#6c757d', fontSize: '14px' }}>Subtotal:</span>
                         <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
+                          Rs. {order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                       <div style={{ 
@@ -641,7 +641,7 @@ const Orders = () => {
                           Total:
                         </span>
                         <span style={{ fontSize: '18px', fontWeight: '700', color: '#4361ee' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
+                          Rs. {order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                     </div>
