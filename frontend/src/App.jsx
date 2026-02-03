@@ -130,7 +130,7 @@ function MainRoutes({ user }) {
       {/* User protected routes */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-      <Route path="/barter" element={<ProtectedRoute><BarterRequests /></ProtectedRoute>} />
+      <Route path="/barter-requests" element={<ProtectedRoute><BarterRequests /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/reviews/:itemId" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

@@ -2,9 +2,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import apiService from "../services/api";
+import { useNotification } from "../context/NotificationContext"; // Added
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { markAsRead, notifications } = useNotification(); // Added for notifications
   const [stats, setStats] = useState({
     totalItems: 0,
     totalValue: 0,
@@ -22,6 +24,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [error, setError] = useState("");
   const [apiError, setApiError] = useState(null);
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false); // Added
 
   // Helper Functions
   const getGreeting = () => {
@@ -78,6 +81,54 @@ const Dashboard = () => {
       </div>
     </div>
   );
+
+  // Notification Handler
+  const handleNotificationClick = (notification) => {
+    // Mark as read
+    if (notification._id) {
+      markAsRead(notification._id);
+    }
+    
+    // Navigate based on notification type
+    switch (notification.type) {
+      case 'barter':
+      case 'trade':
+        navigate('/barter-requests');
+        break;
+      case 'new_order':
+      case 'order_shipped':
+      case 'payment_received':
+        navigate('/orders');
+        break;
+      case 'new_item':
+      case 'item_approved':
+      case 'item_rejected':
+        if (notification.relatedItem) {
+          navigate(`/item/${notification.relatedItem}`);
+        } else {
+          navigate('/my-items');
+        }
+        break;
+      case 'new_message':
+        if (notification.relatedItem) {
+          navigate(`/chat/${notification.relatedItem}`);
+        } else {
+          navigate('/barter-requests');
+        }
+        break;
+      case 'review_added':
+        if (notification.relatedItem) {
+          navigate(`/reviews/${notification.relatedItem}`);
+        }
+        break;
+      default:
+        // For other notifications, go to notifications page
+        navigate('/notifications');
+        break;
+    }
+    
+    setShowNotificationDropdown(false);
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -431,7 +482,148 @@ const Dashboard = () => {
               Welcome back to your StudyReuse dashboard. Here's your activity summary.
             </p>
           </div>
+          
           <div style={{ display: "flex", gap: "15px" }}>
+            {/* Notification Bell */}
+            <div style={{ position: "relative" }}>
+              <button 
+                onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                className="btn btn-outline"
+                style={{ 
+                  padding: "12px 16px", 
+                  fontSize: "16px",
+                  background: "transparent",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "8px",
+                  color: "#4361ee",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  position: "relative"
+                }}
+              >
+                🔔 Notifications
+                {notifications?.filter(n => !n.isRead).length > 0 && (
+                  <span style={{
+                    position: "absolute",
+                    top: "-5px",
+                    right: "-5px",
+                    background: "#dc3545",
+                    color: "white",
+                    borderRadius: "50%",
+                    width: "20px",
+                    height: "20px",
+                    fontSize: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    {notifications.filter(n => !n.isRead).length}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notification Dropdown */}
+              {showNotificationDropdown && (
+                <div style={{
+                  position: "absolute",
+                  top: "100%",
+                  right: 0,
+                  width: "350px",
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                  background: "white",
+                  borderRadius: "8px",
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                  zIndex: 1000,
+                  marginTop: "10px",
+                  border: "1px solid #dee2e6"
+                }}>
+                  <div style={{
+                    padding: "15px",
+                    borderBottom: "1px solid #dee2e6",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}>
+                    <h4 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>Notifications</h4>
+                    <button 
+                      onClick={() => navigate('/notifications')}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#4361ee",
+                        cursor: "pointer",
+                        fontSize: "14px"
+                      }}
+                    >
+                      View All
+                    </button>
+                  </div>
+                  
+                  {notifications && notifications.length > 0 ? (
+                    <div>
+                      {notifications.slice(0, 5).map((notification, index) => (
+                        <div 
+                          key={notification._id || index}
+                          onClick={() => handleNotificationClick(notification)}
+                          style={{
+                            padding: "15px",
+                            borderBottom: "1px solid #f8f9fa",
+                            cursor: "pointer",
+                            background: notification.isRead ? "white" : "#f8f9fa",
+                            transition: "background 0.2s"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "#f0f7ff"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = notification.isRead ? "white" : "#f8f9fa"}
+                        >
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                            <div style={{ fontSize: "18px", marginTop: "2px" }}>
+                              {notification.type === 'barter' ? '🔄' : 
+                               notification.type === 'new_message' ? '💬' : 
+                               notification.type === 'new_order' ? '🛒' : 
+                               notification.type === 'item_approved' ? '✅' : '🔔'}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ 
+                                margin: "0 0 5px 0", 
+                                fontSize: "14px", 
+                                fontWeight: notification.isRead ? "400" : "600",
+                                color: notification.isRead ? "#6c757d" : "#212529"
+                              }}>
+                                {notification.message || notification.title}
+                              </p>
+                              <p style={{ 
+                                margin: 0, 
+                                fontSize: "12px", 
+                                color: "#6c757d" 
+                              }}>
+                                {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : "Just now"}
+                              </p>
+                            </div>
+                            {!notification.isRead && (
+                              <div style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "50%",
+                                background: "#4361ee"
+                              }}></div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: "30px", textAlign: "center" }}>
+                      <p style={{ color: "#6c757d", margin: 0 }}>No notifications</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             <Link to="/add-item" className="btn btn-primary" style={{ 
               padding: "12px 28px", 
               fontSize: "16px",
@@ -769,7 +961,7 @@ const Dashboard = () => {
                   </button>
                   
                   <button 
-                    onClick={() => setActiveTab("barters")}
+                    onClick={() => navigate("/barter-requests")}
                     className="btn btn-outline"
                     style={{ 
                       textAlign: "left", 
@@ -813,7 +1005,7 @@ const Dashboard = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
                 <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "600", color: "#212529" }}>Recent Barter Requests</h2>
                 <button 
-                  onClick={() => setActiveTab("barters")}
+                  onClick={() => navigate("/barter-requests")}
                   style={{ 
                     color: "#4361ee", 
                     textDecoration: "none", 
@@ -901,7 +1093,7 @@ const Dashboard = () => {
                     )}
                     
                     <button 
-                      onClick={() => navigate(`/barter/${barter._id}`)}
+                      onClick={() => navigate("/barter-requests")}
                       className="btn btn-outline"
                       style={{ 
                         width: "100%", 
@@ -923,7 +1115,7 @@ const Dashboard = () => {
                         e.currentTarget.style.color = "#4361ee";
                       }}
                     >
-                      View Details
+                      View All Barters
                     </button>
                   </div>
                 ))}
@@ -1265,7 +1457,7 @@ const Dashboard = () => {
                   </div>
                   
                   <button 
-                    onClick={() => navigate(`/barter/${barter._id}`)}
+                    onClick={() => navigate("/barter-requests")}
                     className="btn btn-outline"
                     style={{ 
                       padding: "10px 24px", 
@@ -1286,7 +1478,7 @@ const Dashboard = () => {
                       e.currentTarget.style.color = "#4361ee";
                     }}
                   >
-                    Manage
+                    Manage in Barters
                   </button>
                 </div>
               ))}
