@@ -1,3 +1,4 @@
+// backend/models/userModel.js - SIMPLIFIED UPDATE
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -19,11 +20,12 @@ const userSchema = new mongoose.Schema(
       required: true 
     },
 
-    role: {
-      type: String,
-      enum: ["user", "admin"],
-      default: "user"
-    },
+    // REMOVED role field - all users are regular users now
+    // role: {
+    //   type: String,
+    //   enum: ["user", "admin"],
+    //   default: "user"
+    // },
 
     isBlocked: {
       type: Boolean,
@@ -56,11 +58,11 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Add this at the end of backend/models/userModel.js, before the export
+// Update the post-save hook - remove role check since all are users
 userSchema.post('save', async function(doc, next) {
   try {
-    // Only notify for new users (not admins) and not when updating
-    if (doc.role === 'user' && doc.isNew) {
+    // Notify for ALL new users (no role check needed)
+    if (doc.isNew) {
       const adminController = require('../controller/adminController');
       await adminController.notifyNewUser(doc._id);
     }

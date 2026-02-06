@@ -1,3 +1,5 @@
+// backend/controller/adminController.js - UPDATED FOR SEPARATE ADMIN MODEL
+const Admin = require('../models/adminModel');
 const User = require('../models/userModel');
 const Item = require('../models/itemModel');
 const Notification = require('../models/notificationModel');
@@ -34,10 +36,14 @@ function getTimeAgo(date) {
   return past.toLocaleDateString();
 }
 
-// ✅ Check admin limit
+// ======================
+// ADMIN AUTHENTICATION
+// ======================
+
+// ✅ Check admin limit (for separate Admin model)
 exports.checkAdminLimit = async (req, res) => {
   try {
-    const adminCount = await User.countDocuments({ role: "admin" });
+    const adminCount = await Admin.countDocuments();
     
     res.json({
       success: true,
@@ -57,7 +63,7 @@ exports.checkAdminLimit = async (req, res) => {
   }
 };
 
-// ✅ Admin Register - FIXED (Removed manual hashing)
+// ✅ Admin Register - UPDATED FOR SEPARATE ADMIN MODEL
 exports.registerAdmin = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -84,41 +90,49 @@ exports.registerAdmin = async (req, res) => {
       });
     }
     
-    // Check admin limit
-    const adminCount = await User.countDocuments({ role: "admin" });
-    if (adminCount >= 2) {
+    // Check admin limit (max 5 admins)
+    const adminCount = await Admin.countDocuments();
+    if (adminCount >= 5) {
       return res.status(403).json({ 
         success: false,
-        message: "Maximum admin limit reached (2 admins only)" 
+        message: "Maximum admin limit reached (5 admins only)" 
       });
     }
     
-    // Check if user already exists
+    // Check if admin already exists in Admin model
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Admin with this email already exists" 
+      });
+    }
+    
+    // Check if email exists in User model (regular users)
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ 
         success: false,
-        message: "User with this email already exists" 
+        message: "This email is already registered as a regular user" 
       });
     }
     
-    // ✅ FIX: Create admin with plain password - model will hash it automatically
-    const admin = await User.create({
+    // ✅ Create admin in separate Admin model
+    const admin = await Admin.create({
       name,
       email,
-      password,  // Pass plain password
-      role: "admin"
+      password // Will be hashed by pre-save hook
     });
     
-    console.log('Admin created successfully:', admin._id);
+    console.log('Admin created successfully in Admin model:', admin._id);
     
     // Generate token
     const token = jwt.sign(
       { 
         id: admin._id,
-        role: admin.role,
         email: admin.email,
-        isAdmin: true
+        isAdmin: true,
+        modelType: 'admin' // Add model type to differentiate
       },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
@@ -132,7 +146,7 @@ exports.registerAdmin = async (req, res) => {
         id: admin._id,
         name: admin.name,
         email: admin.email,
-        role: admin.role
+        role: admin.role || 'admin'
       }
     });
   } catch (error) {
@@ -144,7 +158,7 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-// ✅ Admin Login - FIXED (Using model's matchPassword)
+// ✅ Admin Login - UPDATED FOR SEPARATE ADMIN MODEL
 exports.loginAdmin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -159,70 +173,66 @@ exports.loginAdmin = async (req, res) => {
       });
     }
     
-    // Find user
-    const user = await User.findOne({ email });
+    // Find admin in Admin model (with password)
+    const admin = await Admin.findOne({ email }).select('+password');
     
-    if (!user) {
-      console.log('User not found:', email);
+    if (!admin) {
+      console.log('Admin not found in Admin model:', email);
       return res.status(401).json({ 
         success: false,
         message: "Invalid admin credentials" 
       });
     }
     
-    // Check if user is admin
-    if (user.role !== 'admin') {
-      console.log('User is not admin:', user.role);
+    // Check if admin is active
+    if (!admin.isActive) {
       return res.status(403).json({ 
         success: false,
-        message: "Access denied. Admin only." 
+        message: "Admin account is deactivated" 
       });
     }
     
-    // ✅ FIX: Use the model's matchPassword method
-    const isPasswordValid = await user.matchPassword(password);
+    // Check password using Admin model's matchPassword
+    const isPasswordValid = await admin.matchPassword(password);
     console.log('Password validation result:', isPasswordValid);
     
     if (!isPasswordValid) {
-      console.log('Invalid password for user:', email);
+      console.log('Invalid password for admin:', email);
       return res.status(401).json({ 
         success: false,
         message: "Invalid admin credentials" 
       });
     }
     
-    // Check if admin is blocked
-    if (user.isBlocked) {
-      return res.status(403).json({ 
-        success: false,
-        message: "Admin account is blocked",
-        reason: user.blockedReason 
-      });
-    }
+    // Update login info
+    admin.lastLogin = new Date();
+    admin.loginCount += 1;
+    await admin.save();
     
-    // Generate ADMIN token
+    // Generate ADMIN token with modelType
     const token = jwt.sign(
       { 
-        id: user._id,
-        role: user.role,
-        email: user.email,
-        isAdmin: true
+        id: admin._id,
+        email: admin.email,
+        isAdmin: true,
+        modelType: 'admin'
       },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
     
-    console.log('Admin login successful:', user._id);
+    console.log('Admin login successful:', admin._id);
     
     res.json({
       success: true,
       message: "Admin login successful",
       token,
       admin: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role || 'admin',
+        lastLogin: admin.lastLogin
       }
     });
   } catch (error) {
@@ -238,9 +248,9 @@ exports.loginAdmin = async (req, res) => {
 exports.verifyAdmin = async (req, res) => {
   try {
     // This middleware already verified the token
-    const user = await User.findById(req.user.id).select('-password');
+    const admin = await Admin.findById(req.admin.id).select('-password');
     
-    if (!user || user.role !== 'admin') {
+    if (!admin) {
       return res.status(401).json({ 
         success: false,
         message: "Unauthorized - Admin access required" 
@@ -250,10 +260,11 @@ exports.verifyAdmin = async (req, res) => {
     res.json({
       success: true,
       admin: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role || 'admin',
+        lastLogin: admin.lastLogin
       }
     });
   } catch (error) {
@@ -268,7 +279,7 @@ exports.verifyAdmin = async (req, res) => {
 // ✅ Get Admin Profile
 exports.getAdminProfile = async (req, res) => {
   try {
-    const admin = await User.findById(req.user.id).select('-password');
+    const admin = await Admin.findById(req.admin.id).select('-password');
     
     if (!admin) {
       return res.status(404).json({ 
@@ -283,8 +294,10 @@ exports.getAdminProfile = async (req, res) => {
         id: admin._id,
         name: admin.name,
         email: admin.email,
-        role: admin.role,
-        createdAt: admin.createdAt
+        role: admin.role || 'admin',
+        createdAt: admin.createdAt,
+        lastLogin: admin.lastLogin,
+        loginCount: admin.loginCount
       }
     });
   } catch (error) {
@@ -296,7 +309,10 @@ exports.getAdminProfile = async (req, res) => {
   }
 };
 
-// ✅ Dashboard Statistics
+// ======================
+// DASHBOARD STATISTICS
+// ======================
+
 exports.getDashboardStats = async (req, res) => {
   try {
     const [
@@ -309,17 +325,17 @@ exports.getDashboardStats = async (req, res) => {
       activeUsers,
       verifiedItems
     ] = await Promise.all([
-      User.countDocuments({ role: 'user' }),
+      User.countDocuments(),
       User.countDocuments({ isBlocked: true }),
       Item.countDocuments(),
       Item.countDocuments({ isApproved: false }),
       Item.countDocuments({ isFlagged: true }),
-      User.countDocuments({ role: 'admin' }),
+      Admin.countDocuments(),
       User.countDocuments({ isBlocked: false }),
       Item.countDocuments({ isApproved: true })
     ]);
     
-    // Calculate growth (you can make this dynamic based on time range)
+    // Calculate growth
     const userGrowth = 0; // Implement based on previous period
     const itemGrowth = 0; // Implement based on previous period
     const revenueToday = 0; // Implement if you have orders
@@ -352,13 +368,17 @@ exports.getDashboardStats = async (req, res) => {
   }
 };
 
+// ======================
+// USER MANAGEMENT
+// ======================
+
 // ✅ Get All Users (for admin)
 exports.getAllUsers = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", status } = req.query;
     
-    // Build query
-    const query = { role: 'user' }; // Only regular users, not admins
+    // Build query - all users (no role filter needed now)
+    const query = {};
     
     // Search by name or email
     if (search) {
@@ -401,13 +421,13 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// ✅ Get User by ID (NEW FUNCTION - ADDED)
+// ✅ Get User by ID
 exports.getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     
     // Find user by ID, exclude sensitive fields
-    const user = await User.findById(id).select('-password -refreshToken');
+    const user = await User.findById(id).select('-password');
     
     if (!user) {
       return res.status(404).json({
@@ -439,7 +459,7 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// ✅ Block User (UPDATED with clickable notifications)
+// ✅ Block User
 exports.blockUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -451,14 +471,6 @@ exports.blockUser = async (req, res) => {
       return res.status(404).json({ 
         success: false,
         message: "User not found" 
-      });
-    }
-    
-    // Cannot block other admins
-    if (user.role === 'admin') {
-      return res.status(403).json({ 
-        success: false,
-        message: "Cannot block another admin" 
       });
     }
     
@@ -479,7 +491,7 @@ exports.blockUser = async (req, res) => {
     });
     
     // Create clickable notification for admin (current admin)
-    await createAdminNotification(req.user.id, {
+    await createAdminNotification(req.admin.id, {
       type: "user_blocked",
       title: "User Blocked",
       message: `You blocked user: ${user.name}`,
@@ -492,16 +504,15 @@ exports.blockUser = async (req, res) => {
     
     // Create notification for other admins if needed
     if (notifyOtherAdmins) {
-      const otherAdmins = await User.find({ 
-        role: 'admin', 
-        _id: { $ne: req.user.id } 
+      const otherAdmins = await Admin.find({ 
+        _id: { $ne: req.admin.id } 
       });
       
       for (const admin of otherAdmins) {
         await createAdminNotification(admin._id, {
           type: "admin_alert",
           title: "User Blocked by Admin",
-          message: `User ${user.name} was blocked by ${req.user.name}`,
+          message: `User ${user.name} was blocked by ${req.admin.name}`,
           action: "view_user",
           actionData: { userId: user._id },
           link: `/admin/users?userId=${user._id}`,
@@ -531,7 +542,7 @@ exports.blockUser = async (req, res) => {
   }
 };
 
-// ✅ Unblock User (UPDATED with clickable notifications)
+// ✅ Unblock User
 exports.unblockUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -561,7 +572,7 @@ exports.unblockUser = async (req, res) => {
     });
     
     // Create clickable notification for admin
-    await createAdminNotification(req.user.id, {
+    await createAdminNotification(req.admin.id, {
       type: "user_verified",
       title: "User Unblocked",
       message: `You unblocked user: ${user.name}`,
@@ -591,7 +602,11 @@ exports.unblockUser = async (req, res) => {
   }
 };
 
-// ✅ Approve Item (UPDATED with clickable notifications)
+// ======================
+// ITEM MANAGEMENT
+// ======================
+
+// ✅ Approve Item
 exports.approveItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -623,7 +638,7 @@ exports.approveItem = async (req, res) => {
     });
     
     // Create clickable notification for admin
-    await createAdminNotification(req.user.id, {
+    await createAdminNotification(req.admin.id, {
       type: "item_approved",
       title: "Item Approved",
       message: `You approved item: "${item.title}"`,
@@ -653,7 +668,7 @@ exports.approveItem = async (req, res) => {
   }
 };
 
-// ✅ Reject/Flag Item (UPDATED with clickable notifications)
+// ✅ Reject/Flag Item
 exports.rejectItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -685,7 +700,7 @@ exports.rejectItem = async (req, res) => {
     });
     
     // Create clickable notification for admin
-    await createAdminNotification(req.user.id, {
+    await createAdminNotification(req.admin.id, {
       type: "item_rejected",
       title: "Item Rejected",
       message: `You rejected item: "${item.title}"`,
@@ -715,7 +730,7 @@ exports.rejectItem = async (req, res) => {
   }
 };
 
-// ✅ Delete Item (UPDATED with clickable notifications)
+// ✅ Delete Item
 exports.deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -743,7 +758,7 @@ exports.deleteItem = async (req, res) => {
     });
     
     // Create clickable notification for admin
-    await createAdminNotification(req.user.id, {
+    await createAdminNotification(req.admin.id, {
       type: "item_deleted",
       title: "Item Deleted",
       message: `You deleted item: "${item.title}"`,
@@ -766,6 +781,10 @@ exports.deleteItem = async (req, res) => {
     });
   }
 };
+
+// ======================
+// NOTIFICATION MANAGEMENT
+// ======================
 
 // ✅ Send Notification to Users
 exports.sendNotification = async (req, res) => {
@@ -793,13 +812,13 @@ exports.sendNotification = async (req, res) => {
       users = [user];
     } else if (userType === 'all') {
       // Send to all users
-      users = await User.find({ role: 'user' });
+      users = await User.find();
     } else if (userType === 'active') {
       // Send to active users
-      users = await User.find({ isBlocked: false, role: 'user' });
+      users = await User.find({ isBlocked: false });
     } else if (userType === 'admins') {
       // Send to all admins
-      users = await User.find({ role: 'admin' });
+      users = await Admin.find();
     }
     
     // Create notifications with click actions
@@ -834,7 +853,7 @@ exports.sendNotification = async (req, res) => {
 };
 
 // ======================
-// NEW NOTIFICATION FUNCTIONS
+// ADMIN NOTIFICATIONS
 // ======================
 
 // ✅ Get Admin Notifications
@@ -851,8 +870,8 @@ exports.getAdminNotifications = async (req, res) => {
     const skip = (page - 1) * limit;
     const sortOrder = sort === 'asc' ? 1 : -1;
     
-    // Build query - get notifications where admin is recipient OR admin actions
-    const query = { user: req.user.id };
+    // Build query - get notifications for this admin
+    const query = { user: req.admin.id };
     
     if (type && type !== 'all') {
       query.type = type;
@@ -867,7 +886,7 @@ exports.getAdminNotifications = async (req, res) => {
       .populate({
         path: 'user',
         select: 'name email',
-        model: User
+        model: Admin
       })
       .populate({
         path: 'relatedItem',
@@ -922,7 +941,7 @@ exports.getAdminNotifications = async (req, res) => {
 exports.getAdminUnreadCount = async (req, res) => {
   try {
     const count = await Notification.countDocuments({ 
-      user: req.user.id,
+      user: req.admin.id,
       isRead: false
     });
     
@@ -947,7 +966,7 @@ exports.markAdminNotificationAsRead = async (req, res) => {
     const notification = await Notification.findOneAndUpdate(
       { 
         _id: id,
-        user: req.user.id
+        user: req.admin.id
       },
       { 
         isRead: true,
@@ -982,7 +1001,7 @@ exports.markAllAdminNotificationsAsRead = async (req, res) => {
   try {
     const result = await Notification.updateMany(
       { 
-        user: req.user.id,
+        user: req.admin.id,
         isRead: false
       },
       { 
@@ -1012,7 +1031,7 @@ exports.deleteAdminNotification = async (req, res) => {
     
     const notification = await Notification.findOneAndDelete({
       _id: id,
-      user: req.user.id
+      user: req.admin.id
     });
     
     if (!notification) {
@@ -1040,7 +1059,7 @@ exports.deleteAdminNotification = async (req, res) => {
 exports.clearAllAdminNotifications = async (req, res) => {
   try {
     const result = await Notification.deleteMany({
-      user: req.user.id
+      user: req.admin.id
     });
     
     res.json({
@@ -1057,7 +1076,7 @@ exports.clearAllAdminNotifications = async (req, res) => {
   }
 };
 
-// ✅ Send Notification to Admin (for system notifications)
+// ✅ Send Notification to Admin
 exports.sendAdminNotification = async (req, res) => {
   try {
     const { title, message, type = 'system', action = 'system', actionData = {}, link = null, sendToAllAdmins = false } = req.body;
@@ -1071,7 +1090,7 @@ exports.sendAdminNotification = async (req, res) => {
     
     // Create notification for current admin
     const notification = await Notification.create({
-      user: req.user.id,
+      user: req.admin.id,
       type,
       title,
       message,
@@ -1083,7 +1102,7 @@ exports.sendAdminNotification = async (req, res) => {
     
     // If needed, send to all admins
     if (sendToAllAdmins) {
-      const admins = await User.find({ role: 'admin', _id: { $ne: req.user.id } });
+      const admins = await Admin.find({ _id: { $ne: req.admin.id } });
       const adminNotifications = admins.map(admin => ({
         user: admin._id,
         type,
@@ -1112,14 +1131,18 @@ exports.sendAdminNotification = async (req, res) => {
   }
 };
 
+// ======================
+// SYSTEM NOTIFICATIONS
+// ======================
+
 // ✅ Notify admins about new user (to be called from user post-save hook)
 exports.notifyNewUser = async (userId) => {
   try {
     const user = await User.findById(userId);
-    if (!user || user.role === 'admin') return;
+    if (!user) return;
     
-    // Get all admins
-    const admins = await User.find({ role: 'admin' });
+    // Get all admins from Admin model
+    const admins = await Admin.find({ isActive: true });
     
     for (const admin of admins) {
       await createAdminNotification(admin._id, {
@@ -1146,8 +1169,8 @@ exports.notifyNewItem = async (itemId) => {
     const item = await Item.findById(itemId).populate('owner');
     if (!item || item.isApproved || item.isFlagged) return;
     
-    // Get all admins
-    const admins = await User.find({ role: 'admin' });
+    // Get all admins from Admin model
+    const admins = await Admin.find({ isActive: true });
     
     for (const admin of admins) {
       await createAdminNotification(admin._id, {
@@ -1172,7 +1195,7 @@ exports.notifyNewItem = async (itemId) => {
 // ✅ Get notification types for filtering
 exports.getNotificationTypes = async (req, res) => {
   try {
-    const types = await Notification.distinct('type', { user: req.user.id });
+    const types = await Notification.distinct('type', { user: req.admin.id });
     
     res.json({
       success: true,

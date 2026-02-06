@@ -1,3 +1,4 @@
+// frontend/src/context/AdminAuthContext.jsx
 import { createContext, useState, useContext, useEffect } from 'react';
 import apiService from '../services/api';
 
@@ -19,103 +20,154 @@ export const AdminAuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Auto-login on mount
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    const adminData = localStorage.getItem('adminUser');
-    
-    if (token && adminData) {
+    const autoLoginAdmin = async () => {
+      const token = localStorage.getItem('adminToken');
+      
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const parsedAdmin = JSON.parse(adminData);
-        if (parsedAdmin && parsedAdmin.role === 'admin') {
-          setAdmin(parsedAdmin);
+        // ✅ NEW: Verify admin token with backend
+        const response = await apiService.admin.verifyAdmin(token);
+        
+        if (response.success && response.admin) {
+          setAdmin(response.admin);
+          localStorage.setItem('adminUser', JSON.stringify(response.admin));
+        } else {
+          // Token invalid, clear storage
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('adminUser');
         }
       } catch (err) {
-        console.error('Error parsing admin data:', err);
+        console.error('Admin token verification failed:', err);
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    autoLoginAdmin();
   }, []);
 
+  // Admin Login
   const loginAdmin = async (email, password) => {
     try {
       setError(null);
-      console.log('🚀 [AdminAuthContext] Attempting admin login:', { email });
+      console.log('🚀 Attempting admin login:', email);
       
-      // ✅ FIX: Use apiService.admin.loginAdmin
-      const res = await apiService.admin.loginAdmin(email, password);
+      // ✅ Use separate admin login endpoint
+      const response = await apiService.admin.loginAdmin({ email, password });
       
-      console.log('✅ [AdminAuthContext] Login response:', res);
+      console.log('✅ Admin login response:', response);
       
-      if (res.success && res.token && res.admin) {
-        localStorage.setItem('adminToken', res.token);
-        localStorage.setItem('adminUser', JSON.stringify(res.admin));
-        setAdmin(res.admin);
-        return { success: true };
+      if (response.success && response.token && response.admin) {
+        // Store admin data separately from user data
+        localStorage.setItem('adminToken', response.token);
+        localStorage.setItem('adminUser', JSON.stringify(response.admin));
+        
+        // Don't touch regular user storage
+        setAdmin(response.admin);
+        
+        return { 
+          success: true, 
+          data: response 
+        };
       } else {
-        const message = res.message || 'Admin login failed';
+        const message = response.message || 'Admin login failed';
         setError(message);
-        console.error('❌ [AdminAuthContext] Login failed:', message);
-        return { success: false, message };
+        return { 
+          success: false, 
+          message 
+        };
       }
     } catch (err) {
-      console.error('🔥 [AdminAuthContext] Login catch error:', err);
-      console.error('📡 Error response:', err.response?.data);
+      console.error('🔥 Admin login error:', err);
       
       const message = err.response?.data?.message || 
-                     err.message || 
-                     'Admin login failed';
+                     'Admin login failed. Please check your credentials.';
+      
       setError(message);
-      return { success: false, message };
+      return { 
+        success: false, 
+        message 
+      };
     }
   };
 
+  // Admin Logout
   const logoutAdmin = () => {
+    console.log('👋 Admin logging out');
+    
+    // Only remove admin storage, keep regular user storage
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
+    
     setAdmin(null);
     setError(null);
+    
+    // Optionally redirect to admin login page
+    window.location.href = '/admin/login';
   };
 
+  // Admin Registration
   const registerAdmin = async (name, email, password) => {
     try {
       setError(null);
-      console.log('🚀 [AdminAuthContext] Attempting admin registration:', { name, email });
+      console.log('🚀 Registering new admin:', email);
       
-      // ✅ FIX: Use apiService.admin.registerAdmin
-      const res = await apiService.admin.registerAdmin({ name, email, password });
+      const response = await apiService.admin.registerAdmin({ 
+        name, 
+        email, 
+        password 
+      });
       
-      console.log('✅ [AdminAuthContext] Registration response:', res);
+      console.log('✅ Admin registration response:', response);
       
-      if (res.success && res.token && res.admin) {
-        localStorage.setItem('adminToken', res.token);
-        localStorage.setItem('adminUser', JSON.stringify(res.admin));
-        setAdmin(res.admin);
-        return { success: true };
+      if (response.success && response.token && response.admin) {
+        localStorage.setItem('adminToken', response.token);
+        localStorage.setItem('adminUser', JSON.stringify(response.admin));
+        setAdmin(response.admin);
+        
+        return { 
+          success: true, 
+          data: response 
+        };
       } else {
-        const message = res.message || 'Admin registration failed';
+        const message = response.message || 'Admin registration failed';
         setError(message);
-        console.error('❌ [AdminAuthContext] Registration failed:', message);
-        return { success: false, message };
+        return { 
+          success: false, 
+          message 
+        };
       }
     } catch (err) {
-      console.error('🔥 [AdminAuthContext] Registration catch error:', err);
-      console.error('📡 Error response:', err.response?.data);
+      console.error('🔥 Admin registration error:', err);
       
       const message = err.response?.data?.message || 
-                     err.message || 
-                     'Registration failed';
+                     'Admin registration failed. Please try again.';
+      
       setError(message);
-      return { success: false, message };
+      return { 
+        success: false, 
+        message 
+      };
     }
   };
 
+  // Check Admin Limit
   const checkAdminLimit = async () => {
     try {
-      const res = await apiService.admin.checkAdminLimit();
-      return res;
+      const response = await apiService.admin.checkAdminLimit();
+      return response;
     } catch (err) {
       console.error('Error checking admin limit:', err);
       return { 
+        success: false,
         allowed: false, 
         currentCount: 0, 
         maxAllowed: 2,
@@ -124,24 +176,64 @@ export const AdminAuthProvider = ({ children }) => {
     }
   };
 
+  // Verify Admin Token
+  const verifyAdminToken = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return { success: false };
+      
+      const response = await apiService.admin.verifyAdmin();
+      return response;
+    } catch (err) {
+      console.error('Token verification error:', err);
+      return { success: false };
+    }
+  };
+
+  // Get Admin Profile
+  const getAdminProfile = async () => {
+    try {
+      const response = await apiService.admin.getAdminProfile();
+      
+      if (response.success && response.admin) {
+        setAdmin(response.admin);
+        localStorage.setItem('adminUser', JSON.stringify(response.admin));
+      }
+      
+      return response;
+    } catch (err) {
+      console.error('Get admin profile error:', err);
+      return { success: false };
+    }
+  };
+
+  // Clear error
   const clearError = () => {
     setError(null);
+  };
+
+  // Check if user is admin (for conditional rendering)
+  const isAdmin = () => {
+    return !!admin;
   };
 
   const value = {
     admin,
     loading,
     error,
+    isAdmin,
     loginAdmin,
     logoutAdmin,
     registerAdmin,
     checkAdminLimit,
+    verifyAdminToken,
+    getAdminProfile,
     clearError
   };
 
   return (
     <AdminAuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AdminAuthContext.Provider>
   );
 };

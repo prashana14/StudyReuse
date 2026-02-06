@@ -1,3 +1,4 @@
+// frontend/src/services/api.js - UPDATED FOR SEPARATE ADMIN MODEL
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:4000/api';
@@ -89,7 +90,7 @@ const handleResponseError = (error) => {
     
     if (isAdminRoute) {
       localStorage.removeItem('adminToken');
-      localStorage.removeItem('adminData');
+      localStorage.removeItem('adminUser');
       
       if (!window.location.pathname.includes('/admin/login')) {
         window.location.href = '/admin/login';
@@ -144,12 +145,6 @@ export const createItemFormData = (itemData, imageFile) => {
     formData.append('image', imageFile);
   }
   
-  // Debug: Log what's being sent
-  // console.log('FormData being sent to backend:');
-  // for (let [key, value] of formData.entries()) {
-  //   console.log(`${key}: ${value} (type: ${typeof value})`);
-  // }
-  
   return formData;
 };
 
@@ -177,61 +172,57 @@ export const validateImageFile = (file) => {
 };
 
 // ======================
-// 5. COMPLETE ADMIN API METHODS
+// 5. COMPLETE ADMIN API METHODS - UPDATED FOR SEPARATE ADMIN MODEL
 // ======================
 const adminAPI = {
-  // ✅ Admin Auth
+  // ✅ Admin Auth - Updated to match your backend routes
   checkAdminLimit: () => API.get('/admin/check-limit'),
-  loginAdmin: (email, password) => API.post('/admin/login', { email, password }),
+  loginAdmin: (data) => API.post('/admin/login', data),
   registerAdmin: (data) => API.post('/admin/register', data),
   verifyAdmin: () => API.get('/admin/verify'),
   getAdminProfile: () => API.get('/admin/profile'),
   
-  // ✅ Dashboard & Stats
-  getDashboardStats: () => API.get('/admin/stats'),
-  getAnalytics: (params = {}) => API.get('/admin/analytics', { params }),
+  // ✅ Dashboard & Stats - Updated to match your backend routes
+  getDashboardStats: () => API.get('/admin/dashboard/stats'),
   
-  // ✅ User Management
+  // ✅ User Management - Updated to match your backend routes
   getAllUsers: (params) => API.get('/admin/users', { params }),
   getUser: (id) => API.get(`/admin/users/${id}`),
-  updateUser: (id, data) => API.put(`/admin/users/${id}`, data),
-  blockUser: (userId, reason) => API.patch(`/admin/users/${userId}/block`, { reason }),
-  unblockUser: (userId) => API.patch(`/admin/users/${userId}/unblock`),
+  blockUser: (id, reason) => API.patch(`/admin/users/block/${id}`, { reason }),
+  unblockUser: (id) => API.patch(`/admin/users/unblock/${id}`),
   
-  // ✅ Item Management - ADDING THE MISSING FUNCTION
-  getItems: (params) => API.get('/admin/items', { params }), // ADD THIS LINE
-  getAllItems: (params) => API.get('/admin/items', { params }), // Alias for backward compatibility
-  getItem: (itemId) => API.get(`/admin/items/${itemId}`),
-  updateItem: (itemId, data) => API.put(`/admin/items/${itemId}`, data),
-  updateItemStatus: (itemId, data) => API.patch(`/admin/items/${itemId}/status`, data),
-  approveItem: (itemId) => API.patch(`/admin/items/${itemId}/approve`),
-  rejectItem: (itemId, reason) => API.patch(`/admin/items/${itemId}/reject`, { reason }),
-  deleteItem: (itemId, reason) => API.delete(`/admin/items/${itemId}`, { data: { reason } }),
+  // ✅ Item Management - Updated to match your backend routes
+  getItems: (params) => API.get('/items', { params }), // Regular items endpoint
+  getAllItems: (params) => API.get('/items', { params }), // Alias
+  getItem: (itemId) => API.get(`/items/${itemId}`),
+  approveItem: (itemId) => API.patch(`/admin/items/approve/${itemId}`),
+  rejectItem: (itemId, reason) => API.patch(`/admin/items/reject/${itemId}`, { reason }),
+  deleteItem: (itemId, reason) => API.delete(`/admin/items/delete/${itemId}`, { data: { reason } }),
   
-  // ✅ Notification Management
-  sendNotification: (notificationData) => API.post('/admin/notifications/send', notificationData),
+  // ✅ Notification Management - Updated to match your backend routes
+  sendNotification: (notificationData) => API.post('/admin/notify', notificationData),
   
-  // ✅ Admin Notifications (Clickable notifications)
-  getAdminNotifications: (params) => API.get('/admin/notifications', { params }),
-  getAdminUnreadCount: () => API.get('/admin/notifications/unread/count'),
-  markAdminNotificationAsRead: (notificationId) => API.put(`/admin/notifications/${notificationId}/read`),
-  markAllAdminNotificationsAsRead: () => API.put('/admin/notifications/read/all'),
-  deleteAdminNotification: (notificationId) => API.delete(`/admin/notifications/${notificationId}`),
-  clearAllAdminNotifications: () => API.delete('/admin/notifications'),
-  sendAdminNotification: (data) => API.post('/admin/notifications/send-to-admin', data),
+  // ✅ Admin Notifications - Updated to match your backend routes
+  getAdminNotifications: (params) => API.get('/admin/notifications/all', { params }),
+  getAdminUnreadCount: () => API.get('/admin/notifications/unread-count'),
+  markAdminNotificationAsRead: (notificationId) => API.put(`/admin/notifications/mark-read/${notificationId}`),
+  markAllAdminNotificationsAsRead: () => API.put('/admin/notifications/mark-all-read'),
+  deleteAdminNotification: (notificationId) => API.delete(`/admin/notifications/delete/${notificationId}`),
+  clearAllAdminNotifications: () => API.delete('/admin/notifications/clear-all'),
+  sendAdminNotification: (data) => API.post('/admin/notifications/send-admin', data),
   getNotificationTypes: () => API.get('/admin/notifications/types'),
   
-  // ✅ Order Management (Admin)
+  // ✅ Order Management (Admin) - If you have these endpoints
   getAllOrders: (params = {}) => API.get('/admin/orders', { params }),
-  getOrder: (id) => API.get(`/admin/orders/${id}`),
-  updateOrder: (id, data) => API.put(`/admin/orders/${id}`, data),
+  getOrder: (id) => API.get(`/orders/${id}`),
+  updateOrderStatus: (id, status) => API.patch(`/orders/${id}/status`, { status }),
   
-  // ✅ Analytics & Reports
-  getReports: (params = {}) => API.get('/admin/reports', { params }),
+  // ✅ Analytics & Reports - If you have these endpoints
+  getAnalytics: (params = {}) => API.get('/admin/analytics', { params }),
 };
 
 // ======================
-// 6. USER API Methods
+// 6. USER API Methods - UPDATED (NO ROLE FIELD NOW)
 // ======================
 const userAPI = {
   // Auth
@@ -256,6 +247,12 @@ const userAPI = {
   
   // User Items
   getUserItems: (params = {}) => API.get('/users/items', { params }),
+  
+  // ✅ UPDATED: Users are no longer admins, admins are separate
+  isAdmin: () => {
+    // Check if user has admin token (separate admin system)
+    return !!localStorage.getItem('adminToken');
+  }
 };
 
 // ======================
@@ -273,7 +270,6 @@ const itemAPI = {
   // User-specific
   getMyItems: (params = {}) => API.get('/items/my', { params }),
   create: async (itemData, imageFile) => {
-    // Use the updated createItemFormData which now includes quantity and faculty
     const formData = createItemFormData(itemData, imageFile);
     return API_MULTIPART.post('/items', formData);
   },
@@ -325,32 +321,19 @@ const notificationAPI = {
 };
 
 // ======================
-// 10. REVIEW API Methods - FIXED VERSION
+// 10. REVIEW API Methods
 // ======================
 const reviewAPI = {
-  // ✅ Create review - using correct endpoint
   create: (itemId, rating, comment) => API.post('/reviews', { 
     itemId, 
     rating, 
     comment 
   }),
-  
-  // ✅ Get reviews for item - using correct endpoint
   getItemReviews: (itemId, params = {}) => API.get(`/reviews/item/${itemId}`, { params }),
-  
-  // ✅ Get user's reviews
   getMyReviews: (params = {}) => API.get('/reviews/my', { params }),
-  
-  // ✅ Update review
   updateReview: (reviewId, rating, comment) => API.put(`/reviews/${reviewId}`, { rating, comment }),
-  
-  // ✅ Delete review
   deleteReview: (reviewId) => API.delete(`/reviews/${reviewId}`),
-  
-  // ✅ Get reviews for a user
   getUserReviews: (userId) => API.get(`/users/${userId}/reviews`),
-  
-  // ✅ Get average rating for item
   getAverageRating: (itemId) => API.get(`/items/${itemId}/rating`),
 };
 
@@ -368,48 +351,23 @@ const barterAPI = {
 };
 
 // ======================
-// 12. CHAT API Methods (UPDATED TO MATCH YOUR BACKEND)
+// 12. CHAT API Methods
 // ======================
 const chatAPI = {
-  // ✅ Send message & create chat if doesn't exist
   sendMessage: (itemId, receiverId, message) => 
     API.post('/chat', { itemId, receiverId, message }),
-  
-  // ✅ Get chat by ID
   getChatById: (chatId) => API.get(`/chat/${chatId}`),
-  
-  // ✅ Get chats by item ID
   getChatByItemId: (itemId) => API.get(`/chat/item/${itemId}`),
-  
-  // ✅ Get all chats for current user
   getUserChats: () => API.get('/chat/user/chats'),
-  
-  // ✅ Create or get existing chat
   createOrGetChat: (itemId, receiverId) => 
     API.post('/chat/create', { itemId, receiverId }),
-  
-  // ✅ Mark messages as read
   markMessagesAsRead: (chatId) => API.patch(`/chat/${chatId}/read`),
-  
-  // ✅ Delete chat
   deleteChat: (chatId) => API.delete(`/chat/${chatId}`),
-  
-  // ✅ Get unread count
   getUnreadCount: () => API.get('/chat/user/unread'),
-  
-  // ✅ Get chat messages for polling
   getChatMessages: (chatId) => API.get(`/chat/${chatId}`),
-  
-  // ✅ Test connection
   testConnection: () => API.get('/chat/test/connection'),
-  
-  // ✅ Get chat participants info
   getChatParticipants: (chatId) => API.get(`/chat/${chatId}/participants`),
-  
-  // 🔄 Polling helper - fetch latest messages
   pollMessages: (chatId) => API.get(`/chat/${chatId}`),
-  
-  // 🔄 Simple send message (for ChatBox.jsx)
   sendSimpleMessage: (data) => API.post('/chat', data)
 };
 
@@ -422,7 +380,6 @@ const uploadAPI = {
     formData.append(fieldName, file);
     return API_MULTIPART.post('/upload', formData);
   },
-  
   multipleImages: (files, fieldName = 'images') => {
     const formData = new FormData();
     files.forEach((file, index) => {
@@ -430,7 +387,6 @@ const uploadAPI = {
     });
     return API_MULTIPART.post('/upload/multiple', formData);
   },
-  
   validateFile: (file, maxSize = 5242880, allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']) => {
     const errors = [];
     
@@ -463,7 +419,7 @@ const categoryAPI = {
 };
 
 // ======================
-// 15. MAIN API SERVICE OBJECT
+// 15. MAIN API SERVICE OBJECT - UPDATED
 // ======================
 const apiService = {
   // Direct HTTP methods
@@ -473,10 +429,10 @@ const apiService = {
   patch: (url, data, config) => API.patch(url, data, config),
   delete: (url, config) => API.delete(url, config),
   
-  // Admin API
+  // ✅ UPDATED: Admin API - Now uses separate admin model
   admin: adminAPI,
   
-  // User API
+  // ✅ UPDATED: User API - No longer has admin role
   users: userAPI,
   
   // Items API
@@ -494,7 +450,7 @@ const apiService = {
   // Barter API
   barter: barterAPI,
   
-  // Chat API (UPDATED)
+  // Chat API
   chat: chatAPI,
   
   // Upload API
@@ -512,7 +468,31 @@ const apiService = {
     createItemFormData,
     validateImageFile,
     
-    // Chat-specific helpers
+    // Check if user is admin (for frontend logic)
+    isUserAdmin: () => {
+      // Check if admin token exists (separate admin system)
+      return !!localStorage.getItem('adminToken');
+    },
+    
+    // Get current user type
+    getUserType: () => {
+      if (localStorage.getItem('adminToken')) {
+        return 'admin';
+      } else if (localStorage.getItem('token')) {
+        return 'user';
+      }
+      return 'guest';
+    },
+    
+    // Clear all auth
+    clearAllAuth: () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('adminUser');
+    },
+    
+    // Format message time
     formatMessageTime: (dateString) => {
       if (!dateString) return '';
       try {
@@ -731,7 +711,7 @@ const apiService = {
     setToken: (token, isAdmin = false) => {
       if (isAdmin) {
         localStorage.setItem('adminToken', token);
-        localStorage.setItem('adminData', JSON.stringify({ token }));
+        localStorage.setItem('adminUser', JSON.stringify({ token }));
       } else {
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify({ token }));
@@ -742,7 +722,7 @@ const apiService = {
       localStorage.removeItem('token');
       localStorage.removeItem('adminToken');
       localStorage.removeItem('user');
-      localStorage.removeItem('adminData');
+      localStorage.removeItem('adminUser');
     },
     
     getToken: (isAdmin = false) => {
@@ -763,7 +743,7 @@ const apiService = {
     },
     
     getAdminUser: () => {
-      const adminUserStr = localStorage.getItem('adminData');
+      const adminUserStr = localStorage.getItem('adminUser');
       try {
         return adminUserStr ? JSON.parse(adminUserStr) : null;
       } catch {
