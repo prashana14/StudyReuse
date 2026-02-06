@@ -9,6 +9,9 @@ const Admin = require('../models/adminModel');
 const adminController = require('../controller/adminController');
 const adminMiddleware = require('../middleware/adminMiddleware');
 
+// Import orderController for admin order management
+const orderController = require('../controller/orderController');
+
 console.log('✅ Admin routes loading...');
 console.log('Admin controller functions loaded successfully');
 
@@ -66,6 +69,19 @@ router.patch('/items/reject/:id', adminMiddleware, adminController.rejectItem);
 
 // ✅ Delete Item
 router.delete('/items/delete/:id', adminMiddleware, adminController.deleteItem);
+
+// ======================
+// ORDER MANAGEMENT (ADDED)
+// ======================
+
+// ✅ Get All Orders (Admin Only)
+router.get('/orders', adminMiddleware, orderController.getAllOrders);
+
+// ✅ Get Order by ID (Admin Only)
+router.get('/orders/:id', adminMiddleware, orderController.getOrderById);
+
+// ✅ Update Order Status (Admin Only)
+router.put('/orders/:id/status', adminMiddleware, orderController.updateOrderStatus);
 
 // ======================
 // NOTIFICATION MANAGEMENT

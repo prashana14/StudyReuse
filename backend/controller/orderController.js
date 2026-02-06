@@ -1,39 +1,510 @@
 const Order = require('../models/orderModel');
 const Item = require('../models/itemModel');
+const User = require('../models/userModel');
+const Admin = require('../models/adminModel'); // Add this
 const jwt = require('jsonwebtoken');
 const NotificationService = require('../services/notificationService');
 
 // ======================
-// Helper Functions
+// IMPROVED Token Verification
 // ======================
 
 /**
- * Verify JWT token from request header
+ * Enhanced verifyToken function that handles both user and admin tokens
  */
 function verifyToken(req) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       console.log('No authorization header found');
-      // For debugging, return a mock user - remove in production
-      return { id: 'debug-user-id', role: 'user' };
+      return null;
     }
     
     const token = authHeader.split(' ')[1];
     if (!token) {
       console.log('No token found in header');
-      return { id: 'debug-user-id', role: 'user' };
+      return null;
     }
     
-    return jwt.verify(token, process.env.JWT_SECRET || 'your-jwt-secret-key-for-development');
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-jwt-secret-key-for-development');
+    
+    // Check if it's an admin token
+    if (decoded.modelType === 'admin') {
+      console.log('Admin token detected:', { 
+        id: decoded.id, 
+        email: decoded.email,
+        modelType: decoded.modelType 
+      });
+      return {
+        id: decoded.id,
+        email: decoded.email,
+        role: 'admin',
+        modelType: 'admin',
+        isAdmin: true
+      };
+    }
+    
+    // Regular user token
+    console.log('User token detected:', { 
+      id: decoded.id || decoded._id, 
+      email: decoded.email 
+    });
+    return {
+      id: decoded.id || decoded._id,
+      email: decoded.email,
+      role: decoded.role || 'user',
+      isAdmin: decoded.role === 'admin'
+    };
+    
   } catch (error) {
     console.log('Token verification failed:', error.message);
-    // For debugging, return a mock user - remove in production
-    return { id: 'debug-user-id', role: 'user' };
+    return null;
   }
 }
 
-// @desc    Create new order WITH QUANTITY VALIDATION - DEBUG VERSION
+// ======================
+// ADMIN ORDER FUNCTIONS - UPDATED
+// ======================
+
+// @desc    Get all orders (Admin) - UPDATED with proper admin verification
+// @route   GET /api/orders
+// @access  Private/Admin
+const getAllOrders = async (req, res) => {
+  try {
+    console.log('=== GET ALL ORDERS REQUEST ===');
+    console.log('Headers:', req.headers);
+    console.log('Query params:', req.query);
+    
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    // Check if user is admin
+    if (!userData.isAdmin && userData.role !== 'admin') {
+      console.log('Non-admin user attempted to access all orders:', userData);
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    console.log('Admin verified, fetching orders...');
+    
+    // Parse query parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    // Build query
+    const query = {};
+    
+    // Search filter
+    if (req.query.search) {
+      query.$or = [
+        { _id: { $regex: req.query.search, $options: 'i' } },
+        { 'shippingAddress.fullName': { $regex: req.query.search, $options: 'i' } },
+        { 'shippingAddress.email': { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+    
+    // Status filter
+    if (req.query.status && req.query.status !== 'all') {
+      query.status = req.query.status;
+    }
+    
+    // Get total count
+    const total = await Order.countDocuments(query);
+    
+    // Get orders with pagination and population
+    const orders = await Order.find(query)
+      .populate({
+        path: 'user',
+        select: 'name email phone'
+      })
+      .populate({
+        path: 'items.item',
+        select: 'title imageURL price category'
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    console.log(`Found ${orders.length} orders`);
+    
+    res.json({
+      success: true,
+      count: orders.length,
+      total,
+      data: orders,
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get all orders error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get user's orders
+// @route   GET /api/orders/my
+// @access  Private
+const getUserOrders = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const orders = await Order.find({ user: userData.id })
+      .populate('items.item', 'title imageURL category')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: orders.length,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Get user orders error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching orders'
+    });
+  }
+};
+
+// @desc    Get order by ID
+// @route   GET /api/orders/:id
+// @access  Private
+const getOrderById = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const order = await Order.findById(req.params.id)
+      .populate('items.item', 'title imageURL category condition description')
+      .populate('user', 'name email phone');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if user owns the order or is admin
+    if (order.user._id.toString() !== userData.id.toString() && !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this order'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    console.error('Get order error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching order'
+    });
+  }
+};
+
+// @desc    Update order status WITH QUANTITY HANDLING
+// @route   PUT /api/orders/:id/status
+// @access  Private/Admin
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    if (!['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status'
+      });
+    }
+
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check authorization (only admin or owner can update)
+    if (order.user.toString() !== userData.id && !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this order'
+      });
+    }
+
+    const oldStatus = order.status;
+    order.status = status;
+
+    // Start a session for transaction
+    const session = await Order.startSession();
+    session.startTransaction();
+
+    try {
+      // If status changed to Cancelled, restore quantities
+      if (status === 'Cancelled' && oldStatus !== 'Cancelled') {
+        for (const orderItem of order.items) {
+          const item = await Item.findById(orderItem.item).session(session);
+          
+          if (item) {
+            const newQuantity = (item.quantity || 0) + orderItem.quantity;
+            await Item.findByIdAndUpdate(
+              orderItem.item,
+              {
+                quantity: newQuantity,
+                status: newQuantity > 0 ? 'Available' : 'Sold Out'
+              },
+              { session }
+            );
+          }
+        }
+      }
+      
+      // If status changed from Cancelled to something else, reduce quantities
+      if (oldStatus === 'Cancelled' && status !== 'Cancelled') {
+        for (const orderItem of order.items) {
+          const item = await Item.findById(orderItem.item).session(session);
+          
+          if (item) {
+            const availableQuantity = item.quantity || 0;
+            const requestedQuantity = orderItem.quantity || 1;
+            
+            if (requestedQuantity > availableQuantity) {
+              await session.abortTransaction();
+              session.endSession();
+              
+              return res.status(400).json({
+                success: false,
+                message: `Cannot change status. Only ${availableQuantity} units available for item "${item.title}". Order requires ${requestedQuantity}.`
+              });
+            }
+            
+            const newQuantity = availableQuantity - requestedQuantity;
+            await Item.findByIdAndUpdate(
+              orderItem.item,
+              {
+                quantity: newQuantity,
+                status: newQuantity > 0 ? 'Available' : 'Sold Out'
+              },
+              { session }
+            );
+          }
+        }
+      }
+
+      await order.save({ session });
+      await session.commitTransaction();
+      session.endSession();
+
+      // Add notification for order status change
+      try {
+        await NotificationService.create({
+          user: order.user,
+          type: 'system',
+          title: `Order Status Updated`,
+          message: `Your order #${order._id.toString().slice(-6)} status changed to ${status}`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+      } catch (notifError) {
+        console.error('Error creating status notification:', notifError);
+      }
+
+      res.json({
+        success: true,
+        message: 'Order status updated',
+        data: order
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Update order status error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error updating order status'
+    });
+  }
+};
+
+// @desc    Cancel order WITH QUANTITY RESTORATION
+// @route   PUT /api/orders/:id/cancel
+// @access  Private
+const cancelOrder = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if user owns the order
+    if (order.user.toString() !== userData.id && !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to cancel this order'
+      });
+    }
+
+    // Only pending or processing orders can be cancelled
+    if (!['Pending', 'Processing'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel order with status: ${order.status}`
+      });
+    }
+
+    // Start a session for transaction
+    const session = await Order.startSession();
+    session.startTransaction();
+
+    try {
+      // Restore item quantities
+      for (const orderItem of order.items) {
+        const item = await Item.findById(orderItem.item).session(session);
+        
+        if (item) {
+          const newQuantity = (item.quantity || 0) + orderItem.quantity;
+          await Item.findByIdAndUpdate(
+            orderItem.item,
+            {
+              quantity: newQuantity,
+              status: newQuantity > 0 ? 'Available' : 'Sold Out'
+            },
+            { session }
+          );
+        }
+      }
+
+      // Update order status
+      order.status = 'Cancelled';
+      await order.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // Add notification for order cancellation
+      try {
+        await NotificationService.create({
+          user: order.user,
+          type: 'system',
+          title: `Order Cancelled`,
+          message: `Your order #${order._id.toString().slice(-6)} has been cancelled`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+        
+        // Notify seller if they're different from buyer
+        for (const orderItem of order.items) {
+          const item = await Item.findById(orderItem.item);
+          if (item && item.owner.toString() !== userData.id) {
+            await NotificationService.create({
+              user: item.owner,
+              type: 'system',
+              title: `Order Cancelled`,
+              message: `Order #${order._id.toString().slice(-6)} for "${item.title}" has been cancelled`,
+              action: 'view_order',
+              actionData: { orderId: order._id },
+              link: `/orders/${order._id}`,
+              relatedOrder: order._id,
+              relatedItem: item._id,
+              isRead: false
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error('Error creating cancellation notification:', notifError);
+      }
+
+      res.json({
+        success: true,
+        message: 'Order cancelled successfully',
+        data: order
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('Cancel order error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling order'
+    });
+  }
+};
+
+// @desc    Create new order WITH QUANTITY VALIDATION
 // @route   POST /api/orders
 // @access  Private
 const createOrder = async (req, res) => {
@@ -44,6 +515,14 @@ const createOrder = async (req, res) => {
   try {
     // Verify token
     const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
     console.log('User data from token:', userData);
     
     const { items, shippingAddress, paymentMethod, notes } = req.body;
@@ -208,9 +687,7 @@ const createOrder = async (req, res) => {
       console.log('Order ID:', populatedOrder._id);
       console.log('Total amount:', populatedOrder.totalAmount);
       
-      // ============================================
-      // ADD NOTIFICATIONS AFTER SUCCESSFUL ORDER CREATION
-      // ============================================
+      // Add notifications
       try {
         // Add notification for seller (item owner)
         for (const orderItem of populatedOrder.items) {
@@ -250,7 +727,6 @@ const createOrder = async (req, res) => {
         console.error('❌ Error creating notifications:', notifError);
         // Don't fail the order if notifications fail
       }
-      // ============================================
       
       res.status(201).json({
         success: true,
@@ -296,391 +772,7 @@ const createOrder = async (req, res) => {
   }
 };
 
-// @desc    Get user's orders
-// @route   GET /api/orders/my
-// @access  Private
-const getUserOrders = async (req, res) => {
-  try {
-    const userData = verifyToken(req);
-    
-    const orders = await Order.find({ user: userData.id })
-      .populate('items.item', 'title imageURL category')
-      .sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      count: orders.length,
-      data: orders
-    });
-  } catch (error) {
-    console.error('Get user orders error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching orders'
-    });
-  }
-};
-
-// @desc    Get order by ID
-// @route   GET /api/orders/:id
-// @access  Private
-const getOrderById = async (req, res) => {
-  try {
-    const userData = verifyToken(req);
-    const order = await Order.findById(req.params.id)
-      .populate('items.item', 'title imageURL category condition description')
-      .populate('user', 'name email phone');
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Check if user owns the order or is admin
-    if (order.user._id.toString() !== userData.id.toString() && userData.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this order'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: order
-    });
-  } catch (error) {
-    console.error('Get order error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching order'
-    });
-  }
-};
-
-// @desc    Update order status WITH QUANTITY HANDLING
-// @route   PUT /api/orders/:id/status
-// @access  Private/Admin
-const updateOrderStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const userData = verifyToken(req);
-    
-    if (!['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
-    }
-
-    const order = await Order.findById(req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Check authorization (only admin or owner can update)
-    if (order.user.toString() !== userData.id && userData.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this order'
-      });
-    }
-
-    const oldStatus = order.status;
-    order.status = status;
-
-    // Start a session for transaction
-    const session = await Order.startSession();
-    session.startTransaction();
-
-    try {
-      // If status changed to Cancelled, restore quantities
-      if (status === 'Cancelled' && oldStatus !== 'Cancelled') {
-        for (const orderItem of order.items) {
-          const item = await Item.findById(orderItem.item).session(session);
-          
-          if (item) {
-            const newQuantity = (item.quantity || 0) + orderItem.quantity;
-            await Item.findByIdAndUpdate(
-              orderItem.item,
-              {
-                quantity: newQuantity,
-                status: newQuantity > 0 ? 'Available' : 'Sold Out'
-              },
-              { session }
-            );
-          }
-        }
-      }
-      
-      // If status changed from Cancelled to something else, reduce quantities
-      if (oldStatus === 'Cancelled' && status !== 'Cancelled') {
-        for (const orderItem of order.items) {
-          const item = await Item.findById(orderItem.item).session(session);
-          
-          if (item) {
-            const availableQuantity = item.quantity || 0;
-            const requestedQuantity = orderItem.quantity || 1;
-            
-            if (requestedQuantity > availableQuantity) {
-              await session.abortTransaction();
-              session.endSession();
-              
-              return res.status(400).json({
-                success: false,
-                message: `Cannot change status. Only ${availableQuantity} units available for item "${item.title}". Order requires ${requestedQuantity}.`
-              });
-            }
-            
-            const newQuantity = availableQuantity - requestedQuantity;
-            await Item.findByIdAndUpdate(
-              orderItem.item,
-              {
-                quantity: newQuantity,
-                status: newQuantity > 0 ? 'Available' : 'Sold Out'
-              },
-              { session }
-            );
-          }
-        }
-      }
-
-      await order.save({ session });
-      await session.commitTransaction();
-      session.endSession();
-
-      // Add notification for order status change
-      try {
-        await NotificationService.create({
-          user: order.user,
-          type: 'system',
-          title: `Order Status Updated`,
-          message: `Your order #${order._id.toString().slice(-6)} status changed to ${status}`,
-          action: 'view_order',
-          actionData: { orderId: order._id },
-          link: `/orders/${order._id}`,
-          relatedOrder: order._id,
-          isRead: false
-        });
-      } catch (notifError) {
-        console.error('Error creating status notification:', notifError);
-      }
-
-      res.json({
-        success: true,
-        message: 'Order status updated',
-        data: order
-      });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
-  } catch (error) {
-    console.error('Update order status error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error updating order status'
-    });
-  }
-};
-
-// @desc    Cancel order WITH QUANTITY RESTORATION
-// @route   PUT /api/orders/:id/cancel
-// @access  Private
-const cancelOrder = async (req, res) => {
-  try {
-    const userData = verifyToken(req);
-    const order = await Order.findById(req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Check if user owns the order
-    if (order.user.toString() !== userData.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to cancel this order'
-      });
-    }
-
-    // Only pending or processing orders can be cancelled
-    if (!['Pending', 'Processing'].includes(order.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot cancel order with status: ${order.status}`
-      });
-    }
-
-    // Start a session for transaction
-    const session = await Order.startSession();
-    session.startTransaction();
-
-    try {
-      // Restore item quantities
-      for (const orderItem of order.items) {
-        const item = await Item.findById(orderItem.item).session(session);
-        
-        if (item) {
-          const newQuantity = (item.quantity || 0) + orderItem.quantity;
-          await Item.findByIdAndUpdate(
-            orderItem.item,
-            {
-              quantity: newQuantity,
-              status: newQuantity > 0 ? 'Available' : 'Sold Out'
-            },
-            { session }
-          );
-        }
-      }
-
-      // Update order status
-      order.status = 'Cancelled';
-      await order.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      // Add notification for order cancellation
-      try {
-        await NotificationService.create({
-          user: order.user,
-          type: 'system',
-          title: `Order Cancelled`,
-          message: `Your order #${order._id.toString().slice(-6)} has been cancelled`,
-          action: 'view_order',
-          actionData: { orderId: order._id },
-          link: `/orders/${order._id}`,
-          relatedOrder: order._id,
-          isRead: false
-        });
-        
-        // Notify seller if they're different from buyer
-        for (const orderItem of order.items) {
-          const item = await Item.findById(orderItem.item);
-          if (item && item.owner.toString() !== userData.id) {
-            await NotificationService.create({
-              user: item.owner,
-              type: 'system',
-              title: `Order Cancelled`,
-              message: `Order #${order._id.toString().slice(-6)} for "${item.title}" has been cancelled`,
-              action: 'view_order',
-              actionData: { orderId: order._id },
-              link: `/orders/${order._id}`,
-              relatedOrder: order._id,
-              relatedItem: item._id,
-              isRead: false
-            });
-          }
-        }
-      } catch (notifError) {
-        console.error('Error creating cancellation notification:', notifError);
-      }
-
-      res.json({
-        success: true,
-        message: 'Order cancelled successfully',
-        data: order
-      });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error('Cancel order error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error cancelling order'
-    });
-  }
-};
-
-// @desc    Get all orders (Admin)
-// @route   GET /api/orders
-// @access  Private/Admin
-const getAllOrders = async (req, res) => {
-  try {
-    const userData = verifyToken(req);
-    
-    // Check if user is admin
-    if (userData.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin access required'
-      });
-    }
-    
-    const orders = await Order.find()
-      .populate('items.item', 'title imageURL')
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      count: orders.length,
-      data: orders
-    });
-  } catch (error) {
-    console.error('Get all orders error:', error);
-    
-    if (error.message === 'Missing token') {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required' 
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching orders'
-    });
-  }
-};
-
-// @desc    Check if cart items are available - UPDATED VERSION
+// @desc    Check if cart items are available
 // @route   POST /api/orders/check-availability
 // @access  Private
 const checkCartAvailability = async (req, res) => {
@@ -689,12 +781,10 @@ const checkCartAvailability = async (req, res) => {
     console.log('Request body:', req.body);
     
     // Verify token (with fallback for debugging)
-    let userData;
-    try {
-      userData = verifyToken(req);
-      console.log('User data:', userData);
-    } catch (authError) {
-      console.log('Auth error, using fallback:', authError.message);
+    let userData = verifyToken(req);
+    
+    if (!userData) {
+      console.log('No valid token, proceeding with fallback');
       userData = { id: 'fallback-user', role: 'user' };
     }
     
@@ -937,7 +1027,7 @@ module.exports = {
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getAllOrders,
+  getAllOrders, // This is the main fix - now properly handles admin tokens
   checkCartAvailability,
   checkCartAvailabilityPublic
 };

@@ -214,8 +214,8 @@ const adminAPI = {
   
   // ✅ Order Management (Admin) - If you have these endpoints
   getAllOrders: (params = {}) => API.get('/admin/orders', { params }),
-  getOrder: (id) => API.get(`/orders/${id}`),
-  updateOrderStatus: (id, status) => API.patch(`/orders/${id}/status`, { status }),
+  getOrder: (id) => API.get(`/admin/orders/${id}`),
+  updateOrderStatus: (id, status) => API.patch(`/admin/orders/${id}/status`, { status }),
   
   // ✅ Analytics & Reports - If you have these endpoints
   getAnalytics: (params = {}) => API.get('/admin/analytics', { params }),
