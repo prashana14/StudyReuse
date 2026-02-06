@@ -259,7 +259,6 @@ const AdminLayout = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <span>🔒</span>
                 <span>Secure Admin Panel • {new Date().getFullYear()}</span>
-                <span>⚡</span>
               </div>
             </footer>
           </div>

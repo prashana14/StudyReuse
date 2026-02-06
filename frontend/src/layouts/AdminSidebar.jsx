@@ -1,11 +1,9 @@
 // src/pages/admin/layout/AdminSidebar.jsx
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 const AdminSidebar = () => {
-  const navigate = useNavigate();
   const [adminData, setAdminData] = useState(null);
-  const [activeItem, setActiveItem] = useState('');
 
   useEffect(() => {
     // Get admin data from localStorage
@@ -20,19 +18,12 @@ const AdminSidebar = () => {
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminData');
-    navigate('/admin/login');
-  };
-
   const navItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: '📊', description: 'Overview & Stats' },
     { name: 'Users', href: '/admin/users', icon: '👥', description: 'Manage Users' },
     { name: 'Items', href: '/admin/items', icon: '📦', description: 'Product Management' },
     { name: 'Orders', href: '/admin/orders', icon: '🛒', description: 'Order Tracking' },
     { name: 'Analytics', href: '/admin/analytics', icon: '📈', description: 'Reports & Insights' },
-    { name: 'Settings', href: '/admin/settings', icon: '⚙️', description: 'System Settings' },
   ];
 
   const getInitials = (name) => {
@@ -207,18 +198,18 @@ const AdminSidebar = () => {
       boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
     },
     
-    // Profile Section
+    // Profile Section (simplified)
     profileSection: {
       padding: '20px 24px',
       borderTop: '1px solid #334155',
       background: 'rgba(15, 23, 42, 0.9)',
+      marginTop: 'auto',
     },
     
     adminInfo: {
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      marginBottom: '16px',
       padding: '12px',
       backgroundColor: 'rgba(30, 41, 59, 0.7)',
       borderRadius: '12px',
@@ -259,32 +250,6 @@ const AdminSidebar = () => {
       gap: '4px',
     },
     
-    // Logout Button
-    logoutButton: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '10px',
-      width: '100%',
-      padding: '14px',
-      backgroundColor: 'rgba(220, 38, 38, 0.1)',
-      color: '#fca5a5',
-      borderRadius: '12px',
-      border: '1px solid rgba(220, 38, 38, 0.3)',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: 600,
-      transition: 'all 0.3s ease',
-    },
-    
-    logoutButtonHover: {
-      backgroundColor: 'rgba(220, 38, 38, 0.2)',
-      color: '#fecaca',
-      borderColor: 'rgba(220, 38, 38, 0.5)',
-      transform: 'translateY(-1px)',
-      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)',
-    },
-    
     // Status Indicator
     statusIndicator: {
       fontSize: '11px',
@@ -295,7 +260,7 @@ const AdminSidebar = () => {
       display: 'flex',
       alignItems: 'center',
       gap: '4px',
-      marginTop: '8px',
+      marginTop: '12px',
     },
     
     // Decorative Elements
@@ -378,7 +343,7 @@ const AdminSidebar = () => {
         ))}
       </div>
 
-      {/* Profile & Logout Section */}
+      {/* Profile & Status Section */}
       <div style={styles.profileSection}>
         {/* Admin Info */}
         <div style={styles.adminInfo}>
@@ -399,29 +364,6 @@ const AdminSidebar = () => {
           <span>🟢</span>
           <span>System Online</span>
         </div>
-
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          style={styles.logoutButton}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = styles.logoutButtonHover.backgroundColor;
-            e.currentTarget.style.color = styles.logoutButtonHover.color;
-            e.currentTarget.style.borderColor = styles.logoutButtonHover.borderColor;
-            e.currentTarget.style.transform = styles.logoutButtonHover.transform;
-            e.currentTarget.style.boxShadow = styles.logoutButtonHover.boxShadow;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = styles.logoutButton.backgroundColor;
-            e.currentTarget.style.color = styles.logoutButton.color;
-            e.currentTarget.style.borderColor = styles.logoutButton.borderColor;
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-        >
-          <span style={{ fontSize: '16px' }}>🚪</span>
-          <span>Logout Session</span>
-        </button>
       </div>
 
       {/* Decorative Element */}

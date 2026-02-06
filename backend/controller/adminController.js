@@ -401,53 +401,40 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// ✅ Get All Items (for admin)
-exports.getAllItems = async (req, res) => {
+// ✅ Get User by ID (NEW FUNCTION - ADDED)
+exports.getUserById = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, search = "" } = req.query;
+    const { id } = req.params;
     
-    // Build query
-    const query = {};
+    // Find user by ID, exclude sensitive fields
+    const user = await User.findById(id).select('-password -refreshToken');
     
-    // Filter by status
-    if (status === "pending") {
-      query.isApproved = false;
-    } else if (status === "approved") {
-      query.isApproved = true;
-    } else if (status === "flagged") {
-      query.isFlagged = true;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
     
-    // Search by title or description
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
-      ];
-    }
-    
-    const items = await Item.find(query)
-      .populate('owner', 'name email')
-      .sort('-createdAt')
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-    
-    const total = await Item.countDocuments(query);
-    
-    res.json({
+    res.status(200).json({
       success: true,
-      items,
-      pagination: {
-        totalPages: Math.ceil(total / limit),
-        currentPage: parseInt(page),
-        total
-      }
+      user
     });
+    
   } catch (error) {
-    console.error('Get all items error:', error);
-    res.status(500).json({ 
+    console.error('Get user by ID error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID format'
+      });
+    }
+    
+    res.status(500).json({
       success: false,
-      message: "Server error fetching items" 
+      message: 'Server error',
+      error: error.message
     });
   }
 };

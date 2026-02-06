@@ -1,35 +1,128 @@
 // src/pages/admin/layout/AdminHeader.jsx
 import { useEffect, useState } from 'react';
-import AdminNotificationBell from '../components/admin/AdminNotificationBell';
+import { useNavigate } from 'react-router-dom';
+import apiService from '../services/api';
 
 const AdminHeader = ({ title }) => {
   const [adminData, setAdminData] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Get admin data from localStorage
-    try {
-      const storedData = localStorage.getItem('adminData');
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        setAdminData(parsedData);
-        console.log('Admin data loaded:', parsedData);
-      } else {
-        console.log('No admin data found in localStorage');
-        // Set default admin data
+    const fetchAdminData = async () => {
+      try {
+        console.log('Fetching admin data...');
+        
+        // FIRST: Check localStorage for admin data
+        const storedAdminData = localStorage.getItem('adminData');
+        const adminToken = localStorage.getItem('adminToken');
+        const userData = localStorage.getItem('user');
+        const userToken = localStorage.getItem('token');
+        
+        console.log('LocalStorage check:', {
+          hasAdminData: !!storedAdminData,
+          hasAdminToken: !!adminToken,
+          hasUserData: !!userData,
+          hasUserToken: !!userToken
+        });
+        
+        let adminInfo = null;
+        
+        // Option 1: Parse adminData from localStorage
+        if (storedAdminData) {
+          try {
+            const parsedData = JSON.parse(storedAdminData);
+            console.log('Parsed admin data:', parsedData);
+            
+            // Handle different response structures
+            if (parsedData.name && parsedData.email) {
+              adminInfo = parsedData;
+            } else if (parsedData.admin) {
+              adminInfo = parsedData.admin;
+            } else if (parsedData.data?.admin) {
+              adminInfo = parsedData.data.admin;
+            } else if (parsedData.username) {
+              // This might be user data stored as admin
+              adminInfo = {
+                name: parsedData.name || parsedData.username,
+                email: parsedData.email
+              };
+            }
+          } catch (parseError) {
+            console.error('Error parsing admin data:', parseError);
+          }
+        }
+        
+        // Option 2: If no admin data, check user data (user might be admin)
+        if (!adminInfo && userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            console.log('Parsed user data:', parsedUser);
+            
+            // Check if user is admin (based on role or isAdmin flag)
+            if (parsedUser.role === 'admin' || parsedUser.isAdmin) {
+              adminInfo = {
+                name: parsedUser.name || parsedUser.username,
+                email: parsedUser.email
+              };
+              // Also save as admin data for future
+              localStorage.setItem('adminData', JSON.stringify(adminInfo));
+            }
+          } catch (parseError) {
+            console.error('Error parsing user data:', parseError);
+          }
+        }
+        
+        // Option 3: Fetch admin profile from API
+        if (!adminInfo && (adminToken || userToken)) {
+          try {
+            console.log('Fetching admin profile from API...');
+            const response = await apiService.admin.getAdminProfile();
+            console.log('Admin profile API response:', response);
+            
+            if (response) {
+              if (response.admin) {
+                adminInfo = response.admin;
+              } else if (response.data) {
+                adminInfo = response.data;
+              } else if (response.name || response.email) {
+                adminInfo = response;
+              }
+              
+              if (adminInfo) {
+                localStorage.setItem('adminData', JSON.stringify(adminInfo));
+              }
+            }
+          } catch (apiError) {
+            console.warn('Could not fetch admin profile from API:', apiError);
+          }
+        }
+        
+        // Set admin data or use fallback
+        if (adminInfo) {
+          console.log('Setting admin info:', adminInfo);
+          setAdminData(adminInfo);
+        } else {
+          // Use fallback that doesn't say "System Administrator"
+          console.log('Using fallback admin data');
+          const fallbackData = {
+            name: 'Administrator',
+            email: 'administrator@studyreuse.com'
+          };
+          setAdminData(fallbackData);
+        }
+        
+      } catch (error) {
+        console.error('Error fetching admin data:', error);
+        // Use nicer fallback
         setAdminData({
-          name: 'System Administrator',
-          email: 'admin@system.local'
+          name: 'Administrator',
+          email: 'administrator@studyreuse.com'
         });
       }
-    } catch (error) {
-      console.error('Error parsing admin data:', error);
-      // Fallback data
-      setAdminData({
-        name: 'System Administrator',
-        email: 'admin@system.local'
-      });
-    }
+    };
+    
+    fetchAdminData();
     
     // Update time
     const updateTime = () => {
@@ -43,13 +136,13 @@ const AdminHeader = ({ title }) => {
     };
     
     updateTime();
-    const interval = setInterval(updateTime, 60000); // Update every minute
+    const interval = setInterval(updateTime, 60000);
     
     return () => clearInterval(interval);
   }, []);
 
   const getInitials = (name) => {
-    if (!name || name === 'System Administrator') return '👨‍💼';
+    if (!name || name === 'Administrator') return '👨‍💼';
     return name
       .split(' ')
       .map(part => part.charAt(0))
@@ -65,18 +158,12 @@ const AdminHeader = ({ title }) => {
     return '🌙 Good Evening';
   };
 
-  const getAdminName = () => {
-    if (adminData?.name && adminData.name !== 'System Administrator') {
-      return adminData.name;
-    }
-    return 'System Administrator';
-  };
-
-  const getAdminEmail = () => {
-    if (adminData?.email && adminData.email !== 'admin@system.local') {
-      return adminData.email;
-    }
-    return 'admin@system.local';
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminData');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/admin/login');
   };
 
   const styles = {
@@ -177,6 +264,7 @@ const AdminHeader = ({ title }) => {
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
       transition: 'all 0.2s ease',
       cursor: 'pointer',
+      position: 'relative',
     },
     
     profileSectionHover: {
@@ -239,78 +327,30 @@ const AdminHeader = ({ title }) => {
       boxShadow: '0 2px 4px rgba(34, 197, 94, 0.3)',
     },
     
-    // Decorative Elements
-    decorativeCircle1: {
-      position: 'absolute',
-      top: '-60px',
-      right: '-60px',
-      width: '160px',
-      height: '160px',
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)',
-    },
-    
-    decorativeCircle2: {
-      position: 'absolute',
-      bottom: '-80px',
-      left: '-80px',
-      width: '200px',
-      height: '200px',
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
-    },
-    
-    // Separator
-    separator: {
-      height: '40px',
-      width: '1px',
-      backgroundColor: '#e2e8f0',
-    },
-    
-    // Admin Menu (optional dropdown)
-    adminMenu: {
-      position: 'absolute',
-      top: '100%',
-      right: '0',
-      marginTop: '8px',
-      backgroundColor: '#ffffff',
-      borderRadius: '12px',
-      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #e2e8f0',
-      minWidth: '200px',
-      overflow: 'hidden',
-      zIndex: 1000,
-      animation: 'slideDown 0.2s ease-out',
-    },
-    
-    menuItem: {
-      padding: '12px 16px',
+    logoutButton: {
+      padding: '8px 20px',
+      backgroundColor: '#3b82f6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '14px',
+      fontWeight: 600,
+      cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
-      gap: '10px',
-      color: '#334155',
-      fontSize: '14px',
-      textDecoration: 'none',
+      gap: '8px',
       transition: 'all 0.2s ease',
-      borderBottom: '1px solid #f1f5f9',
     },
     
-    menuItemHover: {
-      backgroundColor: '#f8fafc',
-      color: '#3b82f6',
-    },
-    
-    menuItemLast: {
-      borderBottom: 'none',
+    logoutButtonHover: {
+      backgroundColor: '#2563eb',
+      transform: 'translateY(-2px)',
+      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
     },
   };
 
   return (
     <header style={styles.header}>
-      {/* Decorative Background Elements */}
-      <div style={styles.decorativeCircle1}></div>
-      <div style={styles.decorativeCircle2}></div>
-      
       <div style={styles.headerContainer}>
         <div style={styles.headerContent}>
           {/* Left Side - Title and Greeting */}
@@ -322,25 +362,19 @@ const AdminHeader = ({ title }) => {
                 <span>👋</span>
               </div>
               <span style={{ color: '#94a3b8' }}>|</span>
-              <span>Welcome back, {getAdminName()}</span>
+              <span>Welcome back, {adminData?.name || 'Administrator'}</span>
             </div>
           </div>
 
-          {/* Right Side - Actions and Profile */}
+          {/* Right Side - Time Display and Logout */}
           <div style={styles.rightSide}>
-            {/* Notification Bell */}
-            <AdminNotificationBell />
-
-            {/* Separator */}
-            <div style={styles.separator}></div>
-
             {/* Time Display */}
             <div style={styles.timeDisplay}>
               <span>🕐</span>
               <span style={styles.timeText}>{currentTime}</span>
             </div>
 
-            {/* Admin Profile */}
+            {/* Admin Profile Info */}
             <div 
               style={styles.profileSection}
               onMouseEnter={(e) => {
@@ -353,30 +387,43 @@ const AdminHeader = ({ title }) => {
                 e.currentTarget.style.borderColor = '#e2e8f0';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
-              onClick={() => {
-                console.log('Admin Profile clicked');
-                console.log('Admin Data:', adminData);
-                // You can add dropdown menu functionality here
-              }}
             >
               <div style={styles.profileInfo}>
                 <p style={styles.adminName}>
                   <span>👨‍💼</span>
-                  {getAdminName()}
+                  {adminData?.name || 'Administrator'}
                 </p>
                 <p style={styles.adminEmail}>
                   <span>📧</span>
-                  {getAdminEmail()}
+                  {adminData?.email || 'administrator@studyreuse.com'}
                 </p>
               </div>
               
               <div style={styles.avatar}>
                 <div style={styles.avatarCircle}>
-                  {getInitials(getAdminName())}
+                  {getInitials(adminData?.name || 'Administrator')}
                 </div>
                 <div style={styles.statusIndicator}></div>
               </div>
             </div>
+
+            {/* Logout Button */}
+            <button
+              style={styles.logoutButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = styles.logoutButtonHover.backgroundColor;
+                e.currentTarget.style.transform = styles.logoutButtonHover.transform;
+                e.currentTarget.style.boxShadow = styles.logoutButtonHover.boxShadow;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#3b82f6';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              onClick={handleLogout}
+            >
+              🚪 Logout
+            </button>
           </div>
         </div>
       </div>
@@ -390,7 +437,7 @@ const AdminHeader = ({ title }) => {
       }}></div>
       
       {/* Debug Info (remove in production) */}
-      {process.env.NODE_ENV === 'development' && adminData && (
+      {process.env.NODE_ENV === 'development' && (
         <div style={{
           position: 'absolute',
           bottom: '10px',
@@ -402,7 +449,8 @@ const AdminHeader = ({ title }) => {
           borderRadius: '4px',
           zIndex: 100,
         }}>
-          Admin: {getAdminName()}
+          Admin: {adminData?.name || 'Administrator'}
+          {adminData?.email && ` | ${adminData.email}`}
         </div>
       )}
       
@@ -418,17 +466,6 @@ const AdminHeader = ({ title }) => {
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
-          }
-          
-          @keyframes slideDown {
-            from {
-              opacity: 0;
-              transform: translateY(-10px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
           }
           
           .header-animated {
