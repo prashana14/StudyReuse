@@ -1,9 +1,10 @@
 const Order = require('../models/orderModel');
 const Item = require('../models/itemModel');
 const User = require('../models/userModel');
-const Admin = require('../models/adminModel'); // Add this
+const Admin = require('../models/adminModel');
 const jwt = require('jsonwebtoken');
 const NotificationService = require('../services/notificationService');
+const mongoose = require('mongoose');
 
 // ======================
 // IMPROVED Token Verification
@@ -128,6 +129,10 @@ const getAllOrders = async (req, res) => {
         select: 'name email phone'
       })
       .populate({
+        path: 'seller',
+        select: 'name email'
+      })
+      .populate({
         path: 'items.item',
         select: 'title imageURL price category'
       })
@@ -176,6 +181,7 @@ const getUserOrders = async (req, res) => {
     
     const orders = await Order.find({ user: userData.id })
       .populate('items.item', 'title imageURL category')
+      .populate('seller', 'name email')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -209,7 +215,8 @@ const getOrderById = async (req, res) => {
     
     const order = await Order.findById(req.params.id)
       .populate('items.item', 'title imageURL category condition description')
-      .populate('user', 'name email phone');
+      .populate('user', 'name email phone')
+      .populate('seller', 'name email');
 
     if (!order) {
       return res.status(404).json({
@@ -218,8 +225,11 @@ const getOrderById = async (req, res) => {
       });
     }
 
-    // Check if user owns the order or is admin
-    if (order.user._id.toString() !== userData.id.toString() && !userData.isAdmin) {
+    // Check if user owns the order or is admin or is seller
+    const isOwner = order.user._id.toString() === userData.id.toString();
+    const isSeller = order.seller._id.toString() === userData.id.toString();
+    
+    if (!isOwner && !isSeller && !userData.isAdmin) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this order'
@@ -262,7 +272,8 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id)
+      .populate('seller', 'name email');
     
     if (!order) {
       return res.status(404).json({
@@ -271,8 +282,11 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Check authorization (only admin or owner can update)
-    if (order.user.toString() !== userData.id && !userData.isAdmin) {
+    // Check authorization (admin, owner, or seller)
+    const isOwner = order.user.toString() === userData.id;
+    const isSeller = order.seller._id.toString() === userData.id;
+    
+    if (!isOwner && !isSeller && !userData.isAdmin) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this order'
@@ -355,6 +369,19 @@ const updateOrderStatus = async (req, res) => {
           relatedOrder: order._id,
           isRead: false
         });
+
+        // Notify seller as well
+        await NotificationService.create({
+          user: order.seller._id,
+          type: 'system',
+          title: `Order Status Updated`,
+          message: `Order #${order._id.toString().slice(-6)} status changed to ${status}`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/seller/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
       } catch (notifError) {
         console.error('Error creating status notification:', notifError);
       }
@@ -393,7 +420,8 @@ const cancelOrder = async (req, res) => {
       });
     }
     
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id)
+      .populate('seller', 'name email');
     
     if (!order) {
       return res.status(404).json({
@@ -402,8 +430,11 @@ const cancelOrder = async (req, res) => {
       });
     }
 
-    // Check if user owns the order
-    if (order.user.toString() !== userData.id && !userData.isAdmin) {
+    // Check if user owns the order or is admin
+    const isOwner = order.user.toString() === userData.id;
+    const isSeller = order.seller._id.toString() === userData.id;
+    
+    if (!isOwner && !isSeller && !userData.isAdmin) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to cancel this order'
@@ -442,6 +473,8 @@ const cancelOrder = async (req, res) => {
 
       // Update order status
       order.status = 'Cancelled';
+      order.sellerAction = 'rejected';
+      order.sellerRejectionReason = 'Order cancelled by ' + (userData.id === order.user.toString() ? 'buyer' : 'seller');
       await order.save({ session });
 
       await session.commitTransaction();
@@ -461,24 +494,18 @@ const cancelOrder = async (req, res) => {
           isRead: false
         });
         
-        // Notify seller if they're different from buyer
-        for (const orderItem of order.items) {
-          const item = await Item.findById(orderItem.item);
-          if (item && item.owner.toString() !== userData.id) {
-            await NotificationService.create({
-              user: item.owner,
-              type: 'system',
-              title: `Order Cancelled`,
-              message: `Order #${order._id.toString().slice(-6)} for "${item.title}" has been cancelled`,
-              action: 'view_order',
-              actionData: { orderId: order._id },
-              link: `/orders/${order._id}`,
-              relatedOrder: order._id,
-              relatedItem: item._id,
-              isRead: false
-            });
-          }
-        }
+        // Notify seller
+        await NotificationService.create({
+          user: order.seller._id,
+          type: 'system',
+          title: `Order Cancelled`,
+          message: `Order #${order._id.toString().slice(-6)} for "${order.items[0]?.itemSnapshot?.title || 'your item'}" has been cancelled`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/seller/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
       } catch (notifError) {
         console.error('Error creating cancellation notification:', notifError);
       }
@@ -552,7 +579,7 @@ const createOrder = async (req, res) => {
     // Create a map for quick lookup
     const itemMap = new Map();
     dbItems.forEach(item => {
-      console.log(`Item ${item._id}: ${item.title}, price: ${item.price}, quantity: ${item.quantity}, status: ${item.status}`);
+      console.log(`Item ${item._id}: ${item.title}, price: ${item.price}, quantity: ${item.quantity}, status: ${item.status}, owner: ${item.owner}`);
       itemMap.set(item._id.toString(), item);
     });
     
@@ -613,12 +640,24 @@ const createOrder = async (req, res) => {
       updates.push({
         itemId: item._id,
         newQuantity: availableQuantity - requestedQuantity,
-        requestedQuantity
+        requestedQuantity,
+        owner: item.owner
       });
     }
 
     console.log(`Total amount: ${totalAmount}`);
     const finalTotal = totalAmount;
+
+    // Get the seller (owner of the first item)
+    const firstItem = itemMap.get(items[0].item.toString());
+    const sellerId = firstItem?.owner;
+
+    if (!sellerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unable to determine seller'
+      });
+    }
 
     // Start a session for transaction
     console.log('Starting database transaction...');
@@ -647,26 +686,31 @@ const createOrder = async (req, res) => {
       console.log('Creating order...');
       const orderData = {
         user: userData.id,
+        seller: sellerId,
         items: items.map(orderItem => {
           const item = itemMap.get(orderItem.item.toString());
           const quantity = parseInt(orderItem.quantity) || 1;
           
           return {
             item: orderItem.item,
+            sellerId: item.owner,
             quantity: quantity,
             price: item.price,
+            itemStatus: 'pending',
             itemSnapshot: {
               title: item.title,
               price: item.price,
               quantity: item.quantity,
-              imageURL: item.imageURL || item.image
+              imageURL: item.imageURL || item.image,
+              sellerId: item.owner
             }
           };
         }),
         totalAmount: finalTotal,
         shippingAddress,
         paymentMethod: paymentMethod || 'Cash on Delivery',
-        notes: notes || ''
+        notes: notes || '',
+        sellerAction: 'pending'
       };
       
       console.log('Order data to create:', orderData);
@@ -681,33 +725,29 @@ const createOrder = async (req, res) => {
       // Populate item details in response
       const populatedOrder = await Order.findById(order[0]._id)
         .populate('items.item', 'title imageURL category condition')
-        .populate('user', 'name email');
+        .populate('user', 'name email')
+        .populate('seller', 'name email');
 
       console.log('=== ORDER CREATED SUCCESSFULLY ===');
       console.log('Order ID:', populatedOrder._id);
       console.log('Total amount:', populatedOrder.totalAmount);
+      console.log('Seller:', populatedOrder.seller?.name);
       
       // Add notifications
       try {
         // Add notification for seller (item owner)
-        for (const orderItem of populatedOrder.items) {
-          const item = await Item.findById(orderItem.item);
-          if (item && item.owner.toString() !== userData.id) {
-            await NotificationService.create({
-              user: item.owner,
-              type: 'new_order',
-              title: 'New Order Received',
-              message: `${userData.name || 'A customer'} ordered ${orderItem.quantity}x "${item.title}"`,
-              action: 'view_order',
-              actionData: { orderId: populatedOrder._id },
-              link: `/orders/${populatedOrder._id}`,
-              relatedOrder: populatedOrder._id,
-              relatedItem: item._id,
-              relatedUser: userData.id,
-              isRead: false
-            });
-          }
-        }
+        await NotificationService.create({
+          user: sellerId,
+          type: 'new_order',
+          title: 'New Order Received',
+          message: `${userData.name || 'A customer'} placed an order for ${populatedOrder.items.length} item(s)`,
+          action: 'view_order',
+          actionData: { orderId: populatedOrder._id },
+          link: `/seller/orders/${populatedOrder._id}`,
+          relatedOrder: populatedOrder._id,
+          relatedUser: userData.id,
+          isRead: false
+        });
 
         // Add notification for buyer
         await NotificationService.create({
@@ -873,7 +913,8 @@ const checkCartAvailability = async (req, res) => {
           available: isAvailable, // Duplicate for compatibility
           price: item.price || 0,
           status: item.status,
-          imageURL: item.imageURL || item.image || null
+          imageURL: item.imageURL || item.image || null,
+          sellerId: item.owner
         });
         
         if (!isAvailable) {
@@ -1021,13 +1062,576 @@ const checkCartAvailabilityPublic = async (req, res) => {
   }
 };
 
+// ======================
+// SELLER ORDER FUNCTIONS - NEW
+// ======================
+
+// @desc    Get orders where user is seller
+// @route   GET /api/orders/seller/my
+// @access  Private (Seller)
+const getSellerOrders = async (req, res) => {
+  try {
+    console.log('=== GET SELLER ORDERS REQUEST ===');
+    
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const sellerId = userData.id;
+    
+    // Parse query parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    // Build query - orders where user is seller
+    const query = { seller: sellerId };
+    
+    // Status filter
+    if (req.query.status && req.query.status !== 'all') {
+      query.status = req.query.status;
+    }
+    
+    // Seller action filter
+    if (req.query.sellerAction && req.query.sellerAction !== 'all') {
+      query.sellerAction = req.query.sellerAction;
+    }
+    
+    // Get total count
+    const total = await Order.countDocuments(query);
+    
+    // Get orders with pagination
+    const orders = await Order.find(query)
+      .populate({
+        path: 'user',
+        select: 'name email phone'
+      })
+      .populate({
+        path: 'items.item',
+        select: 'title imageURL price category'
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    console.log(`Found ${orders.length} orders for seller ${sellerId}`);
+    
+    res.json({
+      success: true,
+      count: orders.length,
+      total,
+      data: orders,
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get seller orders error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching seller orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Seller accepts an order
+// @route   PUT /api/orders/:id/seller/accept
+// @access  Private (Seller)
+const acceptOrderBySeller = async (req, res) => {
+  try {
+    console.log('=== SELLER ACCEPT ORDER REQUEST ===');
+    
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const orderId = req.params.id;
+    const sellerId = userData.id;
+    
+    console.log(`Seller ${sellerId} accepting order ${orderId}`);
+    
+    // Find the order
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Verify seller is the actual seller
+    if (order.seller.toString() !== sellerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized. You are not the seller of this order.'
+      });
+    }
+    
+    // Check if order is in pending status
+    if (order.status !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot accept order with status: ${order.status}`
+      });
+    }
+    
+    // Check if seller already took action
+    if (order.sellerAction !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Seller already ${order.sellerAction} this order`
+      });
+    }
+    
+    // Update order
+    order.sellerAction = 'accepted';
+    order.sellerActionAt = new Date();
+    order.status = 'Processing'; // Move to processing after seller acceptance
+    await order.save();
+    
+    // Update item statuses
+    for (const item of order.items) {
+      item.itemStatus = 'accepted';
+    }
+    await order.save();
+    
+    // Create notification for buyer
+    try {
+      await NotificationService.create({
+        user: order.user._id,
+        type: 'order_update',
+        title: 'Order Accepted by Seller',
+        message: `Seller has accepted your order #${order._id.toString().slice(-6)}`,
+        action: 'view_order',
+        actionData: { orderId: order._id },
+        link: `/orders/${order._id}`,
+        relatedOrder: order._id,
+        isRead: false
+      });
+      
+      // Also create system notification
+      await NotificationService.create({
+        user: order.user._id,
+        type: 'system',
+        title: 'Order Status Updated',
+        message: `Your order has been accepted by the seller and is now being processed`,
+        action: 'view_order',
+        actionData: { orderId: order._id },
+        link: `/orders/${order._id}`,
+        relatedOrder: order._id,
+        isRead: false
+      });
+    } catch (notifError) {
+      console.error('Error creating notifications:', notifError);
+    }
+    
+    console.log(`Order ${orderId} accepted by seller ${sellerId}`);
+    
+    res.json({
+      success: true,
+      message: 'Order accepted successfully',
+      data: order
+    });
+    
+  } catch (error) {
+    console.error('Seller accept order error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error accepting order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Seller rejects an order
+// @route   PUT /api/orders/:id/seller/reject
+// @access  Private (Seller)
+const rejectOrderBySeller = async (req, res) => {
+  try {
+    console.log('=== SELLER REJECT ORDER REQUEST ===');
+    
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const { reason } = req.body;
+    const orderId = req.params.id;
+    const sellerId = userData.id;
+    
+    console.log(`Seller ${sellerId} rejecting order ${orderId}, reason: ${reason}`);
+    
+    // Find the order
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Verify seller is the actual seller
+    if (order.seller.toString() !== sellerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized. You are not the seller of this order.'
+      });
+    }
+    
+    // Check if order is in pending status
+    if (order.status !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject order with status: ${order.status}`
+      });
+    }
+    
+    // Check if seller already took action
+    if (order.sellerAction !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Seller already ${order.sellerAction} this order`
+      });
+    }
+    
+    // Start a session for transaction
+    const session = await Order.startSession();
+    session.startTransaction();
+    
+    try {
+      // Restore item quantities
+      for (const orderItem of order.items) {
+        const item = await Item.findById(orderItem.item).session(session);
+        
+        if (item) {
+          const newQuantity = (item.quantity || 0) + orderItem.quantity;
+          await Item.findByIdAndUpdate(
+            orderItem.item,
+            {
+              quantity: newQuantity,
+              status: newQuantity > 0 ? 'Available' : 'Sold Out'
+            },
+            { session }
+          );
+        }
+      }
+      
+      // Update order
+      order.sellerAction = 'rejected';
+      order.sellerActionAt = new Date();
+      order.sellerRejectionReason = reason || 'Seller rejected the order';
+      order.status = 'Cancelled';
+      await order.save({ session });
+      
+      // Update item statuses
+      for (const item of order.items) {
+        item.itemStatus = 'rejected';
+      }
+      await order.save({ session });
+      
+      await session.commitTransaction();
+      session.endSession();
+      
+      // Create notification for buyer
+      try {
+        await NotificationService.create({
+          user: order.user._id,
+          type: 'order_update',
+          title: 'Order Rejected by Seller',
+          message: `Seller has rejected your order #${order._id.toString().slice(-6)}${reason ? `: ${reason}` : ''}`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+        
+        // Also create system notification
+        await NotificationService.create({
+          user: order.user._id,
+          type: 'system',
+          title: 'Order Cancelled',
+          message: `Your order has been rejected by the seller`,
+          action: 'view_order',
+          actionData: { orderId: order._id },
+          link: `/orders/${order._id}`,
+          relatedOrder: order._id,
+          isRead: false
+        });
+      } catch (notifError) {
+        console.error('Error creating notifications:', notifError);
+      }
+      
+      console.log(`Order ${orderId} rejected by seller ${sellerId}`);
+      
+      res.json({
+        success: true,
+        message: 'Order rejected successfully',
+        data: order
+      });
+      
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('Seller reject order error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get seller order statistics
+// @route   GET /api/orders/seller/stats
+// @access  Private (Seller)
+const getSellerOrderStats = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const sellerId = userData.id;
+    
+    console.log(`📊 Fetching stats for seller: ${sellerId}`);
+    
+    // Get counts for different statuses
+    const pendingOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Pending',
+      sellerAction: 'pending'
+    });
+    
+    const acceptedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      sellerAction: 'accepted'
+    });
+    
+    const rejectedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      sellerAction: 'rejected'
+    });
+    
+    const processingOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Processing'
+    });
+    
+    const shippedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Shipped'
+    });
+    
+    const deliveredOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Delivered'
+    });
+    
+    const totalOrders = await Order.countDocuments({ seller: sellerId });
+    
+    // Calculate total revenue - FIXED: Added 'new' keyword
+    const revenueResult = await Order.aggregate([
+      { 
+        $match: { 
+          seller: new mongoose.Types.ObjectId(sellerId), 
+          status: 'Delivered' 
+        } 
+      },
+      { 
+        $group: { 
+          _id: null, 
+          totalRevenue: { $sum: '$totalAmount' } 
+        } 
+      }
+    ]);
+    
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
+    
+    console.log(`📊 Seller stats for ${sellerId}:`, {
+      pendingOrders,
+      acceptedOrders,
+      rejectedOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
+      totalOrders,
+      totalRevenue
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        pendingOrders,
+        acceptedOrders,
+        rejectedOrders,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders,
+        totalOrders,
+        totalRevenue
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get seller stats error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching seller statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Alternative simplified version (without aggregation)
+// @desc    Get seller order statistics (SIMPLIFIED VERSION)
+// @route   GET /api/orders/seller/stats-simple
+// @access  Private (Seller)
+const getSellerOrderStatsSimple = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+    
+    const sellerId = userData.id;
+    
+    console.log(`📊 Fetching simplified stats for seller: ${sellerId}`);
+    
+    // Get all delivered orders first (for revenue calculation)
+    const deliveredOrders = await Order.find({ 
+      seller: sellerId, 
+      status: 'Delivered' 
+    });
+    
+    // Calculate total revenue manually
+    const totalRevenue = deliveredOrders.reduce((sum, order) => {
+      return sum + (order.totalAmount || 0);
+    }, 0);
+    
+    // Get counts for different statuses
+    const pendingOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Pending',
+      sellerAction: 'pending'
+    });
+    
+    const acceptedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      sellerAction: 'accepted'
+    });
+    
+    const rejectedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      sellerAction: 'rejected'
+    });
+    
+    const processingOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Processing'
+    });
+    
+    const shippedOrders = await Order.countDocuments({ 
+      seller: sellerId, 
+      status: 'Shipped'
+    });
+    
+    const deliveredCount = deliveredOrders.length;
+    
+    const totalOrders = await Order.countDocuments({ seller: sellerId });
+    
+    console.log(`📊 Simplified seller stats for ${sellerId}:`, {
+      pendingOrders,
+      acceptedOrders,
+      rejectedOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredCount,
+      totalOrders,
+      totalRevenue
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        pendingOrders,
+        acceptedOrders,
+        rejectedOrders,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders: deliveredCount,
+        totalOrders,
+        totalRevenue
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get simplified seller stats error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching seller statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createOrder,
   getUserOrders,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getAllOrders, // This is the main fix - now properly handles admin tokens
+  getAllOrders,
   checkCartAvailability,
-  checkCartAvailabilityPublic
+  checkCartAvailabilityPublic,
+  // NEW SELLER FUNCTIONS
+  getSellerOrders,
+  acceptOrderBySeller,
+  rejectOrderBySeller,
+  getSellerOrderStats,
+  getSellerOrderStatsSimple // Optional simplified version
 };

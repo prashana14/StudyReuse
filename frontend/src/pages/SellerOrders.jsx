@@ -1,43 +1,56 @@
-// frontend/src/pages/Orders.jsx - BUYER VERSION ONLY
+// frontend/src/pages/SellerOrders.jsx - SELLER VERSION ONLY
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiService from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const Orders = () => {
+const SellerOrders = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetchUserOrders();
+    fetchSellerOrders();
+    fetchSellerStats();
   }, []);
 
-  const fetchUserOrders = async () => {
+  const fetchSellerOrders = async () => {
     try {
       setLoading(true);
       setError('');
       
-      console.log('🔄 Fetching buyer orders...');
+      console.log('🔄 Fetching seller orders...');
       
-      // This should only get orders where user is the BUYER
-      const response = await apiService.orders.getMyOrders();
+      // This should only get orders where user is the SELLER
+      const response = await apiService.orders.getSellerOrders();
       
-      console.log('✅ Buyer Orders Response:', response);
+      console.log('✅ Seller Orders Response:', response);
       
       const ordersData = response?.data || [];
-      console.log(`📦 Setting ${ordersData.length} buyer orders to state`);
+      console.log(`📦 Setting ${ordersData.length} seller orders to state`);
       
       setOrders(ordersData);
       
     } catch (err) {
-      console.error('❌ Error fetching buyer orders:', err);
-      setError(err?.message || 'Failed to load orders');
+      console.error('❌ Error fetching seller orders:', err);
+      setError(err?.message || 'Failed to load seller orders');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSellerStats = async () => {
+    try {
+      const response = await apiService.orders.getSellerOrderStats();
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching seller stats:', err);
     }
   };
 
@@ -68,6 +81,15 @@ const Orders = () => {
     }
   };
 
+  const getSellerActionColor = (action) => {
+    switch(action?.toLowerCase()) {
+      case 'pending': return '#ffc107';
+      case 'accepted': return '#28a745';
+      case 'rejected': return '#dc3545';
+      default: return '#6c757d';
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch(status?.toLowerCase()) {
       case 'pending': return '⏳';
@@ -76,15 +98,6 @@ const Orders = () => {
       case 'delivered': return '✅';
       case 'cancelled': return '❌';
       default: return '📦';
-    }
-  };
-
-  const getSellerActionColor = (action) => {
-    switch(action?.toLowerCase()) {
-      case 'pending': return '#ffc107';
-      case 'accepted': return '#28a745';
-      case 'rejected': return '#dc3545';
-      default: return '#6c757d';
     }
   };
 
@@ -99,8 +112,47 @@ const Orders = () => {
 
   const filteredOrders = orders.filter(order => {
     if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending_action') {
+      return order.sellerAction === 'pending' && order.status === 'Pending';
+    }
     return order.status?.toLowerCase() === statusFilter.toLowerCase();
   });
+
+  const handleAcceptOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to accept this order?')) {
+      return;
+    }
+
+    try {
+      await apiService.orders.acceptOrderBySeller(orderId);
+      alert('Order accepted successfully');
+      fetchSellerOrders();
+      fetchSellerStats();
+    } catch (err) {
+      console.error('Error accepting order:', err);
+      alert(err.response?.data?.message || 'Failed to accept order');
+    }
+  };
+
+  const handleRejectOrder = async (orderId) => {
+    const reason = prompt('Please provide a reason for rejecting this order:');
+    if (reason === null) return;
+    
+    if (!reason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    try {
+      await apiService.orders.rejectOrderBySeller(orderId, reason);
+      alert('Order rejected successfully');
+      fetchSellerOrders();
+      fetchSellerStats();
+    } catch (err) {
+      console.error('Error rejecting order:', err);
+      alert(err.response?.data?.message || 'Failed to reject order');
+    }
+  };
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Are you sure you want to cancel this order?')) {
@@ -110,7 +162,8 @@ const Orders = () => {
     try {
       await apiService.orders.cancelOrder(orderId);
       alert('Order cancelled successfully');
-      fetchUserOrders();
+      fetchSellerOrders();
+      fetchSellerStats();
     } catch (err) {
       console.error('Error cancelling order:', err);
       alert(err.response?.data?.message || 'Failed to cancel order');
@@ -140,7 +193,7 @@ const Orders = () => {
           margin: '0 auto 20px'
         }}></div>
         <p style={{ color: '#6c757d', fontSize: '16px' }}>
-          Loading your orders...
+          Loading seller orders...
         </p>
         <style>{`
           @keyframes spin {
@@ -154,25 +207,25 @@ const Orders = () => {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '40px auto', padding: '0 20px' }}>
-      {/* Header with Seller Link */}
+      {/* Header */}
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <h1 style={{ 
             fontSize: '2.5rem', 
-            background: 'linear-gradient(135deg, #4361ee, #7209b7)',
+            background: 'linear-gradient(135deg, #7209b7, #4361ee)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
             fontWeight: '700'
           }}>
-            My Orders
+            Seller Orders
           </h1>
           
           <Link
-            to="/seller/orders"
+            to="/orders"
             style={{
               padding: '10px 20px',
-              background: '#7209b7',
+              background: '#4361ee',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -194,11 +247,11 @@ const Orders = () => {
               e.target.style.boxShadow = 'none';
             }}
           >
-            🛒 View Seller Orders
+            👤 View My Orders
           </Link>
         </div>
         <p style={{ color: '#6c757d', fontSize: '1.125rem' }}>
-          Track and manage orders you've placed
+          Manage orders for your items
         </p>
       </div>
 
@@ -218,7 +271,7 @@ const Orders = () => {
             <strong>Error:</strong> {error}
           </div>
           <button 
-            onClick={fetchUserOrders}
+            onClick={fetchSellerOrders}
             style={{ 
               padding: '5px 15px',
               background: '#4361ee',
@@ -234,7 +287,7 @@ const Orders = () => {
         </div>
       )}
 
-      {/* Stats and Filters */}
+      {/* Stats Dashboard */}
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
@@ -249,7 +302,7 @@ const Orders = () => {
           textAlign: 'center'
         }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#4361ee' }}>
-            {orders.length}
+            {stats?.totalOrders || 0}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Total Orders
@@ -263,8 +316,23 @@ const Orders = () => {
           boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
           textAlign: 'center'
         }}>
+          <div style={{ fontSize: '32px', fontWeight: '700', color: '#ffc107' }}>
+            {stats?.pendingOrders || 0}
+          </div>
+          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+            Pending Action
+          </div>
+        </div>
+
+        <div style={{ 
+          background: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+          textAlign: 'center'
+        }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#28a745' }}>
-            {orders.filter(o => o.status?.toLowerCase() === 'delivered').length}
+            {stats?.deliveredOrders || 0}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Delivered
@@ -278,26 +346,11 @@ const Orders = () => {
           boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
           textAlign: 'center'
         }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#ffc107' }}>
-            {orders.filter(o => o.status?.toLowerCase() === 'pending').length}
-          </div>
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Pending
-          </div>
-        </div>
-
-        <div style={{ 
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-          textAlign: 'center'
-        }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#7209b7' }}>
-            ₹{orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toFixed(2)}
+            ₹{stats?.totalRevenue?.toFixed(2) || '0.00'}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Total Spent
+            Total Revenue
           </div>
         </div>
       </div>
@@ -316,16 +369,16 @@ const Orders = () => {
           color: '#212529',
           fontWeight: '600'
         }}>
-          Filter by Status
+          Filter Orders
         </h3>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {['all', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(status => (
+          {['all', 'pending_action', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(status => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
               style={{ 
                 padding: '8px 16px',
-                background: statusFilter === status ? getStatusColor(status === 'all' ? '#4361ee' : status) : '#f8f9fa',
+                background: statusFilter === status ? getStatusColor(status === 'pending_action' ? '#ffc107' : status) : '#f8f9fa',
                 border: 'none',
                 borderRadius: '20px',
                 color: statusFilter === status ? 'white' : '#495057',
@@ -338,7 +391,9 @@ const Orders = () => {
                 gap: '6px'
               }}
             >
-              {status === 'all' ? '📦' : getStatusIcon(status)} {status === 'all' ? 'All Orders' : status}
+              {status === 'all' ? '📦' : ''}
+              {status === 'pending_action' ? '⏳' : ''}
+              {status.replace('_', ' ')}
             </button>
           ))}
         </div>
@@ -366,7 +421,7 @@ const Orders = () => {
             color: '#212529',
             fontSize: '24px'
           }}>
-            {statusFilter === 'all' ? 'No Orders Yet' : `No ${statusFilter} Orders`}
+            No Seller Orders Found
           </h3>
           <p style={{ 
             color: '#6c757d', 
@@ -376,14 +431,14 @@ const Orders = () => {
             fontSize: '16px',
             lineHeight: '1.6'
           }}>
-            You haven't placed any orders yet. Start shopping to see your orders here!
+            You don't have any orders for your items yet. When customers purchase your items, orders will appear here.
           </p>
           <Link 
-            to="/items" 
+            to="/my-items" 
             style={{ 
               padding: '14px 32px', 
               fontSize: '16px',
-              background: 'linear-gradient(135deg, #4361ee, #7209b7)',
+              background: 'linear-gradient(135deg, #7209b7, #4361ee)',
               border: 'none',
               borderRadius: '8px',
               color: 'white',
@@ -401,7 +456,7 @@ const Orders = () => {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            Browse Items
+            Manage My Items
           </Link>
         </div>
       ) : (
@@ -417,7 +472,8 @@ const Orders = () => {
               style={{ 
                 padding: '25px',
                 borderBottom: '1px solid #f8f9fa',
-                transition: 'all 0.3s'
+                transition: 'all 0.3s',
+                background: order.sellerAction === 'pending' ? '#fff9e6' : 'white'
               }}
             >
               {/* Order Header */}
@@ -462,7 +518,7 @@ const Orders = () => {
                       alignItems: 'center',
                       gap: '5px'
                     }}>
-                      {getSellerActionIcon(order.sellerAction)} Seller: {order.sellerAction}
+                      {getSellerActionIcon(order.sellerAction)} Action: {order.sellerAction}
                     </span>
                   </div>
                   <div style={{ 
@@ -475,16 +531,73 @@ const Orders = () => {
                     <span>Placed: {formatDate(order.createdAt)}</span>
                     <span>Items: {order.items?.length || 0}</span>
                     <span>Total: ₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
-                    <span>Payment: {order.paymentMethod || 'Cash on Delivery'}</span>
-                    {order.seller?.name && (
-                      <span>Seller: {order.seller.name}</span>
-                    )}
+                    <span>Customer: {order.user?.name || 'Unknown'}</span>
                   </div>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  {/* Cancel Button for Buyers */}
-                  {(order.status?.toLowerCase() === 'pending' || order.status?.toLowerCase() === 'processing') && (
+                  {/* Seller Actions */}
+                  {order.sellerAction === 'pending' && order.status === 'Pending' && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptOrder(order._id);
+                        }}
+                        style={{ 
+                          padding: '8px 16px',
+                          background: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.transform = 'translateY(-2px)';
+                          e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.transform = 'translateY(0)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      >
+                        Accept Order
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRejectOrder(order._id);
+                        }}
+                        style={{ 
+                          padding: '8px 16px',
+                          background: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.transform = 'translateY(-2px)';
+                          e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.transform = 'translateY(0)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      >
+                        Reject Order
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Cancel Button for seller (if they have permission) */}
+                  {(order.status?.toLowerCase() === 'processing' || order.status?.toLowerCase() === 'pending') && order.sellerAction === 'accepted' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -630,12 +743,36 @@ const Orders = () => {
                     ))}
                   </div>
 
+                  {/* Customer Info */}
+                  <div style={{ 
+                    marginTop: '20px',
+                    padding: '20px',
+                    background: 'white',
+                    borderRadius: '8px',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <h4 style={{ 
+                      fontSize: '16px', 
+                      marginBottom: '15px', 
+                      color: '#212529',
+                      fontWeight: '600'
+                    }}>
+                      Customer Information
+                    </h4>
+                    <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
+                      <div><strong>Name:</strong> {order.user?.name || 'N/A'}</div>
+                      <div><strong>Email:</strong> {order.user?.email || 'N/A'}</div>
+                      <div><strong>Shipping Address:</strong> {order.shippingAddress?.fullName}, {order.shippingAddress?.street}, {order.shippingAddress?.city}</div>
+                      <div><strong>Phone:</strong> {order.shippingAddress?.phone || 'N/A'}</div>
+                    </div>
+                  </div>
+
                   {/* Shipping Address */}
                   {order.shippingAddress && (
                     <div style={{ 
                       marginTop: '20px',
                       padding: '20px',
-                      background: 'white',
+                      background: '#eef2ff',
                       borderRadius: '8px',
                       border: '1px solid #dee2e6'
                     }}>
@@ -657,33 +794,6 @@ const Orders = () => {
                           <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
                             <strong>Notes:</strong> {order.shippingAddress.notes}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Seller Info */}
-                  {order.seller && (
-                    <div style={{ 
-                      marginTop: '20px',
-                      padding: '20px',
-                      background: '#eef2ff',
-                      borderRadius: '8px',
-                      border: '1px solid #dee2e6'
-                    }}>
-                      <h4 style={{ 
-                        fontSize: '16px', 
-                        marginBottom: '15px', 
-                        color: '#212529',
-                        fontWeight: '600'
-                      }}>
-                        Seller Information
-                      </h4>
-                      <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
-                        <div><strong>Name:</strong> {order.seller.name || 'N/A'}</div>
-                        <div><strong>Email:</strong> {order.seller.email || 'N/A'}</div>
-                        {order.seller.phone && (
-                          <div><strong>Phone:</strong> {order.seller.phone}</div>
                         )}
                       </div>
                     </div>
@@ -737,25 +847,25 @@ const Orders = () => {
                   <div style={{ 
                     marginTop: '20px',
                     padding: '15px',
-                    background: order.status?.toLowerCase() === 'pending' ? '#fff3cd' : '#d4edda',
+                    background: order.sellerAction === 'pending' ? '#fff3cd' : '#d4edda',
                     borderRadius: '8px',
                     border: '1px solid',
-                    borderColor: order.status?.toLowerCase() === 'pending' ? '#ffeaa7' : '#c3e6cb'
+                    borderColor: order.sellerAction === 'pending' ? '#ffeaa7' : '#c3e6cb'
                   }}>
                     <div style={{ 
                       fontSize: '14px', 
-                      color: order.status?.toLowerCase() === 'pending' ? '#856404' : '#155724',
+                      color: order.sellerAction === 'pending' ? '#856404' : '#155724',
                       fontWeight: '600',
                       marginBottom: '5px'
                     }}>
-                      {order.status?.toLowerCase() === 'pending' 
-                        ? '🕒 Awaiting Seller Approval' 
-                        : '✅ Order Approved'}
+                      {order.sellerAction === 'pending' 
+                        ? '⏳ Awaiting Your Action' 
+                        : '✅ Order Processed'}
                     </div>
-                    <div style={{ fontSize: '13px', color: order.status?.toLowerCase() === 'pending' ? '#856404' : '#155724' }}>
-                      {order.status?.toLowerCase() === 'pending' 
-                        ? 'This order is awaiting seller approval. You will receive a notification when approved.'
-                        : 'This order has been approved and is being processed.'}
+                    <div style={{ fontSize: '13px', color: order.sellerAction === 'pending' ? '#856404' : '#155724' }}>
+                      {order.sellerAction === 'pending' 
+                        ? 'This order is waiting for your approval. Please accept or reject it.'
+                        : 'You have already taken action on this order.'}
                     </div>
                     {order.sellerRejectionReason && (
                       <div style={{ 
@@ -767,7 +877,7 @@ const Orders = () => {
                         borderRadius: '4px',
                         borderLeft: '4px solid #dc3545'
                       }}>
-                        <strong>Seller Rejection Reason:</strong> {order.sellerRejectionReason}
+                        <strong>Your Rejection Reason:</strong> {order.sellerRejectionReason}
                       </div>
                     )}
                   </div>
@@ -810,4 +920,4 @@ const Orders = () => {
   );
 };
 
-export default Orders;
+export default SellerOrders;

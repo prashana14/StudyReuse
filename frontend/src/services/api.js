@@ -317,10 +317,15 @@ const orderAPI = {
   updateStatus: (id, status) => API.put(`/orders/${id}/status`, { status }),
   confirmDelivery: (id) => API.put(`/orders/${id}/deliver`),
   
+  // NEW: Seller Order Functions
+  getSellerOrders: (params = {}) => API.get('/orders/seller/my', { params }),
+  acceptOrderBySeller: (orderId) => API.put(`/orders/${orderId}/seller/accept`),
+  rejectOrderBySeller: (orderId, reason) => API.put(`/orders/${orderId}/seller/reject`, { reason }),
+  getSellerOrderStats: () => API.get('/orders/seller/stats'),
+  
   // Admin endpoints (also available through adminAPI)
   getAll: (params = {}) => API.get('/orders', { params }),
 };
-
 // ======================
 // 9. NOTIFICATION API Methods (User)
 // ======================

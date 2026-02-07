@@ -26,6 +26,7 @@ import Items from "./pages/Items";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
+import SellerOrders from './pages/SellerOrders'; // NEW IMPORT
 
 // Import Admin Components
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
@@ -59,47 +60,49 @@ function App() {
 
   return (
     <CartProvider>
-      <Routes>
-        {/* Admin Routes - No Navbar/Footer */}
-        <Route 
-          path="/admin/login" 
-          element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />} 
-        />
-        <Route 
-          path="/admin/register" 
-          element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminRegister />} 
-        />
-        
-        {/* Admin Protected Routes with Layout */}
-        <Route 
-          path="/admin" 
-          element={
-            <AdminProtectedRoute>
-              <AdminLayout />
-            </AdminProtectedRoute>
-          }
-        >
-          {/* These will render in AdminLayout's Outlet */}
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<AdminDashboardPage />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="items" element={<ItemsPage />} />
-          <Route path="orders" element={<OrdersPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="notifications" element={<AdminNotificationsPage />} />
-        </Route>
-        
-        {/* All other routes show normal Navbar/Footer */}
-        <Route path="*" element={
-          <>
-            <Navbar />
-            <div className="min-h-[calc(100vh-140px)]">
-              <MainRoutes user={user} />
-            </div>
-            <Footer />
-          </>
-        } />
-      </Routes>
+      <NotificationProvider>
+        <Routes>
+          {/* Admin Routes - No Navbar/Footer */}
+          <Route 
+            path="/admin/login" 
+            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminLogin />} 
+          />
+          <Route 
+            path="/admin/register" 
+            element={admin ? <Navigate to="/admin/dashboard" replace /> : <AdminRegister />} 
+          />
+          
+          {/* Admin Protected Routes with Layout */}
+          <Route 
+            path="/admin" 
+            element={
+              <AdminProtectedRoute>
+                <AdminLayout />
+              </AdminProtectedRoute>
+            }
+          >
+            {/* These will render in AdminLayout's Outlet */}
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="items" element={<ItemsPage />} />
+            <Route path="orders" element={<OrdersPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+          </Route>
+          
+          {/* All other routes show normal Navbar/Footer */}
+          <Route path="*" element={
+            <>
+              <Navbar />
+              <div className="min-h-[calc(100vh-140px)]">
+                <MainRoutes user={user} />
+              </div>
+              <Footer />
+            </>
+          } />
+        </Routes>
+      </NotificationProvider>
     </CartProvider>
   );
 }
@@ -143,6 +146,9 @@ function MainRoutes({ user }) {
       <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/orders/:id" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+      
+      {/* NEW: Seller Orders Route - for sellers to accept/reject orders */}
+      <Route path="/seller/orders" element={<ProtectedRoute><SellerOrders /></ProtectedRoute>} />
       
       {/* Chat route */}
       <Route 

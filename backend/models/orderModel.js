@@ -7,10 +7,20 @@ const orderSchema = mongoose.Schema(
       ref: 'User', 
       required: true 
     },
+    seller: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'User', 
+      required: true 
+    },
     items: [{
       item: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Item', 
+        required: true 
+      },
+      sellerId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User',
         required: true 
       },
       quantity: { 
@@ -27,7 +37,14 @@ const orderSchema = mongoose.Schema(
         title: String,
         price: Number,
         quantity: Number,
-        imageURL: String
+        imageURL: String,
+        sellerName: String,
+        sellerId: mongoose.Schema.Types.ObjectId
+      },
+      itemStatus: {
+        type: String,
+        enum: ['pending', 'accepted', 'rejected', 'shipped', 'delivered'],
+        default: 'pending'
       }
     }],
     totalAmount: { 
@@ -51,7 +68,7 @@ const orderSchema = mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash on Delivery'], // REMOVED other options, only Cash on Delivery
+      enum: ['Cash on Delivery'],
       default: 'Cash on Delivery'
     },
     paymentStatus: {
@@ -61,7 +78,16 @@ const orderSchema = mongoose.Schema(
     },
     notes: String,
     
-    // Additional fields for better tracking
+    // Seller-specific fields
+    sellerAction: {
+      type: String,
+      enum: ['pending', 'accepted', 'rejected'],
+      default: 'pending'
+    },
+    sellerActionAt: Date,
+    sellerRejectionReason: String,
+    
+    // Additional fields
     taxAmount: {
       type: Number,
       default: 0
@@ -124,7 +150,9 @@ orderSchema.set('toObject', { virtuals: true });
 
 // Indexes for better query performance
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ seller: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
+orderSchema.index({ sellerAction: 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ 'shippingAddress.city': 1 });
 

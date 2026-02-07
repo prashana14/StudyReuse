@@ -9,7 +9,12 @@ const {
   updateOrderStatus,
   cancelOrder,
   getAllOrders,
-  checkCartAvailability
+  checkCartAvailability,
+  // NEW SELLER FUNCTIONS
+  getSellerOrders,
+  acceptOrderBySeller,
+  rejectOrderBySeller,
+  getSellerOrderStats
 } = require('../controller/orderController');
 
 // Import middleware
@@ -36,7 +41,23 @@ router.get('/:id', protect, getOrderById);
 router.put('/:id/cancel', protect, cancelOrder);
 
 // ======================
-// 2. ADMIN ROUTES (Separate Admin System)
+// 2. SELLER ROUTES (NEW)
+// ======================
+
+// Get orders where user is seller
+router.get('/seller/my', protect, getSellerOrders);
+
+// Seller accepts an order
+router.put('/:id/seller/accept', protect, acceptOrderBySeller);
+
+// Seller rejects an order
+router.put('/:id/seller/reject', protect, rejectOrderBySeller);
+
+// Get seller order statistics
+router.get('/seller/stats', protect, getSellerOrderStats);
+
+// ======================
+// 3. ADMIN ROUTES (Separate Admin System)
 // ======================
 
 // Get all orders (ADMIN ONLY) - using separate adminMiddleware
@@ -46,7 +67,7 @@ router.get('/', adminMiddleware, getAllOrders);
 router.put('/:id/status', adminMiddleware, updateOrderStatus);
 
 // ======================
-// 3. PUBLIC ROUTES
+// 4. PUBLIC ROUTES
 // ======================
 
 // Health check endpoint
