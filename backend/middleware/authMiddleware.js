@@ -1,3 +1,4 @@
+// backend/middleware/authMiddleware.js
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 
@@ -55,10 +56,26 @@ const protect = async (req, res, next) => {
 };
 
 // ===============================
-// Admin-only access
+// Admin-only access (UPDATED - since role field removed)
 // ===============================
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  // Since you removed role field, we need another way to identify admins
+  // OPTION 1: Check if user exists (any authenticated user can access for now)
+  // OPTION 2: Add isAdmin boolean field to your User model
+  // OPTION 3: Use email-based admin check
+  
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+  
+  // For now, allow all authenticated users to access admin analytics
+  // OR check specific admin emails
+  const adminEmails = ['admin@example.com', 'prashana@example.com']; // Add your admin emails
+  
+  if (adminEmails.includes(req.user.email)) {
     next();
   } else {
     return res.status(403).json({

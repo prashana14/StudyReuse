@@ -1,4 +1,4 @@
-// backend/controller/adminController.js - UPDATED FOR SEPARATE ADMIN MODEL
+// backend/controller/adminController.js - COMPLETE UPDATED VERSION
 const Admin = require('../models/adminModel');
 const User = require('../models/userModel');
 const Item = require('../models/itemModel');
@@ -606,6 +606,205 @@ exports.unblockUser = async (req, res) => {
 // ITEM MANAGEMENT
 // ======================
 
+// ✅ Get All Items for Admin (with advanced filtering) - NEW FUNCTION
+exports.getAllItems = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 50, 
+      search = "", 
+      status, 
+      sortBy = 'createdAt', 
+      sortOrder = 'desc',
+      category,
+      priceMin,
+      priceMax,
+      dateFrom,
+      dateTo
+    } = req.query;
+    
+    console.log('📋 Admin fetching items with params:', req.query);
+    
+    // Build query
+    const query = {};
+    
+    // Search by title, description, or owner name/email
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { condition: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } }
+      ];
+    }
+    
+    // Filter by status
+    if (status) {
+      switch(status.toLowerCase()) {
+        case 'pending':
+          query.isApproved = false;
+          query.isFlagged = false;
+          break;
+        case 'approved':
+          query.isApproved = true;
+          break;
+        case 'flagged':
+          query.isFlagged = true;
+          break;
+        case 'rejected':
+          query.isFlagged = true;
+          break;
+        case 'active':
+          query.isActive = true;
+          break;
+        case 'inactive':
+          query.isActive = false;
+          break;
+      }
+    }
+    
+    // Filter by category
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    
+    // Filter by price range
+    if (priceMin || priceMax) {
+      query.price = {};
+      if (priceMin) query.price.$gte = Number(priceMin);
+      if (priceMax) query.price.$lte = Number(priceMax);
+    }
+    
+    // Filter by date range
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+    
+    // Sort options
+    const sortOptions = {};
+    if (sortBy) {
+      sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    } else {
+      sortOptions.createdAt = -1;
+    }
+    
+    // Execute query with population
+    const items = await Item.find(query)
+      .populate('owner', 'name email phone')
+      .sort(sortOptions)
+      .limit(parseInt(limit))
+      .skip((page - 1) * limit);
+    
+    const total = await Item.countDocuments(query);
+    
+    // Calculate counts for different statuses
+    const pendingCount = await Item.countDocuments({ isApproved: false, isFlagged: false });
+    const approvedCount = await Item.countDocuments({ isApproved: true });
+    const flaggedCount = await Item.countDocuments({ isFlagged: true });
+    const allCount = total;
+    
+    res.json({
+      success: true,
+      items,
+      summary: {
+        total,
+        pendingCount,
+        approvedCount,
+        flaggedCount,
+        allCount
+      },
+      pagination: {
+        totalPages: Math.ceil(total / limit),
+        currentPage: parseInt(page),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get all items error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error fetching items",
+      error: error.message
+    });
+  }
+};
+
+// ✅ Get Pending Items Only
+exports.getPendingItems = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search = "" } = req.query;
+    
+    // Build query for pending items
+    const query = {
+      isApproved: false,
+      isFlagged: false
+    };
+    
+    // Search by title or description
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } }
+      ];
+    }
+    
+    const items = await Item.find(query)
+      .populate('owner', 'name email phone')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((page - 1) * limit);
+    
+    const total = await Item.countDocuments(query);
+    
+    res.json({
+      success: true,
+      items,
+      pagination: {
+        totalPages: Math.ceil(total / limit),
+        currentPage: parseInt(page),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get pending items error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error fetching pending items" 
+    });
+  }
+};
+
+// ✅ Get Item by ID for Admin
+exports.getItemById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const item = await Item.findById(id)
+      .populate('owner', 'name email phone isBlocked')
+      .populate('reviews.user', 'name email');
+    
+    if (!item) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Item not found" 
+      });
+    }
+    
+    res.json({
+      success: true,
+      item
+    });
+  } catch (error) {
+    console.error('❌ Get item by ID error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error fetching item" 
+    });
+  }
+};
+
 // ✅ Approve Item
 exports.approveItem = async (req, res) => {
   try {
@@ -660,7 +859,7 @@ exports.approveItem = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Approve item error:', error);
+    console.error('❌ Approve item error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error approving item" 
@@ -722,7 +921,7 @@ exports.rejectItem = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Reject item error:', error);
+    console.error('❌ Reject item error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error rejecting item" 
@@ -774,7 +973,7 @@ exports.deleteItem = async (req, res) => {
       deletedItemId: id
     });
   } catch (error) {
-    console.error('Delete item error:', error);
+    console.error('❌ Delete item error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error deleting item" 
@@ -844,7 +1043,7 @@ exports.sendNotification = async (req, res) => {
       sentTo: userId ? 'specific user' : userType === 'all' ? 'all users' : userType === 'active' ? 'active users' : 'admins'
     });
   } catch (error) {
-    console.error('Send notification error:', error);
+    console.error('❌ Send notification error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error sending notification" 
@@ -929,7 +1128,7 @@ exports.getAdminNotifications = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get admin notifications error:', error);
+    console.error('❌ Get admin notifications error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error fetching notifications" 
@@ -950,7 +1149,7 @@ exports.getAdminUnreadCount = async (req, res) => {
       count
     });
   } catch (error) {
-    console.error('Get admin unread count error:', error);
+    console.error('❌ Get admin unread count error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error fetching unread count" 
@@ -988,7 +1187,7 @@ exports.markAdminNotificationAsRead = async (req, res) => {
       notification
     });
   } catch (error) {
-    console.error('Mark admin notification as read error:', error);
+    console.error('❌ Mark admin notification as read error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error marking notification as read" 
@@ -1016,7 +1215,7 @@ exports.markAllAdminNotificationsAsRead = async (req, res) => {
       modifiedCount: result.modifiedCount
     });
   } catch (error) {
-    console.error('Mark all admin notifications as read error:', error);
+    console.error('❌ Mark all admin notifications as read error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error marking all notifications as read" 
@@ -1047,7 +1246,7 @@ exports.deleteAdminNotification = async (req, res) => {
       deletedId: id
     });
   } catch (error) {
-    console.error('Delete admin notification error:', error);
+    console.error('❌ Delete admin notification error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error deleting notification" 
@@ -1068,7 +1267,7 @@ exports.clearAllAdminNotifications = async (req, res) => {
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    console.error('Clear all admin notifications error:', error);
+    console.error('❌ Clear all admin notifications error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error clearing notifications" 
@@ -1123,7 +1322,7 @@ exports.sendAdminNotification = async (req, res) => {
       notification
     });
   } catch (error) {
-    console.error('Send admin notification error:', error);
+    console.error('❌ Send admin notification error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error sending notification" 
@@ -1159,7 +1358,7 @@ exports.notifyNewUser = async (userId) => {
     
     console.log(`✅ Notified ${admins.length} admin(s) about new user: ${user.name}`);
   } catch (error) {
-    console.error('Error notifying admins about new user:', error);
+    console.error('❌ Error notifying admins about new user:', error);
   }
 };
 
@@ -1188,7 +1387,7 @@ exports.notifyNewItem = async (itemId) => {
     
     console.log(`✅ Notified ${admins.length} admin(s) about new item: ${item.title}`);
   } catch (error) {
-    console.error('Error notifying admins about new item:', error);
+    console.error('❌ Error notifying admins about new item:', error);
   }
 };
 
@@ -1202,7 +1401,7 @@ exports.getNotificationTypes = async (req, res) => {
       types: types.sort()
     });
   } catch (error) {
-    console.error('Get notification types error:', error);
+    console.error('❌ Get notification types error:', error);
     res.status(500).json({ 
       success: false,
       message: "Server error fetching notification types" 

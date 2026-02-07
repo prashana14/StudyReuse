@@ -1,4 +1,4 @@
-// backend/routes/adminRoutes.js - UPDATED FOR SEPARATE ADMIN MODEL
+// backend/routes/adminRoutes.js - UPDATED VERSION
 const express = require('express');
 const router = express.Router();
 
@@ -11,6 +11,9 @@ const adminMiddleware = require('../middleware/adminMiddleware');
 
 // Import orderController for admin order management
 const orderController = require('../controller/orderController');
+
+// ✅ ADD THIS LINE: Import analyticsController
+const analyticsController = require('../controller/analyticsController');
 
 console.log('✅ Admin routes loading...');
 console.log('Admin controller functions loaded successfully');
@@ -38,8 +41,15 @@ router.get('/verify', adminMiddleware, adminController.verifyAdmin);
 // ✅ Admin Profile
 router.get('/profile', adminMiddleware, adminController.getAdminProfile);
 
+// ======================
+// DASHBOARD & ANALYTICS
+// ======================
+
 // ✅ Dashboard Statistics
 router.get('/dashboard/stats', adminMiddleware, adminController.getDashboardStats);
+
+// ✅ ADD THIS LINE: Analytics Endpoint
+router.get('/analytics', adminMiddleware, analyticsController.getAnalytics);
 
 // ======================
 // USER MANAGEMENT
@@ -58,8 +68,17 @@ router.patch('/users/:id/block', adminMiddleware, adminController.blockUser);
 router.patch('/users/:id/unblock', adminMiddleware, adminController.unblockUser);
 
 // ======================
-// ITEM MANAGEMENT
+// ITEM MANAGEMENT (UPDATED - Added missing routes)
 // ======================
+
+// ✅ Get All Items for Admin (with filtering)
+router.get('/items', adminMiddleware, adminController.getAllItems);
+
+// ✅ Get Pending Items Only
+router.get('/items/pending', adminMiddleware, adminController.getPendingItems);
+
+// ✅ Get Item by ID for Admin
+router.get('/items/:id', adminMiddleware, adminController.getItemById);
 
 // ✅ Approve Item
 router.patch('/items/approve/:id', adminMiddleware, adminController.approveItem);
@@ -71,7 +90,7 @@ router.patch('/items/reject/:id', adminMiddleware, adminController.rejectItem);
 router.delete('/items/delete/:id', adminMiddleware, adminController.deleteItem);
 
 // ======================
-// ORDER MANAGEMENT (ADDED)
+// ORDER MANAGEMENT
 // ======================
 
 // ✅ Get All Orders (Admin Only)
@@ -115,5 +134,10 @@ router.post('/notifications/send-admin', adminMiddleware, adminController.sendAd
 router.get('/notifications/types', adminMiddleware, adminController.getNotificationTypes);
 
 console.log('✅ Admin routes configured successfully');
+console.log('✅ Analytics route added: GET /api/admin/analytics');
+console.log('✅ Item management routes added:');
+console.log('   - GET /api/admin/items');
+console.log('   - GET /api/admin/items/pending');
+console.log('   - GET /api/admin/items/:id');
 
 module.exports = router;

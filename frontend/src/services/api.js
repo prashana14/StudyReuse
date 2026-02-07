@@ -1,4 +1,4 @@
-// frontend/src/services/api.js - UPDATED FOR SEPARATE ADMIN MODEL
+// frontend/src/services/api.js - COMPLETELY FIXED VERSION
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:4000/api';
@@ -26,18 +26,28 @@ const API_MULTIPART = axios.create({
 });
 
 // ======================
-// 2. Request Interceptors
+// 2. Request Interceptors - UPDATED FIX
 // ======================
 
 // Helper to add correct auth token based on route
 const addCorrectAuthToken = (config) => {
-  const isAdminRoute = config.url.includes('/admin/');
+  const url = config.url || '';
   
-  if (isAdminRoute) {
-    // Use admin token for admin routes
+  // Check if this is an admin action (approve, reject, admin routes)
+  const isAdminAction = 
+    url.includes('/admin/') ||
+    url.includes('/approve') || 
+    url.includes('/reject') ||
+    (url.includes('/items/') && (url.includes('/approve') || url.includes('/reject')));
+  
+  if (isAdminAction) {
+    // Use admin token for admin actions
     const adminToken = localStorage.getItem('adminToken');
     if (adminToken) {
+      console.log('🔑 Using admin token for:', url);
       config.headers.Authorization = `Bearer ${adminToken}`;
+    } else {
+      console.warn('⚠️ Admin token missing for admin action:', url);
     }
   } else {
     // Use user token for regular routes
@@ -86,7 +96,9 @@ const handleResponseError = (error) => {
   
   // Handle 401 Unauthorized
   if (error.response?.status === 401) {
-    const isAdminRoute = error.config?.url?.includes('/admin/');
+    const isAdminRoute = error.config?.url?.includes('/admin/') || 
+                         error.config?.url?.includes('/approve') || 
+                         error.config?.url?.includes('/reject');
     
     if (isAdminRoute) {
       localStorage.removeItem('adminToken');
@@ -172,37 +184,42 @@ export const validateImageFile = (file) => {
 };
 
 // ======================
-// 5. COMPLETE ADMIN API METHODS - UPDATED FOR SEPARATE ADMIN MODEL
+// 5. COMPLETE ADMIN API METHODS - FIXED ENDPOINTS
 // ======================
 const adminAPI = {
-  // ✅ Admin Auth - Updated to match your backend routes
+  // ✅ Admin Auth
   checkAdminLimit: () => API.get('/admin/check-limit'),
   loginAdmin: (data) => API.post('/admin/login', data),
   registerAdmin: (data) => API.post('/admin/register', data),
   verifyAdmin: () => API.get('/admin/verify'),
   getAdminProfile: () => API.get('/admin/profile'),
   
-  // ✅ Dashboard & Stats - Updated to match your backend routes
+  // ✅ Dashboard & Stats
   getDashboardStats: () => API.get('/admin/dashboard/stats'),
   
-  // ✅ User Management - Updated to match your backend routes
+  // ✅ User Management
   getAllUsers: (params) => API.get('/admin/users', { params }),
   getUser: (id) => API.get(`/admin/users/${id}`),
-  blockUser: (id, reason) => API.patch(`/admin/users/block/${id}`, { reason }),
-  unblockUser: (id) => API.patch(`/admin/users/unblock/${id}`),
+  blockUser: (id, reason) => API.patch(`/admin/users/${id}/block`, { reason }),
+  unblockUser: (id) => API.patch(`/admin/users/${id}/unblock`),
   
-  // ✅ Item Management - Updated to match your backend routes
-  getItems: (params) => API.get('/items', { params }), // Regular items endpoint
-  getAllItems: (params) => API.get('/items', { params }), // Alias
-  getItem: (itemId) => API.get(`/items/${itemId}`),
+  // ✅ Item Management - FIXED TO USE ADMIN ENDPOINTS
+  // Get all items (admin view)
+  getItems: (params) => API.get('/admin/items', { params }),
+  getAllItems: (params) => API.get('/admin/items', { params }), // Alias
+  getItem: (itemId) => API.get(`/admin/items/${itemId}`),
+  getPendingItems: () => API.get('/admin/items/pending'),
+  
+  // Item actions (admin only)
   approveItem: (itemId) => API.patch(`/admin/items/approve/${itemId}`),
   rejectItem: (itemId, reason) => API.patch(`/admin/items/reject/${itemId}`, { reason }),
   deleteItem: (itemId, reason) => API.delete(`/admin/items/delete/${itemId}`, { data: { reason } }),
   
-  // ✅ Notification Management - Updated to match your backend routes
-  sendNotification: (notificationData) => API.post('/admin/notify', notificationData),
+  // ✅ Notification Management
+  // ✅ CORRECT - Use the actual endpoint from your routes
+  sendNotification: (notificationData) => API.post('/admin/notifications/send', notificationData),
   
-  // ✅ Admin Notifications - Updated to match your backend routes
+  // ✅ Admin Notifications
   getAdminNotifications: (params) => API.get('/admin/notifications/all', { params }),
   getAdminUnreadCount: () => API.get('/admin/notifications/unread-count'),
   markAdminNotificationAsRead: (notificationId) => API.put(`/admin/notifications/mark-read/${notificationId}`),
@@ -212,17 +229,17 @@ const adminAPI = {
   sendAdminNotification: (data) => API.post('/admin/notifications/send-admin', data),
   getNotificationTypes: () => API.get('/admin/notifications/types'),
   
-  // ✅ Order Management (Admin) - If you have these endpoints
+  // ✅ Order Management (Admin)
   getAllOrders: (params = {}) => API.get('/admin/orders', { params }),
   getOrder: (id) => API.get(`/admin/orders/${id}`),
   updateOrderStatus: (id, status) => API.patch(`/admin/orders/${id}/status`, { status }),
   
-  // ✅ Analytics & Reports - If you have these endpoints
+  // ✅ Analytics & Reports
   getAnalytics: (params = {}) => API.get('/admin/analytics', { params }),
 };
 
 // ======================
-// 6. USER API Methods - UPDATED (NO ROLE FIELD NOW)
+// 6. USER API Methods
 // ======================
 const userAPI = {
   // Auth
@@ -248,15 +265,13 @@ const userAPI = {
   // User Items
   getUserItems: (params = {}) => API.get('/users/items', { params }),
   
-  // ✅ UPDATED: Users are no longer admins, admins are separate
   isAdmin: () => {
-    // Check if user has admin token (separate admin system)
     return !!localStorage.getItem('adminToken');
   }
 };
 
 // ======================
-// 7. ITEM API Methods
+// 7. ITEM API Methods (Regular User Endpoints)
 // ======================
 const itemAPI = {
   getAll: (params = {}) => API.get('/items', { params }),
@@ -429,13 +444,13 @@ const apiService = {
   patch: (url, data, config) => API.patch(url, data, config),
   delete: (url, config) => API.delete(url, config),
   
-  // ✅ UPDATED: Admin API - Now uses separate admin model
+  // ✅ FIXED: Admin API - Uses correct admin endpoints
   admin: adminAPI,
   
-  // ✅ UPDATED: User API - No longer has admin role
+  // User API
   users: userAPI,
   
-  // Items API
+  // Items API (regular user endpoints)
   items: itemAPI,
   
   // Orders API
@@ -470,7 +485,6 @@ const apiService = {
     
     // Check if user is admin (for frontend logic)
     isUserAdmin: () => {
-      // Check if admin token exists (separate admin system)
       return !!localStorage.getItem('adminToken');
     },
     

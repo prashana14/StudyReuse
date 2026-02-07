@@ -9,7 +9,7 @@ const http = require('http');
 const helmet = require('helmet');
 const compression = require('compression');
 const mongoSanitize = require('express-mongo-sanitize');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit'); // Import ipKeyGenerator
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const hpp = require('hpp');
 
 // Import routes
@@ -20,8 +20,8 @@ const chatRoutes = require('./routes/chatRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const orderRoutes = require('./routes/orderRoutes'); // ADD THIS LINE
-
+const orderRoutes = require('./routes/orderRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const server = http.createServer(app);
 
@@ -322,7 +322,7 @@ app.use((req, res, next) => {
 });
 
 // ======================
-// 8. Routes
+// 8. Routes - FIXED ORDER (SPECIFIC BEFORE GENERAL)
 // ======================
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
@@ -330,7 +330,10 @@ app.use('/api/barter', barterRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin', adminRoutes);
+
+// ✅ CRITICAL FIX: Specific admin routes MUST come before general /api/admin route
+app.use('/api/admin/analytics', analyticsRoutes);  // ✅ Specific route FIRST
+app.use('/api/admin', adminRoutes);  // ✅ General route AFTER
 app.use('/api/orders', orderRoutes);
 
 // ======================
@@ -372,6 +375,7 @@ app.get('/health', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
+      adminAnalytics: '/api/admin/analytics',  // ✅ Added analytics route
       orders: '/api/orders'
     }
   });
@@ -389,6 +393,7 @@ app.get('/', (req, res) => {
       reviews: '/api/reviews',
       notifications: '/api/notifications',
       admin: '/api/admin',
+      adminAnalytics: '/api/admin/analytics',  // ✅ Added analytics endpoint
       orders: '/api/orders',
       health: '/health'
     },
@@ -528,6 +533,15 @@ app.use((err, req, res, next) => {
     });
   }
   
+  // Analytics errors
+  if (err.message && err.message.includes('analytics')) {
+    return res.status(500).json({
+      success: false,
+      message: 'Analytics data fetch failed',
+      code: 'ANALYTICS_ERROR'
+    });
+  }
+  
   // Default error
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal server error';
@@ -553,6 +567,7 @@ app.use('*', (req, res) => {
       items: '/api/items',
       users: '/api/users',
       admin: '/api/admin',
+      adminAnalytics: '/api/admin/analytics',  // ✅ Added analytics
       orders: '/api/orders',
       notifications: '/api/notifications',
       chat: '/api/chat',
@@ -635,6 +650,7 @@ const startServer = async () => {
       console.log(`🌐 Local:    http://localhost:${PORT}`);
       console.log(`📁 Uploads:  http://localhost:${PORT}/uploads/`);
       console.log(`🩺 Health:   http://localhost:${PORT}/health`);
+      console.log(`📊 Analytics: http://localhost:${PORT}/api/admin/analytics`);  // ✅ Added analytics
       console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('🔒 Rate Limiting: Enabled');
       console.log('   - General: 500 requests per 15 minutes');

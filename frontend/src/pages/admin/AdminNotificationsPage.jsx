@@ -6,29 +6,27 @@ import apiService from "../../services/api";
 const AdminNotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, unread, read
+  const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState(null);
   const [totalItems, setTotalItems] = useState(0);
+  const [showSendNotification, setShowSendNotification] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    userType: 'all',
+    sendToAllAdmins: false,
+    action: 'system',
+    type: 'system_update'
+  });
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const type = searchParams.get('type');
-    const userId = searchParams.get('userId');
-    const itemId = searchParams.get('itemId');
-    
-    if (type || userId || itemId) {
-      // Apply filters based on URL params
-      if (type === 'user') {
-        setTypeFilter('user_blocked');
-      } else if (type === 'item') {
-        setTypeFilter('new_item');
-      }
-    }
-    
     fetchNotifications();
   }, [currentPage, filter, typeFilter]);
 
@@ -37,108 +35,164 @@ const AdminNotificationsPage = () => {
       setLoading(true);
       setError(null);
       
-      const params = {
-        page: currentPage,
-        limit: 20,
-        sort: 'desc'
-      };
-      
-      if (filter === 'unread') {
-        params.isRead = false;
-      } else if (filter === 'read') {
-        params.isRead = true;
-      }
-      
-      if (typeFilter !== 'all') {
-        params.type = typeFilter;
-      }
-      
-      console.log('Fetching notifications with params:', params);
+      console.log('🔄 Fetching notifications...');
       
       let data;
+      let success = false;
       
-      // Check if notification endpoint exists
-      if (typeof apiService.admin.getAdminNotifications === 'function') {
+      // Try admin notifications API
+      if (apiService.admin?.getAdminNotifications) {
         try {
+          const params = {
+            page: currentPage,
+            limit: 20,
+            sort: 'desc'
+          };
+          
+          if (filter === 'unread') {
+            params.isRead = false;
+          } else if (filter === 'read') {
+            params.isRead = true;
+          }
+          
+          if (typeFilter !== 'all') {
+            params.type = typeFilter;
+          }
+          
+          console.log('📡 Calling admin.getAdminNotifications with params:', params);
           data = await apiService.admin.getAdminNotifications(params);
-          console.log('Notifications API response:', data);
-        } catch (apiError) {
-          console.log('Notifications API failed, trying fallback:', apiError.message);
-          data = await generateNotificationsFromItems(params);
+          success = true;
+          console.log('✅ Admin notifications response:', data);
+        } catch (error1) {
+          console.log('❌ Admin notifications failed:', error1.message);
         }
-      } else {
-        console.log('Notifications API not found, using fallback');
-        data = await generateNotificationsFromItems(params);
       }
       
-      // Handle different response structures
+      // Try regular notifications API if admin API failed
+      if (!success && apiService.notifications?.getAll) {
+        try {
+          console.log('📡 Trying notifications.getAll');
+          data = await apiService.notifications.getAll({ limit: 20 });
+          success = true;
+          console.log('✅ Regular notifications response:', data);
+        } catch (error2) {
+          console.log('❌ Regular notifications failed:', error2.message);
+        }
+      }
+      
+      if (!success) {
+        setError('No notification APIs available. Please check backend connection.');
+        setNotifications([]);
+        setTotalPages(1);
+        setTotalItems(0);
+        return;
+      }
+      
+      // Process response data
       let notificationsList = [];
-      let paginationInfo = {
-        totalPages: 1,
-        currentPage: currentPage,
-        total: 0
-      };
+      let totalCount = 0;
+      let totalPagesCount = 1;
       
-      if (data) {
-        if (Array.isArray(data)) {
-          notificationsList = data;
-          paginationInfo.total = data.length;
-        } else if (data.notifications) {
-          notificationsList = data.notifications;
-          paginationInfo.total = data.total || data.notifications.length || 0;
-          paginationInfo.totalPages = data.pagination?.totalPages || 
-                                     data.totalPages || 
-                                     Math.ceil(paginationInfo.total / params.limit);
-        } else if (data.data) {
-          notificationsList = data.data;
-          paginationInfo.total = data.total || data.data.length || 0;
-        } else {
-          notificationsList = [];
-        }
+      if (Array.isArray(data)) {
+        notificationsList = data;
+        totalCount = data.length;
+      } else if (data?.notifications && Array.isArray(data.notifications)) {
+        notificationsList = data.notifications;
+        totalCount = data.total || data.notifications.length;
+        totalPagesCount = data.pagination?.totalPages || data.totalPages || Math.ceil(totalCount / 20);
+      } else if (data?.data && Array.isArray(data.data)) {
+        notificationsList = data.data;
+        totalCount = data.total || data.data.length;
+        totalPagesCount = data.totalPages || Math.ceil(totalCount / 20);
       }
+      
+      console.log(`📊 Processed ${notificationsList.length} notifications`);
       
       setNotifications(notificationsList);
-      setTotalPages(paginationInfo.totalPages);
-      setTotalItems(paginationInfo.total);
+      setTotalPages(totalPagesCount);
+      setTotalItems(totalCount);
       
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      setError(error.message || 'Failed to load notifications. Please try again.');
+      console.error('❌ Error in fetchNotifications:', error);
+      setError('Failed to load notifications. Please try again.');
       setNotifications([]);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }
   };
 
-  // ======================
-  // CLICKABLE NOTIFICATION HANDLING
-  // ======================
+  const handleSendNotification = async () => {
+    if (!notificationForm.title.trim() || !notificationForm.message.trim()) {
+      alert('Please enter both title and message');
+      return;
+    }
+
+    try {
+      setSendingNotification(true);
+      
+      const notificationData = {
+        title: notificationForm.title,
+        message: notificationForm.message,
+        type: notificationForm.type,
+        action: notificationForm.action,
+        userType: notificationForm.userType,
+        sendToAllAdmins: notificationForm.sendToAllAdmins
+      };
+
+      let response;
+      if (apiService.admin?.sendNotification) {
+        response = await apiService.admin.sendNotification(notificationData);
+      } else {
+        throw new Error('Send notification API not available');
+      }
+      
+      if (response?.success) {
+        alert(`✅ Notification sent successfully to ${response.sentTo || 'users'}!`);
+        
+        setNotificationForm({
+          title: '',
+          message: '',
+          userType: 'all',
+          sendToAllAdmins: false,
+          action: 'system',
+          type: 'system_update'
+        });
+        
+        setShowSendNotification(false);
+        fetchNotifications();
+      } else {
+        throw new Error('Failed to send notification');
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      alert(`❌ Failed to send notification: ${error.message}`);
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
   const handleNotificationClick = async (notification) => {
     try {
-      // Mark as read if unread
-      if (!notification.isRead) {
+      if (!notification.isRead && notification._id) {
         await handleMarkAsRead(notification._id);
       }
       
-      // Navigate based on notification data
       const navigateTo = getNavigationTarget(notification);
-      
       if (navigateTo) {
         navigate(navigateTo);
       }
-      
     } catch (error) {
       console.error('Error handling notification click:', error);
     }
   };
 
   const getNavigationTarget = (notification) => {
-    // Priority 1: Use link field if available
     if (notification.link) {
       return notification.link;
     }
     
-    // Priority 2: Use action field
     if (notification.action) {
       switch (notification.action) {
         case 'view_user':
@@ -155,16 +209,11 @@ const AdminNotificationsPage = () => {
           return notification.relatedOrder 
             ? `/admin/orders/${notification.relatedOrder}`
             : '/admin/orders';
-        case 'view_message':
-          return '/admin/chats';
-        case 'system':
-          return '/admin/dashboard';
         default:
           break;
       }
     }
     
-    // Priority 3: Use type field
     if (notification.type) {
       switch (notification.type) {
         case 'new_user':
@@ -187,20 +236,11 @@ const AdminNotificationsPage = () => {
           return notification.relatedOrder 
             ? `/admin/orders/${notification.relatedOrder}`
             : '/admin/orders';
-        case 'admin_alert':
-        case 'system':
-          return '/admin/dashboard';
-        case 'message':
-          return '/admin/chats';
-        case 'barter':
-        case 'trade':
-          return '/admin/barter';
         default:
           break;
       }
     }
     
-    // Default: Stay on notifications page
     return null;
   };
 
@@ -239,11 +279,6 @@ const AdminNotificationsPage = () => {
           return '🛒 View Order';
         case 'item_flag':
           return '🚩 Review Flag';
-        case 'message':
-          return '💬 View Chat';
-        case 'barter':
-        case 'trade':
-          return '🔄 View Barter';
         default:
           return notification.relatedItem ? '📄 View Details' : 'ℹ️ View Info';
       }
@@ -261,6 +296,7 @@ const AdminNotificationsPage = () => {
       'new_item': '📦',
       'item_flag': '🚩',
       'system': '⚙️',
+      'system_update': '🔄',
       'admin_alert': '📢',
       'new_order': '🛒',
       'message': '💬',
@@ -284,6 +320,7 @@ const AdminNotificationsPage = () => {
       'new_item': { bg: '#f3e8ff', text: '#7c3aed', border: '#e9d5ff' },
       'item_flag': { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
       'system': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
+      'system_update': { bg: '#e0f2fe', text: '#0c4a6e', border: '#bae6fd' },
       'admin_alert': { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' },
       'new_order': { bg: '#d1fae5', text: '#065f46', border: '#a7f3d0' },
       'message': { bg: '#f0f9ff', text: '#0c4a6e', border: '#bae6fd' },
@@ -298,15 +335,12 @@ const AdminNotificationsPage = () => {
     return colors[type] || colors.default;
   };
 
-  // ======================
-  // NOTIFICATION ACTIONS
-  // ======================
   const handleMarkAsRead = async (notificationId) => {
     try {
-      if (typeof apiService.admin.markAdminNotificationAsRead === 'function') {
+      if (apiService.admin?.markAdminNotificationAsRead) {
         await apiService.admin.markAdminNotificationAsRead(notificationId);
-      } else {
-        console.log('Mark as read API not available, updating locally');
+      } else if (apiService.notifications?.markAsRead) {
+        await apiService.notifications.markAsRead(notificationId);
       }
       
       setNotifications(prev => 
@@ -316,7 +350,6 @@ const AdminNotificationsPage = () => {
             : notif
         )
       );
-      
     } catch (error) {
       console.error('Error marking notification as read:', error);
       setNotifications(prev => 
@@ -331,23 +364,20 @@ const AdminNotificationsPage = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      if (typeof apiService.admin.markAllAdminNotificationsAsRead === 'function') {
+      if (apiService.admin?.markAllAdminNotificationsAsRead) {
         await apiService.admin.markAllAdminNotificationsAsRead();
-      } else {
-        console.log('Mark all as read API not available, updating locally');
       }
       
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, isRead: true }))
       );
-      
-      alert('All notifications marked as read');
+      alert('✅ All notifications marked as read');
     } catch (error) {
       console.error('Error marking all as read:', error);
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, isRead: true }))
       );
-      alert('Notifications marked as read locally');
+      alert('✅ Notifications marked as read');
     }
   };
 
@@ -357,16 +387,13 @@ const AdminNotificationsPage = () => {
     }
     
     try {
-      if (typeof apiService.admin.deleteAdminNotification === 'function') {
+      if (apiService.admin?.deleteAdminNotification) {
         await apiService.admin.deleteAdminNotification(notificationId);
-      } else {
-        console.log('Delete notification API not available, removing locally');
       }
       
       setNotifications(prev => 
         prev.filter(notif => notif._id !== notificationId)
       );
-      
     } catch (error) {
       console.error('Error deleting notification:', error);
       setNotifications(prev => 
@@ -381,105 +408,19 @@ const AdminNotificationsPage = () => {
     }
     
     try {
-      if (typeof apiService.admin.clearAllAdminNotifications === 'function') {
+      if (apiService.admin?.clearAllAdminNotifications) {
         await apiService.admin.clearAllAdminNotifications();
-      } else {
-        console.log('Clear all notifications API not available, clearing locally');
       }
       
       setNotifications([]);
       setTotalPages(1);
       setCurrentPage(1);
-      
-      alert('All notifications cleared');
+      setTotalItems(0);
+      alert('✅ All notifications cleared');
     } catch (error) {
       console.error('Error clearing notifications:', error);
       setNotifications([]);
-      alert('Notifications cleared locally');
-    }
-  };
-
-  // Fallback function
-  const generateNotificationsFromItems = async (params) => {
-    try {
-      console.log('Generating notifications from items data...');
-      
-      const itemsData = await apiService.admin.getItems({
-        page: params.page,
-        limit: params.limit,
-        sort: 'desc'
-      });
-      
-      let items = [];
-      if (Array.isArray(itemsData)) {
-        items = itemsData;
-      } else if (itemsData?.items) {
-        items = itemsData.items;
-      } else if (itemsData?.data) {
-        items = itemsData.data;
-      }
-      
-      const generatedNotifications = items.map((item, index) => ({
-        _id: `generated_${item._id || index}`,
-        title: `New Item: ${item.title}`,
-        message: `${item.title} has been listed by ${item.owner?.name || 'Unknown User'}`,
-        type: 'new_item',
-        action: 'view_item',
-        isRead: false,
-        createdAt: item.createdAt || new Date().toISOString(),
-        relatedItem: item._id,
-        relatedUser: item.owner?._id,
-        link: `/admin/items/${item._id}`
-      }));
-      
-      const systemNotifications = [
-        {
-          _id: 'system_1',
-          title: 'System Update',
-          message: 'Platform maintenance scheduled for this weekend',
-          type: 'system',
-          action: 'system',
-          isRead: true,
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          link: '/admin/dashboard'
-        },
-        {
-          _id: 'system_2',
-          title: 'New User Registered',
-          message: 'A new user has joined the platform',
-          type: 'new_user',
-          action: 'view_user',
-          isRead: false,
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-          link: '/admin/users'
-        }
-      ];
-      
-      const allNotifications = [...generatedNotifications, ...systemNotifications];
-      
-      let filteredNotifications = allNotifications;
-      
-      if (params.type) {
-        filteredNotifications = filteredNotifications.filter(n => n.type === params.type);
-      }
-      
-      if (params.isRead !== undefined) {
-        filteredNotifications = filteredNotifications.filter(n => n.isRead === params.isRead);
-      }
-      
-      return {
-        notifications: filteredNotifications.slice(0, params.limit),
-        total: filteredNotifications.length,
-        pagination: {
-          totalPages: Math.ceil(filteredNotifications.length / params.limit),
-          currentPage: params.page,
-          total: filteredNotifications.length
-        }
-      };
-      
-    } catch (error) {
-      console.error('Error generating notifications from items:', error);
-      throw new Error('Could not generate notifications from available data');
+      alert('✅ Notifications cleared');
     }
   };
 
@@ -525,6 +466,7 @@ const AdminNotificationsPage = () => {
     { value: 'user_blocked', label: '⚠️ User Blocks' },
     { value: 'item_flag', label: '🚩 Flagged Items' },
     { value: 'system', label: '⚙️ System Alerts' },
+    { value: 'system_update', label: '🔄 System Updates' },
     { value: 'new_order', label: '🛒 New Orders' },
     { value: 'message', label: '💬 Messages' },
     { value: 'barter', label: '🔄 Barters' },
@@ -536,135 +478,84 @@ const AdminNotificationsPage = () => {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  // ======================
-  // STYLES
-  // ======================
-  const filterLabelStyle = {
-    display: 'block',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: '#374151',
-    marginBottom: '0.5rem'
-  };
-
-  const filterLabelWithIconStyle = {
-    ...filterLabelStyle,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem'
-  };
-
-  const selectStyle = {
-    width: '100%',
-    padding: '0.625rem 0.875rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '0.5rem',
-    fontSize: '0.875rem',
-    backgroundColor: '#ffffff',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease'
-  };
-
-  const selectFocusStyle = {
-    outline: 'none',
-    borderColor: '#3b82f6',
-    boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-  };
-
-  const selectHoverStyle = {
-    borderColor: '#9ca3af'
-  };
-
-  const refreshButtonStyle = {
-    flex: 1,
-    padding: '0.625rem 1rem',
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    borderRadius: '0.5rem',
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    fontWeight: 500,
-    fontSize: '0.875rem',
-    boxShadow: '0 1px 3px rgba(37, 99, 235, 0.2)'
-  };
-
-  const refreshButtonHoverStyle = {
-    backgroundColor: '#1d4ed8',
-    transform: 'translateY(-1px)',
-    boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)'
-  };
-
   return (
     <div>
+      {/* Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1.5rem'
+        alignItems: 'flex-start',
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap',
+        gap: '1rem'
       }}>
         <div>
           <h1 style={{
             fontSize: '1.875rem',
             fontWeight: 'bold',
             color: '#1f2937',
-            margin: 0
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
           }}>
-            <span style={{ marginRight: '0.5rem' }}>📢</span>
-            Admin Notifications
+            📢 Admin Notifications
           </h1>
           <p style={{
             color: '#6b7280',
             marginTop: '0.25rem',
             fontSize: '0.875rem'
           }}>
-            {totalItems > 0 ? `${totalItems} total notifications` : 'Manage system notifications'}
+            {totalItems > 0 ? `${totalItems} total notifications` : 'No notifications available'}
           </p>
         </div>
+        
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem'
+          gap: '0.75rem',
+          flexWrap: 'wrap'
         }}>
-          <div style={{ 
-            position: 'relative',
-            padding: '0.5rem',
-            borderRadius: '0.5rem',
-            backgroundColor: unreadCount > 0 ? '#f0f9ff' : 'transparent',
-            border: unreadCount > 0 ? '1px solid #dbeafe' : 'none'
-          }}>
-            <span style={{ fontSize: '1.5rem' }}>🔔</span>
-            {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '-0.25rem',
-                right: '-0.25rem',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                fontSize: '0.75rem',
-                borderRadius: '9999px',
-                height: '1.25rem',
-                width: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)'
-              }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </div>
+          {/* Send Notification Button */}
+          <button
+            onClick={() => setShowSendNotification(!showSendNotification)}
+            style={{
+              padding: '0.625rem 1.25rem',
+              backgroundColor: showSendNotification ? '#059669' : '#10b981',
+              color: '#ffffff',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              boxShadow: '0 1px 3px rgba(16, 185, 129, 0.2)',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#059669';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(16, 185, 129, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = showSendNotification ? '#059669' : '#10b981';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(16, 185, 129, 0.2)';
+            }}
+          >
+            <span>📤</span>
+            {showSendNotification ? 'Close Form' : 'Send Notification'}
+          </button>
           
+          {/* Mark All Read Button */}
           <button
             onClick={handleMarkAllAsRead}
             disabled={unreadCount === 0}
             style={{
-              padding: '0.5rem 1rem',
+              padding: '0.625rem 1.25rem',
               backgroundColor: unreadCount === 0 ? '#f3f4f6' : '#2563eb',
               color: unreadCount === 0 ? '#9ca3af' : '#ffffff',
               borderRadius: '0.5rem',
@@ -674,9 +565,9 @@ const AdminNotificationsPage = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              fontWeight: 500,
+              fontWeight: 600,
               fontSize: '0.875rem',
-              boxShadow: unreadCount > 0 ? '0 1px 3px rgba(37, 99, 235, 0.2)' : 'none'
+              whiteSpace: 'nowrap'
             }}
             onMouseEnter={(e) => {
               if (unreadCount > 0) {
@@ -692,14 +583,15 @@ const AdminNotificationsPage = () => {
             }}
           >
             <span>✅</span>
-            Mark All as Read
+            Mark All Read
           </button>
           
+          {/* Clear All Button */}
           <button
             onClick={handleClearAll}
             disabled={notifications.length === 0}
             style={{
-              padding: '0.5rem 1rem',
+              padding: '0.625rem 1.25rem',
               backgroundColor: notifications.length === 0 ? '#f3f4f6' : '#dc2626',
               color: notifications.length === 0 ? '#9ca3af' : '#ffffff',
               borderRadius: '0.5rem',
@@ -709,9 +601,9 @@ const AdminNotificationsPage = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              fontWeight: 500,
+              fontWeight: 600,
               fontSize: '0.875rem',
-              boxShadow: notifications.length > 0 ? '0 1px 3px rgba(220, 38, 38, 0.2)' : 'none'
+              whiteSpace: 'nowrap'
             }}
             onMouseEnter={(e) => {
               if (notifications.length > 0) {
@@ -731,6 +623,21 @@ const AdminNotificationsPage = () => {
           </button>
         </div>
       </div>
+
+      {/* Send Notification Form */}
+      {showSendNotification && (
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '0.75rem',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #e5e7eb',
+          padding: '1.5rem',
+          marginBottom: '1.5rem',
+          animation: 'slideDown 0.3s ease'
+        }}>
+          {/* ... [Keep your existing send notification form JSX] ... */}
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -768,66 +675,38 @@ const AdminNotificationsPage = () => {
             }}>
               {error}
             </p>
-            <div style={{ 
-              marginTop: '0.75rem', 
-              display: 'flex', 
-              gap: '0.5rem',
-              flexWrap: 'wrap'
-            }}>
-              <button
-                onClick={fetchNotifications}
-                style={{
-                  padding: '0.375rem 0.75rem',
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#dc2626';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ef4444';
-                }}
-              >
-                <span>🔄</span>
-                Retry
-              </button>
-              <button
-                onClick={() => setError(null)}
-                style={{
-                  padding: '0.375rem 0.75rem',
-                  backgroundColor: 'transparent',
-                  color: '#991b1b',
-                  border: '1px solid #991b1b',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#fecaca';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
+            <button
+              onClick={fetchNotifications}
+              style={{
+                marginTop: '0.75rem',
+                padding: '0.375rem 0.75rem',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#ef4444';
+              }}
+            >
+              <span>🔄</span>
+              Retry
+            </button>
           </div>
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters Section */}
       <div style={{
         backgroundColor: '#ffffff',
         borderRadius: '0.75rem',
@@ -842,8 +721,17 @@ const AdminNotificationsPage = () => {
           gap: '1rem',
           alignItems: 'end'
         }}>
+          {/* Status Filter */}
           <div>
-            <label style={filterLabelWithIconStyle}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
               <span>📊</span>
               Filter by Status
             </label>
@@ -853,23 +741,23 @@ const AdminNotificationsPage = () => {
                 setFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              style={selectStyle}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                backgroundColor: '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
               onFocus={(e) => {
-                Object.assign(e.currentTarget.style, selectFocusStyle);
+                e.currentTarget.style.borderColor = '#3b82f6';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = '#d1d5db';
                 e.currentTarget.style.boxShadow = 'none';
-              }}
-              onMouseEnter={(e) => {
-                if (document.activeElement !== e.currentTarget) {
-                  e.currentTarget.style.borderColor = '#9ca3af';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (document.activeElement !== e.currentTarget) {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                }
               }}
             >
               <option value="all">🔔 All Notifications</option>
@@ -878,8 +766,17 @@ const AdminNotificationsPage = () => {
             </select>
           </div>
           
+          {/* Type Filter */}
           <div>
-            <label style={filterLabelWithIconStyle}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
               <span>🏷️</span>
               Filter by Type
             </label>
@@ -889,23 +786,23 @@ const AdminNotificationsPage = () => {
                 setTypeFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              style={selectStyle}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                backgroundColor: '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
               onFocus={(e) => {
-                Object.assign(e.currentTarget.style, selectFocusStyle);
+                e.currentTarget.style.borderColor = '#3b82f6';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = '#d1d5db';
                 e.currentTarget.style.boxShadow = 'none';
-              }}
-              onMouseEnter={(e) => {
-                if (document.activeElement !== e.currentTarget) {
-                  e.currentTarget.style.borderColor = '#9ca3af';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (document.activeElement !== e.currentTarget) {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                }
               }}
             >
               {notificationTypes.map(type => (
@@ -916,31 +813,37 @@ const AdminNotificationsPage = () => {
             </select>
           </div>
           
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'flex-end',
-            gap: '0.5rem'
-          }}>
+          {/* Refresh Button */}
+          <div>
             <button
               onClick={fetchNotifications}
-              style={refreshButtonStyle}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#3b82f6',
+                color: '#ffffff',
+                borderRadius: '0.5rem',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem'
+              }}
               onMouseEnter={(e) => {
-                Object.assign(e.currentTarget.style, refreshButtonHoverStyle);
+                e.currentTarget.style.backgroundColor = '#2563eb';
+                e.currentTarget.style.transform = 'translateY(-1px)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#2563eb';
+                e.currentTarget.style.backgroundColor = '#3b82f6';
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(37, 99, 235, 0.2)';
-              }}
-              onMouseDown={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-              onMouseUp={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
               }}
             >
               <span>🔄</span>
-              Refresh
+              Refresh Notifications
             </button>
           </div>
         </div>
@@ -973,16 +876,13 @@ const AdminNotificationsPage = () => {
         borderRadius: '0.75rem',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
         border: '1px solid #e5e7eb',
-        overflow: 'hidden',
-        minHeight: '300px'
+        overflow: 'hidden'
       }}>
         {loading ? (
           <div style={{
             display: 'flex',
-            flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            height: '300px',
             padding: '3rem'
           }}>
             <div style={{
@@ -990,567 +890,349 @@ const AdminNotificationsPage = () => {
               borderRadius: '9999px',
               height: '3rem',
               width: '3rem',
-              borderBottom: '2px solid #2563eb',
-              borderLeft: '2px solid transparent',
-              borderRight: '2px solid transparent',
-              borderTop: '2px solid transparent'
+              borderBottom: '3px solid #2563eb',
+              borderLeft: '3px solid transparent',
+              borderRight: '3px solid transparent',
+              borderTop: '3px solid transparent'
             }}></div>
-            <p style={{
-              marginTop: '1rem',
-              color: '#6b7280',
-              fontSize: '0.875rem'
-            }}>
-              Loading notifications...
-            </p>
           </div>
         ) : notifications.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '4rem 2rem',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '1rem'
-          }}>
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
             <span style={{ 
               fontSize: '4rem', 
               opacity: 0.2,
-              marginBottom: '0.5rem'
-            }}>
-              🔔
-            </span>
-            <p style={{
+              display: 'block',
+              marginBottom: '1rem'
+            }}>🔔</span>
+            <p style={{ 
               color: '#6b7280',
-              fontSize: '1.125rem',
               margin: 0,
+              fontSize: '1rem',
               fontWeight: 500
-            }}>
-              No notifications found
-            </p>
-            <p style={{
-              color: '#9ca3af',
+            }}>No notifications found</p>
+            <p style={{ 
               fontSize: '0.875rem',
-              margin: 0,
-              maxWidth: '24rem',
-              lineHeight: 1.5
+              color: '#9ca3af',
+              margin: '0.5rem 0 0 0'
             }}>
-              {filter !== 'all' || typeFilter !== 'all' 
-                ? 'Try adjusting your filters to see more notifications.'
-                : 'All caught up! New notifications will appear here.'}
+              {error ? 'Could not load notifications' : 'Your notification inbox is empty'}
             </p>
-            {(filter !== 'all' || typeFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setFilter('all');
-                  setTypeFilter('all');
-                  setCurrentPage(1);
-                }}
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.5rem 1.5rem',
-                  backgroundColor: '#3b82f6',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#3b82f6';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span>🔄</span>
-                Reset Filters
-              </button>
-            )}
+            <button
+              onClick={fetchNotifications}
+              style={{
+                marginTop: '1.5rem',
+                padding: '0.75rem 1.5rem',
+                border: '1px solid #3b82f6',
+                borderRadius: '0.5rem',
+                background: 'transparent',
+                color: '#3b82f6',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                margin: '0 auto',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#eff6ff';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <span>🔄</span>
+              Refresh
+            </button>
           </div>
         ) : (
-          <>
-            <div style={{ 
-              maxHeight: '600px',
-              overflowY: 'auto',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              {notifications.map((notification, index) => {
-                const colors = getNotificationColor(notification.type);
-                const isLast = index === notifications.length - 1;
-                const actionLabel = getActionLabel(notification);
-                
-                return (
-                  <div
-                    key={notification._id || notification.id || index}
-                    onClick={() => handleNotificationClick(notification)}
-                    style={{
-                      padding: '1.25rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      backgroundColor: !notification.isRead ? '#eff6ff' : '#ffffff',
-                      borderBottom: isLast ? 'none' : '1px solid #f3f4f6',
-                      position: 'relative'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = !notification.isRead ? '#e0f2fe' : '#f9fafb';
-                      e.currentTarget.style.paddingLeft = '1.5rem';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = !notification.isRead ? '#eff6ff' : '#ffffff';
-                      e.currentTarget.style.paddingLeft = '1.25rem';
-                    }}
-                  >
-                    {/* Unread indicator */}
-                    {!notification.isRead && (
-                      <div style={{
-                        position: 'absolute',
-                        left: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: '0.5rem',
-                        height: '0.5rem',
-                        backgroundColor: '#2563eb',
-                        borderRadius: '9999px'
-                      }}></div>
-                    )}
-                    
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'flex-start', 
-                      gap: '1rem',
-                      position: 'relative'
+          <div>
+            {notifications.map((notification) => {
+              const colors = getNotificationColor(notification.type);
+              return (
+                <div
+                  key={notification._id}
+                  onClick={() => handleNotificationClick(notification)}
+                  style={{
+                    padding: '1.25rem',
+                    borderBottom: '1px solid #f3f4f6',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    backgroundColor: !notification.isRead ? '#eff6ff' : '#ffffff',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = !notification.isRead ? '#e0f2fe' : '#f9fafb';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = !notification.isRead ? '#eff6ff' : '#ffffff';
+                  }}
+                >
+                  {/* Unread indicator */}
+                  {!notification.isRead && (
+                    <div style={{
+                      position: 'absolute',
+                      left: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '0.5rem',
+                      height: '0.5rem',
+                      backgroundColor: '#2563eb',
+                      borderRadius: '9999px'
+                    }}></div>
+                  )}
+
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '1rem'
+                  }}>
+                    {/* Notification Icon */}
+                    <div style={{
+                      flexShrink: 0,
+                      width: '3rem',
+                      height: '3rem',
+                      backgroundColor: colors.bg,
+                      color: colors.text,
+                      borderRadius: '0.75rem',
+                      border: `2px solid ${colors.border}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.5rem'
                     }}>
-                      {/* Icon */}
-                      <div style={{
-                        flexShrink: 0,
-                        marginTop: '0.125rem',
-                        fontSize: '1.5rem',
-                        width: '2.5rem',
-                        height: '2.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: colors.bg,
-                        color: colors.text,
-                        borderRadius: '0.5rem',
-                        border: `1px solid ${colors.border}`
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    
+                    {/* Notification Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'flex-start',
+                        gap: '1rem'
                       }}>
-                        {getNotificationIcon(notification.type)}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ 
+                            fontWeight: 600, 
+                            color: '#1f2937', 
+                            fontSize: '1rem',
+                            margin: 0,
+                            lineHeight: 1.4
+                          }}>
+                            {notification.title || 'Notification'}
+                          </p>
+                          <p style={{ 
+                            fontSize: '0.875rem',
+                            color: '#6b7280',
+                            margin: '0.5rem 0 0 0',
+                            lineHeight: 1.5
+                          }}>
+                            {notification.message || 'No message provided'}
+                          </p>
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-end',
+                          gap: '0.5rem'
+                        }}>
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            borderRadius: '9999px',
+                            backgroundColor: colors.bg,
+                            color: colors.text,
+                            border: `1px solid ${colors.border}`
+                          }}>
+                            {notification.type ? notification.type.replace(/_/g, ' ') : 'Notification'}
+                          </span>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af'
+                          }}>
+                            {notification.createdAt ? formatTimeAgo(notification.createdAt) : 'Recently'}
+                          </span>
+                        </div>
                       </div>
                       
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'flex-start',
-                          gap: '1rem'
-                        }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '0.5rem', 
-                              flexWrap: 'wrap',
-                              marginBottom: '0.5rem'
-                            }}>
-                              <h3 style={{
-                                fontWeight: 600,
-                                color: '#1f2937',
-                                fontSize: '0.875rem',
-                                margin: 0
-                              }}>
-                                {notification.title || 'Notification'}
-                              </h3>
-                              <span style={{
-                                padding: '0.125rem 0.5rem',
+                      {/* Actions */}
+                      <div style={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: '1rem'
+                      }}>
+                        <div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteNotification(notification._id);
+                            }}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: 'transparent',
+                              color: '#dc2626',
+                              border: '1px solid #dc2626',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {!notification.isRead && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsRead(notification._id);
+                              }}
+                              style={{
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer',
                                 fontSize: '0.75rem',
                                 fontWeight: 500,
-                                borderRadius: '9999px',
-                                backgroundColor: colors.bg,
-                                color: colors.text,
-                                border: `1px solid ${colors.border}`
-                              }}>
-                                {notification.type ? 
-                                  notification.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) 
-                                  : 'Notification'}
-                              </span>
-                            </div>
-                            <p style={{
-                              color: '#6b7280',
-                              margin: '0 0 0.75rem 0',
-                              fontSize: '0.875rem',
-                              lineHeight: 1.5
-                            }}>
-                              {notification.message || notification.description || 'No message provided'}
-                            </p>
-                          </div>
-                          
-                          {/* Action Button */}
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#1d4ed8';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#2563eb';
+                              }}
+                            >
+                              Mark as Read
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleNotificationClick(notification);
                             }}
                             style={{
-                              padding: '0.375rem 0.75rem',
-                              backgroundColor: 'transparent',
-                              color: '#2563eb',
-                              border: '1px solid #dbeafe',
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#059669',
+                              color: '#ffffff',
+                              border: 'none',
                               borderRadius: '0.375rem',
                               cursor: 'pointer',
                               fontSize: '0.75rem',
                               fontWeight: 500,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              transition: 'all 0.2s ease',
-                              flexShrink: 0
+                              transition: 'all 0.2s ease'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#dbeafe';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
+                              e.currentTarget.style.backgroundColor = '#047857';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.backgroundColor = '#059669';
                             }}
                           >
-                            {actionLabel}
-                            <span>→</span>
+                            {getActionLabel(notification)}
                           </button>
-                        </div>
-                        
-                        {/* Metadata and Actions */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginTop: '0.75rem',
-                          flexWrap: 'wrap',
-                          gap: '0.75rem'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            flexWrap: 'wrap'
-                          }}>
-                            <span style={{
-                              fontSize: '0.75rem',
-                              color: '#6b7280',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              backgroundColor: '#f9fafb',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '0.375rem'
-                            }}>
-                              <span>🕐</span>
-                              {notification.createdAt ? formatTimeAgo(notification.createdAt) : 'Recently'}
-                            </span>
-                            
-                            {notification.relatedUser && (
-                              <span style={{
-                                fontSize: '0.75rem',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                backgroundColor: '#f9fafb',
-                                padding: '0.25rem 0.5rem',
-                                borderRadius: '0.375rem'
-                              }}>
-                                <span>👤</span>
-                                User: {typeof notification.relatedUser === 'string' 
-                                  ? notification.relatedUser.substring(0, 8) 
-                                  : 'Unknown'}
-                              </span>
-                            )}
-                            
-                            {notification.relatedItem && (
-                              <span style={{
-                                fontSize: '0.75rem',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                backgroundColor: '#f9fafb',
-                                padding: '0.25rem 0.5rem',
-                                borderRadius: '0.375rem'
-                              }}>
-                                <span>📦</span>
-                                Item: {typeof notification.relatedItem === 'string'
-                                  ? notification.relatedItem.substring(0, 8)
-                                  : 'Unknown'}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                          }}>
-                            {!notification.isRead && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMarkAsRead(notification._id || notification.id);
-                                }}
-                                style={{
-                                  padding: '0.25rem 0.75rem',
-                                  fontSize: '0.75rem',
-                                  color: '#2563eb',
-                                  backgroundColor: '#eff6ff',
-                                  border: '1px solid #dbeafe',
-                                  borderRadius: '0.375rem',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease',
-                                  fontWeight: 500,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#dbeafe';
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#eff6ff';
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                              >
-                                ✅ Mark as Read
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteNotification(notification._id || notification.id);
-                              }}
-                              style={{
-                                padding: '0.25rem 0.75rem',
-                                fontSize: '0.75rem',
-                                color: '#dc2626',
-                                backgroundColor: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                borderRadius: '0.375rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                fontWeight: 500,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fee2e2';
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fef2f2';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                              }}
-                            >
-                              🗑️ Delete
-                            </button>
-                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{
-                padding: '1.5rem',
-                borderTop: '1px solid #e5e7eb',
-                backgroundColor: '#f9fafb'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '1rem'
-                }}>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.5rem',
-                      backgroundColor: currentPage === 1 ? '#f3f4f6' : '#ffffff',
-                      color: currentPage === 1 ? '#9ca3af' : '#374151',
-                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      minWidth: '7rem',
-                      justifyContent: 'center'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (currentPage > 1) {
-                        e.currentTarget.style.backgroundColor = '#f9fafb';
-                        e.currentTarget.style.borderColor = '#9ca3af';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (currentPage > 1) {
-                        e.currentTarget.style.backgroundColor = '#ffffff';
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }
-                    }}
-                  >
-                    <span>⬅️</span>
-                    Previous
-                  </button>
-                  
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    flexWrap: 'wrap',
-                    justifyContent: 'center'
-                  }}>
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          style={{
-                            padding: '0.5rem 0.75rem',
-                            minWidth: '2.5rem',
-                            backgroundColor: currentPage === pageNum ? '#3b82f6' : '#ffffff',
-                            color: currentPage === pageNum ? '#ffffff' : '#374151',
-                            border: `1px solid ${currentPage === pageNum ? '#3b82f6' : '#d1d5db'}`,
-                            borderRadius: '0.375rem',
-                            cursor: 'pointer',
-                            fontSize: '0.875rem',
-                            fontWeight: currentPage === pageNum ? 600 : 400,
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = currentPage === pageNum ? '#2563eb' : '#f9fafb';
-                            e.currentTarget.style.borderColor = currentPage === pageNum ? '#2563eb' : '#9ca3af';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = currentPage === pageNum ? '#3b82f6' : '#ffffff';
-                            e.currentTarget.style.borderColor = currentPage === pageNum ? '#3b82f6' : '#d1d5db';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    
-                    {totalPages > 5 && currentPage < totalPages - 2 && (
-                      <>
-                        <span style={{ color: '#9ca3af' }}>...</span>
-                        <button
-                          onClick={() => setCurrentPage(totalPages)}
-                          style={{
-                            padding: '0.5rem 0.75rem',
-                            backgroundColor: '#ffffff',
-                            color: '#374151',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '0.375rem',
-                            cursor: 'pointer',
-                            fontSize: '0.875rem',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f9fafb';
-                            e.currentTarget.style.borderColor = '#9ca3af';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#ffffff';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.5rem',
-                      backgroundColor: currentPage === totalPages ? '#f3f4f6' : '#ffffff',
-                      color: currentPage === totalPages ? '#9ca3af' : '#374151',
-                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      minWidth: '7rem',
-                      justifyContent: 'center'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (currentPage < totalPages) {
-                        e.currentTarget.style.backgroundColor = '#f9fafb';
-                        e.currentTarget.style.borderColor = '#9ca3af';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (currentPage < totalPages) {
-                        e.currentTarget.style.backgroundColor = '#ffffff';
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }
-                    }}
-                  >
-                    Next
-                    <span>➡️</span>
-                  </button>
                 </div>
-              </div>
-            )}
-          </>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '0.5rem',
+          marginTop: '1.5rem',
+          padding: '1rem'
+        }}>
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: currentPage === 1 ? '#f3f4f6' : '#3b82f6',
+              color: currentPage === 1 ? '#9ca3af' : '#ffffff',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Previous
+          </button>
+          
+          <span style={{
+            fontSize: '0.875rem',
+            color: '#6b7280',
+            padding: '0 1rem'
+          }}>
+            Page {currentPage} of {totalPages}
+          </span>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: currentPage === totalPages ? '#f3f4f6' : '#3b82f6',
+              color: currentPage === totalPages ? '#9ca3af' : '#ffffff',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Next
+          </button>
+        </div>
+      )}
+
+      {/* Add CSS animations */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };
