@@ -649,17 +649,17 @@ const startServer = async () => {
       console.log('✅ Server Started Successfully');
       console.log(`🌐 Local:    http://localhost:${PORT}`);
       console.log(`📁 Uploads:  http://localhost:${PORT}/uploads/`);
-      console.log(`🩺 Health:   http://localhost:${PORT}/health`);
+      //console.log(`🩺 Health:   http://localhost:${PORT}/health`);
       console.log(`📊 Analytics: http://localhost:${PORT}/api/admin/analytics`);  // ✅ Added analytics
       console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log('🔒 Rate Limiting: Enabled');
-      console.log('   - General: 500 requests per 15 minutes');
-      console.log('   - Auth: 20 requests per 15 minutes');
-      console.log('   - Chat: 60 requests per minute');
-      console.log('   - Orders: 10 requests per minute');
-      console.log('   - Admin: 100 requests per minute');
-      console.log('🌍 CORS: Configured for frontend origins');
-      console.log('='.repeat(50));
+      // console.log('🔒 Rate Limiting: Enabled');
+      // console.log('   - General: 500 requests per 15 minutes');
+      // console.log('   - Auth: 20 requests per 15 minutes');
+      // console.log('   - Chat: 60 requests per minute');
+      // console.log('   - Orders: 10 requests per minute');
+      // console.log('   - Admin: 100 requests per minute');
+      // console.log('🌍 CORS: Configured for frontend origins');
+      //console.log('='.repeat(50));
       console.log('\n✅ Ready to accept connections\n');
     });
     

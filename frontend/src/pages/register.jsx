@@ -268,8 +268,6 @@ const Register = () => {
                   )
                 ) : (
                   <>
-                    <span>👤</span>
-                    <span>Enter your full name (letters only)</span>
                   </>
                 )}
               </div>
@@ -332,14 +330,11 @@ const Register = () => {
                     </>
                   ) : (
                     <>
-                      <span>⚠</span>
                       <span>Must end with @sdc.edu.np</span>
                     </>
                   )
                 ) : (
                   <>
-                    <span>📧</span>
-                    <span>Use your SDC College email (@sdc.edu.np)</span>
                   </>
                 )}
               </div>
@@ -458,8 +453,6 @@ const Register = () => {
                   )
                 ) : (
                   <>
-                    <span>🔒</span>
-                    <span>Use at least 6 characters</span>
                   </>
                 )}
               </div>

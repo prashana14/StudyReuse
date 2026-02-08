@@ -348,7 +348,7 @@ const Login = () => {
             </label>
             <input
               type="email"
-              placeholder="username@sdc.edu.np"
+              placeholder="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -382,8 +382,6 @@ const Login = () => {
               alignItems: "center",
               gap: "4px"
             }}>
-              <span>📧</span>
-              <span>Use your SDC College email (@sdc.edu.np)</span>
             </div>
           </div>
           
@@ -497,8 +495,6 @@ const Login = () => {
               alignItems: "center",
               gap: "4px"
             }}>
-              <span>🔒</span>
-              <span>Password must be at least 6 characters</span>
             </div>
           </div>
 
