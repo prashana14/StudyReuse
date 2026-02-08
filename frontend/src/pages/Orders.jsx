@@ -256,7 +256,7 @@ const Orders = () => {
           </div>
         </div>
 
-        <div style={{ 
+        {/* <div style={{ 
           background: 'white',
           padding: '20px',
           borderRadius: '12px',
@@ -269,9 +269,9 @@ const Orders = () => {
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Delivered
           </div>
-        </div>
+        </div> */}
 
-        <div style={{ 
+        {/* <div style={{ 
           background: 'white',
           padding: '20px',
           borderRadius: '12px',
@@ -284,7 +284,7 @@ const Orders = () => {
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Pending
           </div>
-        </div>
+        </div> */}
 
         <div style={{ 
           background: 'white',
@@ -294,7 +294,7 @@ const Orders = () => {
           textAlign: 'center'
         }}>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#7209b7' }}>
-            ₹{orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toFixed(2)}
+            Rs. {orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toFixed(2)}
           </div>
           <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
             Total Spent
@@ -303,7 +303,7 @@ const Orders = () => {
       </div>
 
       {/* Status Filter */}
-      <div style={{ 
+      {/* <div style={{ 
         background: 'white',
         padding: '20px',
         borderRadius: '12px',
@@ -342,7 +342,7 @@ const Orders = () => {
             </button>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Orders List */}
       {filteredOrders.length === 0 ? (
@@ -436,7 +436,7 @@ const Orders = () => {
                     }}>
                       Order #{order._id?.substring(order._id.length - 6).toUpperCase()}
                     </span>
-                    <span style={{ 
+                    {/* <span style={{ 
                       background: getStatusColor(order.status),
                       color: 'white',
                       padding: '4px 12px',
@@ -448,10 +448,10 @@ const Orders = () => {
                       gap: '5px'
                     }}>
                       {getStatusIcon(order.status)} {order.status}
-                    </span>
+                    </span> */}
                     
                     {/* Seller Action Badge */}
-                    <span style={{ 
+                    {/* <span style={{ 
                       background: getSellerActionColor(order.sellerAction),
                       color: 'white',
                       padding: '4px 12px',
@@ -463,7 +463,7 @@ const Orders = () => {
                       gap: '5px'
                     }}>
                       {getSellerActionIcon(order.sellerAction)} Seller: {order.sellerAction}
-                    </span>
+                    </span> */}
                   </div>
                   <div style={{ 
                     fontSize: '14px', 
@@ -474,7 +474,7 @@ const Orders = () => {
                   }}>
                     <span>Placed: {formatDate(order.createdAt)}</span>
                     <span>Items: {order.items?.length || 0}</span>
-                    <span>Total: ₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                    <span>Total: Rs. {order.totalAmount?.toFixed(2) || '0.00'}</span>
                     <span>Payment: {order.paymentMethod || 'Cash on Delivery'}</span>
                     {order.seller?.name && (
                       <span>Seller: {order.seller.name}</span>
@@ -609,7 +609,7 @@ const Orders = () => {
                             {item.itemSnapshot?.title || item.item?.title || 'Item not found'}
                           </div>
                           <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                            Qty: {item.quantity || 1} × ₹{item.price?.toFixed(2) || '0.00'} = ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                            Qty: {item.quantity || 1} × Rs. {item.price?.toFixed(2) || '0.00'} = Rs. {((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                           </div>
                           {item.itemStatus && (
                             <span style={{ 
@@ -703,7 +703,7 @@ const Orders = () => {
                       }}>
                         <span style={{ color: '#6c757d', fontSize: '14px' }}>Subtotal:</span>
                         <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
+                          Rs. {order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                       <div style={{ 
@@ -727,7 +727,7 @@ const Orders = () => {
                           Total:
                         </span>
                         <span style={{ fontSize: '18px', fontWeight: '700', color: '#4361ee' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
+                          Rs. {order.totalAmount?.toFixed(2) || '0.00'}
                         </span>
                       </div>
                     </div>

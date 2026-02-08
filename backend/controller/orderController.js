@@ -119,6 +119,19 @@ const getAllOrders = async (req, res) => {
       query.status = req.query.status;
     }
     
+    // Payment status filter
+    if (req.query.paymentStatus && req.query.paymentStatus !== 'all') {
+      query.paymentStatus = req.query.paymentStatus;
+    }
+    
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+      query.createdAt = {
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(req.query.endDate)
+      };
+    }
+    
     // Get total count
     const total = await Order.countDocuments(query);
     
@@ -255,7 +268,7 @@ const getOrderById = async (req, res) => {
 // @access  Private/Admin
 const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, notes } = req.body;
     const userData = verifyToken(req);
     
     if (!userData) {
@@ -282,19 +295,22 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Check authorization (admin, owner, or seller)
-    const isOwner = order.user.toString() === userData.id;
-    const isSeller = order.seller._id.toString() === userData.id;
-    
-    if (!isOwner && !isSeller && !userData.isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this order'
-      });
-    }
-
     const oldStatus = order.status;
     order.status = status;
+    
+    // Update deliveredAt if status changed to Delivered
+    if (status === 'Delivered' && oldStatus !== 'Delivered') {
+      order.deliveredAt = new Date();
+      // Auto update payment status to Paid if delivered
+      if (order.paymentStatus === 'Pending') {
+        order.paymentStatus = 'Paid';
+      }
+    }
+    
+    // Add admin notes if provided
+    if (notes) {
+      order.adminNotes = notes;
+    }
 
     // Start a session for transaction
     const session = await Order.startSession();
@@ -406,6 +422,181 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+// @desc    Update payment status
+// @route   PUT /api/orders/:id/payment-status
+// @access  Private/Admin
+const updatePaymentStatus = async (req, res) => {
+  try {
+    const { paymentStatus, transactionId, notes } = req.body;
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    if (!['Pending', 'Paid', 'Failed', 'Refunded'].includes(paymentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment status'
+      });
+    }
+
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('seller', 'name email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const oldPaymentStatus = order.paymentStatus;
+    order.paymentStatus = paymentStatus;
+    
+    // Add transaction ID if provided
+    if (transactionId) {
+      order.transactionId = transactionId;
+    }
+    
+    // Add admin notes if provided
+    if (notes) {
+      order.adminNotes = (order.adminNotes ? order.adminNotes + '\n' : '') + 
+                         `[Payment Update ${new Date().toLocaleDateString()}]: ${notes}`;
+    }
+
+    await order.save();
+
+    // Add notification for payment status change
+    try {
+      await NotificationService.create({
+        user: order.user._id,
+        type: 'payment_update',
+        title: `Payment Status Updated`,
+        message: `Payment status for order #${order._id.toString().slice(-6)} changed to ${paymentStatus}`,
+        action: 'view_order',
+        actionData: { orderId: order._id },
+        link: `/orders/${order._id}`,
+        relatedOrder: order._id,
+        isRead: false
+      });
+
+      // Notify seller as well
+      await NotificationService.create({
+        user: order.seller._id,
+        type: 'payment_update',
+        title: `Payment Status Updated`,
+        message: `Payment status for order #${order._id.toString().slice(-6)} changed to ${paymentStatus}`,
+        action: 'view_order',
+        actionData: { orderId: order._id },
+        link: `/seller/orders/${order._id}`,
+        relatedOrder: order._id,
+        isRead: false
+      });
+    } catch (notifError) {
+      console.error('Error creating payment notification:', notifError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment status updated',
+      data: order
+    });
+    
+  } catch (error) {
+    console.error('Update payment status error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error updating payment status'
+    });
+  }
+};
+
+// @desc    Update shipping/tracking information
+// @route   PUT /api/orders/:id/shipping
+// @access  Private/Admin
+const updateShippingInfo = async (req, res) => {
+  try {
+    const { trackingNumber, carrier, estimatedDelivery, notes } = req.body;
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Update shipping info
+    if (trackingNumber) order.trackingNumber = trackingNumber;
+    if (carrier) order.carrier = carrier;
+    if (estimatedDelivery) order.estimatedDelivery = new Date(estimatedDelivery);
+    
+    // Update status to Shipped if not already shipped
+    if (order.status === 'Processing') {
+      order.status = 'Shipped';
+    }
+    
+    // Add admin notes if provided
+    if (notes) {
+      order.adminNotes = (order.adminNotes ? order.adminNotes + '\n' : '') + 
+                         `[Shipping Update ${new Date().toLocaleDateString()}]: ${notes}`;
+    }
+
+    await order.save();
+
+    // Add notification for shipping update
+    try {
+      await NotificationService.create({
+        user: order.user._id,
+        type: 'shipping_update',
+        title: `Shipping Information Updated`,
+        message: `Your order #${order._id.toString().slice(-6)} has been shipped${trackingNumber ? ` with tracking number: ${trackingNumber}` : ''}`,
+        action: 'track_order',
+        actionData: { 
+          orderId: order._id,
+          trackingNumber: order.trackingNumber,
+          carrier: order.carrier 
+        },
+        link: `/orders/${order._id}`,
+        relatedOrder: order._id,
+        isRead: false
+      });
+    } catch (notifError) {
+      console.error('Error creating shipping notification:', notifError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Shipping information updated',
+      data: order
+    });
+    
+  } catch (error) {
+    console.error('Update shipping info error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error updating shipping information'
+    });
+  }
+};
+
 // @desc    Cancel order WITH QUANTITY RESTORATION
 // @route   PUT /api/orders/:id/cancel
 // @access  Private
@@ -419,6 +610,8 @@ const cancelOrder = async (req, res) => {
         message: 'Authentication required' 
       });
     }
+    
+    const { reason } = req.body;
     
     const order = await Order.findById(req.params.id)
       .populate('seller', 'name email');
@@ -474,7 +667,8 @@ const cancelOrder = async (req, res) => {
       // Update order status
       order.status = 'Cancelled';
       order.sellerAction = 'rejected';
-      order.sellerRejectionReason = 'Order cancelled by ' + (userData.id === order.user.toString() ? 'buyer' : 'seller');
+      order.cancelledReason = reason || 'Order cancelled by ' + (userData.id === order.user.toString() ? 'buyer' : 'seller');
+      order.sellerRejectionReason = order.cancelledReason;
       await order.save({ session });
 
       await session.commitTransaction();
@@ -1619,19 +1813,708 @@ const getSellerOrderStatsSimple = async (req, res) => {
   }
 };
 
+// ======================
+// ADMIN ANALYTICS & MANAGEMENT FUNCTIONS - NEW
+// ======================
+
+// @desc    Get admin dashboard statistics
+// @route   GET /api/orders/admin/stats
+// @access  Private/Admin
+const getAdminOrderStats = async (req, res) => {
+  try {
+    console.log('=== GET ADMIN ORDER STATS REQUEST ===');
+    
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    // Get counts for different statuses
+    const [
+      pendingCount,
+      processingCount,
+      shippedCount,
+      deliveredCount,
+      cancelledCount,
+      totalOrders,
+      totalRevenue
+    ] = await Promise.all([
+      Order.countDocuments({ status: 'Pending' }),
+      Order.countDocuments({ status: 'Processing' }),
+      Order.countDocuments({ status: 'Shipped' }),
+      Order.countDocuments({ status: 'Delivered' }),
+      Order.countDocuments({ status: 'Cancelled' }),
+      Order.countDocuments(),
+      // Calculate total revenue from delivered orders
+      Order.aggregate([
+        { $match: { status: 'Delivered' } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]).then(result => result[0]?.total || 0)
+    ]);
+    
+    // Calculate revenue metrics
+    const today = new Date();
+    const startOfToday = new Date(today);
+    startOfToday.setHours(0, 0, 0, 0);
+    
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    // Today's revenue
+    const todayRevenueResult = await Order.aggregate([
+      { 
+        $match: { 
+          status: 'Delivered',
+          deliveredAt: { $gte: startOfToday }
+        } 
+      },
+      { 
+        $group: { 
+          _id: null, 
+          total: { $sum: '$totalAmount' } 
+        } 
+      }
+    ]);
+    
+    const todayRevenue = todayRevenueResult[0]?.total || 0;
+    
+    // This month's revenue
+    const monthRevenueResult = await Order.aggregate([
+      { 
+        $match: { 
+          status: 'Delivered',
+          deliveredAt: { $gte: startOfMonth }
+        } 
+      },
+      { 
+        $group: { 
+          _id: null, 
+          total: { $sum: '$totalAmount' } 
+        } 
+      }
+    ]);
+    
+    const monthRevenue = monthRevenueResult[0]?.total || 0;
+    
+    // Payment status counts
+    const paymentPendingCount = await Order.countDocuments({ paymentStatus: 'Pending' });
+    const paymentPaidCount = await Order.countDocuments({ paymentStatus: 'Paid' });
+    const paymentFailedCount = await Order.countDocuments({ paymentStatus: 'Failed' });
+    const paymentRefundedCount = await Order.countDocuments({ paymentStatus: 'Refunded' });
+    
+    // Average order value
+    const avgOrderValue = deliveredCount > 0 ? (totalRevenue / deliveredCount) : 0;
+    
+    console.log('📊 Admin order stats calculated:', {
+      pendingCount,
+      processingCount,
+      shippedCount,
+      deliveredCount,
+      cancelledCount,
+      totalOrders,
+      totalRevenue,
+      todayRevenue,
+      monthRevenue,
+      avgOrderValue
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        orderCounts: {
+          pending: pendingCount,
+          processing: processingCount,
+          shipped: shippedCount,
+          delivered: deliveredCount,
+          cancelled: cancelledCount,
+          total: totalOrders
+        },
+        paymentStatus: {
+          pending: paymentPendingCount,
+          paid: paymentPaidCount,
+          failed: paymentFailedCount,
+          refunded: paymentRefundedCount
+        },
+        revenue: {
+          total: totalRevenue,
+          today: todayRevenue,
+          month: monthRevenue,
+          avgOrderValue: avgOrderValue.toFixed(2)
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get admin order stats error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching admin statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get revenue report with date filtering
+// @route   GET /api/orders/admin/revenue-report
+// @access  Private/Admin
+const getRevenueReport = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const { startDate, endDate, groupBy = 'day' } = req.query;
+    
+    // Default to last 30 days if no date range provided
+    const end = endDate ? new Date(endDate) : new Date();
+    const start = startDate ? new Date(startDate) : new Date();
+    start.setDate(start.getDate() - 30);
+    
+    const matchStage = {
+      $match: {
+        status: 'Delivered',
+        deliveredAt: {
+          $gte: start,
+          $lte: end
+        }
+      }
+    };
+    
+    let groupStage;
+    let sortStage;
+    
+    if (groupBy === 'day') {
+      groupStage = {
+        $group: {
+          _id: {
+            year: { $year: '$deliveredAt' },
+            month: { $month: '$deliveredAt' },
+            day: { $dayOfMonth: '$deliveredAt' }
+          },
+          date: { $first: '$deliveredAt' },
+          revenue: { $sum: '$totalAmount' },
+          orders: { $sum: 1 },
+          avgOrderValue: { $avg: '$totalAmount' }
+        }
+      };
+      sortStage = { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } };
+    } else if (groupBy === 'month') {
+      groupStage = {
+        $group: {
+          _id: {
+            year: { $year: '$deliveredAt' },
+            month: { $month: '$deliveredAt' }
+          },
+          revenue: { $sum: '$totalAmount' },
+          orders: { $sum: 1 },
+          avgOrderValue: { $avg: '$totalAmount' }
+        }
+      };
+      sortStage = { $sort: { '_id.year': 1, '_id.month': 1 } };
+    } else if (groupBy === 'category') {
+      // Need to populate items first
+      const orders = await Order.find({
+        status: 'Delivered',
+        deliveredAt: { $gte: start, $lte: end }
+      }).populate('items.item', 'category');
+      
+      const categoryRevenue = {};
+      
+      orders.forEach(order => {
+        order.items.forEach(item => {
+          const category = item.item?.category || 'Uncategorized';
+          if (!categoryRevenue[category]) {
+            categoryRevenue[category] = {
+              revenue: 0,
+              orders: 0,
+              items: 0
+            };
+          }
+          const itemRevenue = (item.price || 0) * (item.quantity || 1);
+          categoryRevenue[category].revenue += itemRevenue;
+          categoryRevenue[category].orders += 1;
+          categoryRevenue[category].items += item.quantity || 1;
+        });
+      });
+      
+      const result = Object.entries(categoryRevenue).map(([category, data]) => ({
+        _id: category,
+        ...data,
+        avgOrderValue: data.revenue / data.orders
+      }));
+      
+      return res.json({
+        success: true,
+        data: result,
+        summary: {
+          startDate: start,
+          endDate: end,
+          totalRevenue: result.reduce((sum, item) => sum + item.revenue, 0),
+          totalOrders: result.reduce((sum, item) => sum + item.orders, 0)
+        }
+      });
+    }
+    
+    const revenueData = await Order.aggregate([
+      matchStage,
+      groupStage,
+      sortStage
+    ]);
+    
+    // Format dates for day grouping
+    if (groupBy === 'day') {
+      revenueData.forEach(item => {
+        item.formattedDate = new Date(item._id.year, item._id.month - 1, item._id.day)
+          .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+    } else if (groupBy === 'month') {
+      revenueData.forEach(item => {
+        item.formattedDate = new Date(item._id.year, item._id.month - 1)
+          .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      });
+    }
+    
+    const totalRevenue = revenueData.reduce((sum, item) => sum + item.revenue, 0);
+    const totalOrders = revenueData.reduce((sum, item) => sum + item.orders, 0);
+    
+    res.json({
+      success: true,
+      data: revenueData,
+      summary: {
+        startDate: start,
+        endDate: end,
+        totalRevenue,
+        totalOrders,
+        avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get revenue report error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching revenue report',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get top selling items
+// @route   GET /api/orders/admin/top-items
+// @access  Private/Admin
+const getTopSellingItems = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const { limit = 10, startDate, endDate } = req.query;
+    
+    const matchConditions = { status: 'Delivered' };
+    
+    if (startDate && endDate) {
+      matchConditions.deliveredAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    
+    const topItems = await Order.aggregate([
+      { $match: matchConditions },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.item',
+          itemSnapshot: { $first: '$items.itemSnapshot' },
+          totalQuantity: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          orderCount: { $sum: 1 }
+        }
+      },
+      { $sort: { totalRevenue: -1 } },
+      { $limit: parseInt(limit) },
+      {
+        $project: {
+          _id: 1,
+          title: '$itemSnapshot.title',
+          imageURL: '$itemSnapshot.imageURL',
+          totalQuantity: 1,
+          totalRevenue: 1,
+          orderCount: 1,
+          avgPrice: { $divide: ['$totalRevenue', '$totalQuantity'] }
+        }
+      }
+    ]);
+    
+    // Populate item details for items that still exist
+    for (let item of topItems) {
+      if (item._id) {
+        const dbItem = await Item.findById(item._id).select('title imageURL category');
+        if (dbItem) {
+          item.title = dbItem.title;
+          item.imageURL = dbItem.imageURL;
+          item.category = dbItem.category;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: topItems
+    });
+    
+  } catch (error) {
+    console.error('❌ Get top selling items error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching top selling items',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get top selling sellers
+// @route   GET /api/orders/admin/top-sellers
+// @access  Private/Admin
+const getTopSellers = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const { limit = 10, startDate, endDate } = req.query;
+    
+    const matchConditions = { status: 'Delivered' };
+    
+    if (startDate && endDate) {
+      matchConditions.deliveredAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    
+    const topSellers = await Order.aggregate([
+      { $match: matchConditions },
+      {
+        $group: {
+          _id: '$seller',
+          totalRevenue: { $sum: '$totalAmount' },
+          orderCount: { $sum: 1 },
+          totalItems: { $sum: { $size: '$items' } }
+        }
+      },
+      { $sort: { totalRevenue: -1 } },
+      { $limit: parseInt(limit) }
+    ]);
+    
+    // Populate seller details
+    for (let seller of topSellers) {
+      if (seller._id) {
+        const sellerDetails = await User.findById(seller._id).select('name email phone');
+        if (sellerDetails) {
+          seller.name = sellerDetails.name;
+          seller.email = sellerDetails.email;
+          seller.phone = sellerDetails.phone;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: topSellers
+    });
+    
+  } catch (error) {
+    console.error('❌ Get top sellers error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching top sellers',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Bulk update order status
+// @route   PUT /api/orders/admin/bulk-update
+// @access  Private/Admin
+const bulkUpdateOrders = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const { orderIds, status, notes } = req.body;
+    
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order IDs are required'
+      });
+    }
+    
+    if (!['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status'
+      });
+    }
+    
+    // Start a session for transaction
+    const session = await Order.startSession();
+    session.startTransaction();
+    
+    try {
+      const results = {
+        updated: 0,
+        failed: 0,
+        details: []
+      };
+      
+      for (const orderId of orderIds) {
+        try {
+          const order = await Order.findById(orderId).session(session);
+          
+          if (!order) {
+            results.failed++;
+            results.details.push({
+              orderId,
+              success: false,
+              message: 'Order not found'
+            });
+            continue;
+          }
+          
+          const oldStatus = order.status;
+          order.status = status;
+          
+          // Update deliveredAt if status changed to Delivered
+          if (status === 'Delivered' && oldStatus !== 'Delivered') {
+            order.deliveredAt = new Date();
+          }
+          
+          // Handle quantity restoration for cancellations
+          if (status === 'Cancelled' && oldStatus !== 'Cancelled') {
+            for (const orderItem of order.items) {
+              const item = await Item.findById(orderItem.item).session(session);
+              
+              if (item) {
+                const newQuantity = (item.quantity || 0) + orderItem.quantity;
+                await Item.findByIdAndUpdate(
+                  orderItem.item,
+                  {
+                    quantity: newQuantity,
+                    status: newQuantity > 0 ? 'Available' : 'Sold Out'
+                  },
+                  { session }
+                );
+              }
+            }
+          }
+          
+          // Add admin notes if provided
+          if (notes) {
+            order.adminNotes = (order.adminNotes ? order.adminNotes + '\n' : '') + 
+                               `[Bulk Update ${new Date().toLocaleDateString()}]: ${notes}`;
+          }
+          
+          await order.save({ session });
+          
+          // Create notification
+          try {
+            await NotificationService.create({
+              user: order.user,
+              type: 'system',
+              title: `Order Status Updated`,
+              message: `Your order #${order._id.toString().slice(-6)} status changed to ${status}`,
+              action: 'view_order',
+              actionData: { orderId: order._id },
+              link: `/orders/${order._id}`,
+              relatedOrder: order._id,
+              isRead: false
+            });
+          } catch (notifError) {
+            console.error(`Error creating notification for order ${orderId}:`, notifError);
+          }
+          
+          results.updated++;
+          results.details.push({
+            orderId,
+            success: true,
+            message: `Status updated from ${oldStatus} to ${status}`
+          });
+          
+        } catch (error) {
+          console.error(`Error updating order ${orderId}:`, error);
+          results.failed++;
+          results.details.push({
+            orderId,
+            success: false,
+            message: error.message
+          });
+        }
+      }
+      
+      await session.commitTransaction();
+      session.endSession();
+      
+      res.json({
+        success: true,
+        message: `Bulk update completed: ${results.updated} updated, ${results.failed} failed`,
+        data: results
+      });
+      
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('❌ Bulk update orders error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error performing bulk update',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Export orders to CSV/Excel
+// @route   GET /api/orders/admin/export
+// @access  Private/Admin
+const exportOrders = async (req, res) => {
+  try {
+    const userData = verifyToken(req);
+    
+    if (!userData || !userData.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const { format = 'csv', startDate, endDate } = req.query;
+    
+    const query = {};
+    
+    if (startDate && endDate) {
+      query.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    
+    const orders = await Order.find(query)
+      .populate('user', 'name email')
+      .populate('seller', 'name email')
+      .populate('items.item', 'title')
+      .sort({ createdAt: -1 });
+    
+    // Prepare CSV data
+    if (format === 'csv') {
+      const csvData = [
+        ['Order ID', 'Date', 'Customer', 'Seller', 'Status', 'Payment Status', 'Total Amount', 'Items', 'Shipping Address']
+      ];
+      
+      orders.forEach(order => {
+        const items = order.items.map(item => 
+          `${item.item?.title || 'N/A'} (x${item.quantity})`
+        ).join('; ');
+        
+        const shipping = order.shippingAddress ? 
+          `${order.shippingAddress.fullName}, ${order.shippingAddress.city}` : 
+          'N/A';
+        
+        csvData.push([
+          order._id.toString(),
+          order.createdAt.toISOString().split('T')[0],
+          order.user?.name || 'N/A',
+          order.seller?.name || 'N/A',
+          order.status,
+          order.paymentStatus,
+          order.totalAmount,
+          items,
+          shipping
+        ]);
+      });
+      
+      const csvContent = csvData.map(row => row.join(',')).join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=orders_${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csvContent);
+      
+    } else {
+      // For JSON export
+      res.json({
+        success: true,
+        data: orders,
+        count: orders.length,
+        exportedAt: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Export orders error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error exporting orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createOrder,
   getUserOrders,
   getOrderById,
   updateOrderStatus,
+  updatePaymentStatus,
+  updateShippingInfo,
   cancelOrder,
   getAllOrders,
   checkCartAvailability,
   checkCartAvailabilityPublic,
-  // NEW SELLER FUNCTIONS
+  // SELLER FUNCTIONS
   getSellerOrders,
   acceptOrderBySeller,
   rejectOrderBySeller,
   getSellerOrderStats,
-  getSellerOrderStatsSimple // Optional simplified version
+  getSellerOrderStatsSimple,
+  // ADMIN ANALYTICS FUNCTIONS
+  getAdminOrderStats,
+  getRevenueReport,
+  getTopSellingItems,
+  getTopSellers,
+  bulkUpdateOrders,
+  exportOrders
 };

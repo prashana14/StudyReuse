@@ -622,7 +622,7 @@ const AnalyticsPage = () => {
             alignItems: 'center',
             gap: '8px'
           }}>
-            <span>🔥</span> Most Viewed Items (Top 10)
+             Most Viewed Items (Top 10)
           </h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -632,7 +632,6 @@ const AnalyticsPage = () => {
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Item</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Category</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Owner</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Views</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Price</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#374151' }}>Status</th>
                 </tr>
@@ -690,12 +689,6 @@ const AnalyticsPage = () => {
                       <div>
                         <div style={{ fontWeight: '500' }}>{item.owner}</div>
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.ownerEmail}</div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '16px', fontSize: '14px', color: '#111827' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>👁️</span>
-                        <strong>{formatNumber(item.views || 0)}</strong>
                       </div>
                     </td>
                     <td style={{ padding: '16px', fontSize: '14px', color: '#111827' }}>

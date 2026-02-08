@@ -135,7 +135,7 @@ export function AdminLogin() {
             fontSize: "16px",
             fontWeight: "500"
           }}>
-            Admin Portal (Separate System)
+            Admin Portal
           </p>
         </div>
 
@@ -197,7 +197,7 @@ export function AdminLogin() {
               </label>
               <input
                 type="email"
-                placeholder="admin@sdc.edu.np"
+                placeholder="Enter email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -246,8 +246,6 @@ export function AdminLogin() {
                   )
                 ) : (
                   <>
-                    <span>📧</span>
-                    <span>Use SDC admin email (@sdc.edu.np)</span>
                   </>
                 )}
               </div>
@@ -365,8 +363,6 @@ export function AdminLogin() {
                   )
                 ) : (
                   <>
-                    <span>🔒</span>
-                    <span>Use secure admin password</span>
                   </>
                 )}
               </div>
@@ -481,7 +477,6 @@ export function AdminLogin() {
                 fontSize: "13px",
                 fontWeight: "500"
               }}>
-                ⚠️ Note: This is Separate Admin System
               </p>
               <p style={{ 
                 color: "#888", 
@@ -489,7 +484,6 @@ export function AdminLogin() {
                 fontSize: "12px",
                 lineHeight: "1.5"
               }}>
-                Regular users use separate login. Admins are stored separately from regular users.
               </p>
               <button
                 type="button"

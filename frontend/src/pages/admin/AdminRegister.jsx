@@ -191,7 +191,7 @@ const AdminRegister = () => {
                 fontStyle: "italic",
                 marginBottom: "0"
               }}>
-                Only 2 administrators are allowed for security reasons
+                Only 5 administrators are allowed for security reasons
               </p>
             </div>
 
@@ -432,13 +432,11 @@ const AdminRegister = () => {
                     </>
                   ) : (
                     <>
-                      <span>⚠</span>
                       <span>2-50 letters and spaces only</span>
                     </>
                   )
                 ) : (
                   <>
-                    <span>👤</span>
                     <span>Enter your full name</span>
                   </>
                 )}
@@ -508,8 +506,6 @@ const AdminRegister = () => {
                   )
                 ) : (
                   <>
-                    <span>📧</span>
-                    <span>Only @sdc.edu.np emails allowed</span>
                   </>
                 )}
               </div>
@@ -628,8 +624,6 @@ const AdminRegister = () => {
                   )
                 ) : (
                   <>
-                    <span>🔒</span>
-                    <span>Use at least 6 characters</span>
                   </>
                 )}
               </div>
@@ -747,7 +741,6 @@ const AdminRegister = () => {
                   )
                 ) : (
                   <>
-                    <span>🔒</span>
                     <span>Confirm your password</span>
                   </>
                 )}

@@ -1,4 +1,3 @@
-// frontend/src/pages/SellerOrders.jsx - SELLER VERSION ONLY
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiService from '../services/api';
@@ -12,102 +11,100 @@ const SellerOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchSellerOrders();
-    fetchSellerStats();
+    fetchData();
   }, []);
 
-  const fetchSellerOrders = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
       
-      console.log('🔄 Fetching seller orders...');
+      const [ordersResponse, statsResponse] = await Promise.all([
+        apiService.orders.getSellerOrders(),
+        apiService.orders.getSellerOrderStats()
+      ]);
       
-      // This should only get orders where user is the SELLER
-      const response = await apiService.orders.getSellerOrders();
+      if (ordersResponse.success) {
+        setOrders(ordersResponse.data || []);
+      }
       
-      console.log('✅ Seller Orders Response:', response);
-      
-      const ordersData = response?.data || [];
-      console.log(`📦 Setting ${ordersData.length} seller orders to state`);
-      
-      setOrders(ordersData);
+      if (statsResponse.success) {
+        setStats(statsResponse.data);
+      }
       
     } catch (err) {
-      console.error('❌ Error fetching seller orders:', err);
-      setError(err?.message || 'Failed to load seller orders');
+      console.error('Error fetching seller data:', err);
+      setError(err?.message || 'Failed to load data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const fetchSellerStats = async () => {
-    try {
-      const response = await apiService.orders.getSellerOrderStats();
-      if (response.success) {
-        setStats(response.data);
-      }
-    } catch (err) {
-      console.error('Error fetching seller stats:', err);
-    }
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchData();
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      const now = new Date();
+      const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+      
+      if (diffHours < 24) {
+        return 'Today, ' + date.toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      } else if (diffHours < 48) {
+        return 'Yesterday, ' + date.toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      } else {
+        return date.toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+      }
     } catch {
       return 'Invalid Date';
     }
   };
 
-  const getStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'pending': return '#ffc107';
-      case 'processing': return '#0d6efd';
-      case 'shipped': return '#17a2b8';
-      case 'delivered': return '#28a745';
-      case 'cancelled': return '#dc3545';
-      default: return '#6c757d';
-    }
+  const getStatusConfig = (status) => {
+    const configs = {
+      'pending': { color: '#f59e0b', icon: '⏳', label: 'Pending' },
+      'processing': { color: '#3b82f6', icon: '⚙️', label: 'Processing' },
+      'shipped': { color: '#8b5cf6', icon: '🚚', label: 'Shipped' },
+      'delivered': { color: '#10b981', icon: '✅', label: 'Delivered' },
+      'cancelled': { color: '#ef4444', icon: '❌', label: 'Cancelled' }
+    };
+    return configs[status?.toLowerCase()] || { color: '#6b7280', icon: '📦', label: status || 'Unknown' };
   };
 
-  const getSellerActionColor = (action) => {
-    switch(action?.toLowerCase()) {
-      case 'pending': return '#ffc107';
-      case 'accepted': return '#28a745';
-      case 'rejected': return '#dc3545';
-      default: return '#6c757d';
-    }
+  const getSellerActionConfig = (action) => {
+    const configs = {
+      'pending': { color: '#f59e0b', icon: '⏳', label: 'Pending' },
+      'accepted': { color: '#10b981', icon: '✅', label: 'Accepted' },
+      'rejected': { color: '#ef4444', icon: '❌', label: 'Rejected' }
+    };
+    return configs[action?.toLowerCase()] || { color: '#6b7280', icon: '📦', label: action || 'Unknown' };
   };
 
-  const getStatusIcon = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'pending': return '⏳';
-      case 'processing': return '🔄';
-      case 'shipped': return '🚚';
-      case 'delivered': return '✅';
-      case 'cancelled': return '❌';
-      default: return '📦';
-    }
-  };
-
-  const getSellerActionIcon = (action) => {
-    switch(action?.toLowerCase()) {
-      case 'pending': return '⏳';
-      case 'accepted': return '✅';
-      case 'rejected': return '❌';
-      default: return '📦';
-    }
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '₹0';
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0
+    }).format(amount);
   };
 
   const filteredOrders = orders.filter(order => {
@@ -119,88 +116,55 @@ const SellerOrders = () => {
   });
 
   const handleAcceptOrder = async (orderId) => {
-    if (!window.confirm('Are you sure you want to accept this order?')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure you want to accept this order?')) return;
+    
     try {
       await apiService.orders.acceptOrderBySeller(orderId);
       alert('Order accepted successfully');
-      fetchSellerOrders();
-      fetchSellerStats();
+      fetchData();
     } catch (err) {
-      console.error('Error accepting order:', err);
       alert(err.response?.data?.message || 'Failed to accept order');
     }
   };
 
   const handleRejectOrder = async (orderId) => {
     const reason = prompt('Please provide a reason for rejecting this order:');
-    if (reason === null) return;
+    if (!reason?.trim()) return alert('Please provide a reason for rejection');
     
-    if (!reason.trim()) {
-      alert('Please provide a reason for rejection');
-      return;
-    }
-
     try {
       await apiService.orders.rejectOrderBySeller(orderId, reason);
       alert('Order rejected successfully');
-      fetchSellerOrders();
-      fetchSellerStats();
+      fetchData();
     } catch (err) {
-      console.error('Error rejecting order:', err);
       alert(err.response?.data?.message || 'Failed to reject order');
     }
   };
 
   const handleCancelOrder = async (orderId) => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    
     try {
       await apiService.orders.cancelOrder(orderId);
       alert('Order cancelled successfully');
-      fetchSellerOrders();
-      fetchSellerStats();
+      fetchData();
     } catch (err) {
-      console.error('Error cancelling order:', err);
       alert(err.response?.data?.message || 'Failed to cancel order');
     }
   };
 
-  const handleViewDetails = (order, e) => {
-    e.stopPropagation();
-    setSelectedOrder(selectedOrder?._id === order._id ? null : order);
-  };
-
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <div style={{ 
-        maxWidth: '1200px', 
-        margin: '80px auto', 
-        padding: '40px 20px',
-        textAlign: 'center'
-      }}>
+      <div style={{ maxWidth: '1200px', margin: '80px auto', padding: '40px 20px', textAlign: 'center' }}>
         <div style={{ 
           width: '50px', 
           height: '50px', 
           border: '4px solid #f3f3f3',
-          borderTop: '4px solid #4361ee',
+          borderTop: '4px solid #3b82f6',
           borderRadius: '50%',
           animation: 'spin 1s linear infinite',
           margin: '0 auto 20px'
         }}></div>
-        <p style={{ color: '#6c757d', fontSize: '16px' }}>
-          Loading seller orders...
-        </p>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
+        <p style={{ color: '#6b7280', fontSize: '16px' }}>Loading your orders...</p>
       </div>
     );
   }
@@ -208,78 +172,87 @@ const SellerOrders = () => {
   return (
     <div style={{ maxWidth: '1200px', margin: '40px auto', padding: '0 20px' }}>
       {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h1 style={{ 
-            fontSize: '2.5rem', 
-            background: 'linear-gradient(135deg, #7209b7, #4361ee)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            fontWeight: '700'
-          }}>
-            Seller Orders
-          </h1>
+      <div style={{ marginBottom: '30px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div>
+            <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1f2937', marginBottom: '5px' }}>
+              📦 Seller Orders
+            </h1>
+            <p style={{ color: '#6b7280', fontSize: '15px' }}>Manage orders for your listed items</p>
+          </div>
           
-          <Link
-            to="/orders"
-            style={{
-              padding: '10px 20px',
-              background: '#4361ee',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.3s',
-              textDecoration: 'none'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            👤 View My Orders
-          </Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              style={{
+                padding: '10px 15px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                opacity: refreshing ? 0.7 : 1
+              }}
+            >
+              {refreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+            </button>
+            
+            <Link
+              to="/orders"
+              style={{
+                padding: '10px 20px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                textDecoration: 'none'
+              }}
+            >
+              👤 My Orders
+            </Link>
+          </div>
         </div>
-        <p style={{ color: '#6c757d', fontSize: '1.125rem' }}>
-          Manage orders for your items
-        </p>
       </div>
 
+      {/* Error message */}
       {error && (
         <div style={{ 
-          background: '#fff5f5', 
-          border: '1px solid #ffcccc',
-          color: '#d32f2f',
-          padding: '15px 20px',
+          background: '#fee2e2', 
+          border: '1px solid #fecaca',
+          color: '#dc2626',
+          padding: '15px',
           borderRadius: '8px',
           marginBottom: '20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div>
-            <strong>Error:</strong> {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
           <button 
-            onClick={fetchSellerOrders}
+            onClick={handleRefresh}
             style={{ 
-              padding: '5px 15px',
-              background: '#4361ee',
+              padding: '6px 12px',
+              background: '#dc2626',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '13px'
             }}
           >
             Retry
@@ -287,635 +260,142 @@ const SellerOrders = () => {
         </div>
       )}
 
-      {/* Stats Dashboard */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
-        <div style={{ 
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#4361ee' }}>
-            {stats?.totalOrders || 0}
-          </div>
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Total Orders
-          </div>
-        </div>
-
-        <div style={{ 
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#ffc107' }}>
-            {stats?.pendingOrders || 0}
-          </div>
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Pending Action
-          </div>
-        </div>
-
-        <div style={{ 
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#28a745' }}>
-            {stats?.deliveredOrders || 0}
-          </div>
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Delivered
-          </div>
-        </div>
-
-        <div style={{ 
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#7209b7' }}>
-            ₹{stats?.totalRevenue?.toFixed(2) || '0.00'}
-          </div>
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-            Total Revenue
-          </div>
-        </div>
-      </div>
-
-      {/* Status Filter */}
-      <div style={{ 
-        background: 'white',
-        padding: '20px',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-        marginBottom: '30px'
-      }}>
-        <h3 style={{ 
-          fontSize: '16px', 
-          marginBottom: '15px', 
-          color: '#212529',
-          fontWeight: '600'
-        }}>
-          Filter Orders
-        </h3>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {['all', 'pending_action', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(status => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              style={{ 
-                padding: '8px 16px',
-                background: statusFilter === status ? getStatusColor(status === 'pending_action' ? '#ffc107' : status) : '#f8f9fa',
-                border: 'none',
-                borderRadius: '20px',
-                color: statusFilter === status ? 'white' : '#495057',
-                fontWeight: '600',
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {status === 'all' ? '📦' : ''}
-              {status === 'pending_action' ? '⏳' : ''}
-              {status.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Orders List */}
       {filteredOrders.length === 0 ? (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px', 
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)'
-        }}>
-          <div style={{ 
-            fontSize: '80px', 
-            marginBottom: '20px', 
-            color: '#4361ee',
-            opacity: 0.7
-          }}>
-            📦
-          </div>
-          <h3 style={{ 
-            marginBottom: '16px', 
-            color: '#212529',
-            fontSize: '24px'
-          }}>
-            No Seller Orders Found
-          </h3>
-          <p style={{ 
-            color: '#6c757d', 
-            marginBottom: '30px', 
-            maxWidth: '500px', 
-            margin: '0 auto',
-            fontSize: '16px',
-            lineHeight: '1.6'
-          }}>
-            You don't have any orders for your items yet. When customers purchase your items, orders will appear here.
+        <div style={{ textAlign: 'center', padding: '50px 20px', background: 'white', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '60px', marginBottom: '20px', color: '#d1d5db' }}>📦</div>
+          <h3 style={{ marginBottom: '10px', color: '#374151', fontSize: '20px' }}>No Orders Found</h3>
+          <p style={{ color: '#6b7280', marginBottom: '25px', maxWidth: '500px', margin: '0 auto', fontSize: '15px', lineHeight: '1.6' }}>
+            You don't have any orders at the moment.
           </p>
           <Link 
             to="/my-items" 
             style={{ 
-              padding: '14px 32px', 
-              fontSize: '16px',
-              background: 'linear-gradient(135deg, #7209b7, #4361ee)',
+              padding: '12px 25px', 
+              fontSize: '15px',
+              background: '#3b82f6',
               border: 'none',
               borderRadius: '8px',
               color: 'white',
               fontWeight: '600',
               textDecoration: 'none',
-              transition: 'all 0.3s',
               display: 'inline-block'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 25px rgba(67, 97, 238, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             Manage My Items
           </Link>
         </div>
       ) : (
-        <div style={{ 
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
-          overflow: 'hidden'
-        }}>
-          {filteredOrders.map((order) => (
-            <div 
-              key={order._id} 
-              style={{ 
-                padding: '25px',
-                borderBottom: '1px solid #f8f9fa',
-                transition: 'all 0.3s',
-                background: order.sellerAction === 'pending' ? '#fff9e6' : 'white'
-              }}
-            >
-              {/* Order Header */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: selectedOrder?._id === order._id ? '20px' : '0'
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                    <span style={{ 
-                      fontSize: '18px', 
-                      fontWeight: '600', 
-                      color: '#212529' 
-                    }}>
-                      Order #{order._id?.substring(order._id.length - 6).toUpperCase()}
-                    </span>
-                    <span style={{ 
-                      background: getStatusColor(order.status),
-                      color: 'white',
-                      padding: '4px 12px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}>
-                      {getStatusIcon(order.status)} {order.status}
-                    </span>
+        <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+          {filteredOrders.map((order) => {
+            const statusConfig = getStatusConfig(order.status);
+            const actionConfig = getSellerActionConfig(order.sellerAction);
+            const orderNumber = order._id?.substring(order._id.length - 6).toUpperCase();
+            
+            return (
+              <div key={order._id} style={{ padding: '20px', borderBottom: '1px solid #f3f4f6', background: order.sellerAction === 'pending' ? '#fffbeb' : 'white' }}>
+                {/* Order Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>Order #{orderNumber}</span>
+                      <span style={{ background: statusConfig.color, color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        {statusConfig.icon} {statusConfig.label}
+                      </span>
+                      <span style={{ background: actionConfig.color, color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        {actionConfig.icon} {actionConfig.label}
+                      </span>
+                    </div>
                     
-                    {/* Seller Action Badge */}
-                    <span style={{ 
-                      background: getSellerActionColor(order.sellerAction),
-                      color: 'white',
-                      padding: '4px 12px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}>
-                      {getSellerActionIcon(order.sellerAction)} Action: {order.sellerAction}
-                    </span>
+                    <div style={{ fontSize: '14px', color: '#6b7280', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                      <span>Placed: {formatDate(order.createdAt)}</span>
+                      <span>Items: {order.items?.length || 0}</span>
+                      <span>Total: {formatCurrency(order.totalAmount)}</span>
+                      <span>Customer: {order.user?.name || 'Unknown'}</span>
+                    </div>
                   </div>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    color: '#6c757d',
-                    display: 'flex',
-                    gap: '20px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <span>Placed: {formatDate(order.createdAt)}</span>
-                    <span>Items: {order.items?.length || 0}</span>
-                    <span>Total: ₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
-                    <span>Customer: {order.user?.name || 'Unknown'}</span>
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {/* Seller Actions */}
-                  {order.sellerAction === 'pending' && order.status === 'Pending' && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptOrder(order._id);
-                        }}
-                        style={{ 
-                          padding: '8px 16px',
-                          background: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.transform = 'translateY(-2px)';
-                          e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.transform = 'translateY(0)';
-                          e.target.style.boxShadow = 'none';
-                        }}
-                      >
-                        Accept Order
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRejectOrder(order._id);
-                        }}
-                        style={{ 
-                          padding: '8px 16px',
-                          background: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.transform = 'translateY(-2px)';
-                          e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.transform = 'translateY(0)';
-                          e.target.style.boxShadow = 'none';
-                        }}
-                      >
-                        Reject Order
-                      </button>
-                    </>
-                  )}
                   
-                  {/* Cancel Button for seller (if they have permission) */}
-                  {(order.status?.toLowerCase() === 'processing' || order.status?.toLowerCase() === 'pending') && order.sellerAction === 'accepted' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCancelOrder(order._id);
-                      }}
-                      style={{ 
-                        padding: '8px 16px',
-                        background: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'translateY(-2px)';
-                        e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'translateY(0)';
-                        e.target.style.boxShadow = 'none';
-                      }}
-                    >
-                      Cancel Order
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {order.sellerAction === 'pending' && order.status === 'Pending' && (
+                      <>
+                        <button onClick={() => handleAcceptOrder(order._id)} style={{ padding: '8px 15px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                          Accept
+                        </button>
+                        <button onClick={() => handleRejectOrder(order._id)} style={{ padding: '8px 15px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    
+                    {(order.status === 'processing' || order.status === 'pending') && order.sellerAction === 'accepted' && (
+                      <button onClick={() => handleCancelOrder(order._id)} style={{ padding: '8px 15px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                    )}
+                    
+                    <button onClick={() => setSelectedOrder(selectedOrder?._id === order._id ? null : order)} style={{ padding: '8px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                      {selectedOrder?._id === order._id ? 'Hide' : 'View'}
                     </button>
-                  )}
-                  
-                  <button
-                    onClick={(e) => handleViewDetails(order, e)}
-                    style={{ 
-                      padding: '8px 16px',
-                      background: '#4361ee',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = 'translateY(-2px)';
-                      e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = 'translateY(0)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  >
-                    {selectedOrder?._id === order._id ? 'Hide Details' : 'View Details'}
-                  </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Order Items (Expanded View) */}
-              {selectedOrder?._id === order._id && (
-                <div style={{ 
-                  marginTop: '20px',
-                  padding: '20px',
-                  background: '#f8f9fa',
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <h4 style={{ 
-                    fontSize: '16px', 
-                    marginBottom: '15px', 
-                    color: '#212529',
-                    fontWeight: '600'
-                  }}>
-                    Order Items ({order.items?.length || 0})
-                  </h4>
-                  
-                  <div style={{ marginBottom: '20px' }}>
-                    {order.items?.map((item, index) => (
-                      <div 
-                        key={item._id || index} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '15px',
-                          padding: '15px 0',
-                          borderBottom: '1px solid #e0e0e0',
-                          ...(index === (order.items?.length || 0) - 1 && { borderBottom: 'none' })
-                        }}
-                      >
-                        <div style={{ 
-                          width: '60px', 
-                          height: '60px',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          background: 'white',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          border: '1px solid #dee2e6'
-                        }}>
-                          {item.itemSnapshot?.imageURL ? (
-                            <img 
-                              src={item.itemSnapshot.imageURL} 
-                              alt={item.itemSnapshot.title}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.innerHTML = '<div style="color: #adb5bd; font-size: 20px">📦</div>';
-                              }}
-                            />
-                          ) : (
-                            <div style={{ color: '#adb5bd', fontSize: '20px' }}>📦</div>
-                          )}
+                {/* Order Details */}
+                {selectedOrder?._id === order._id && (
+                  <div style={{ marginTop: '15px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                    <div style={{ marginBottom: '15px' }}>
+                      <h4 style={{ fontSize: '15px', marginBottom: '10px', color: '#374151', fontWeight: '600' }}>Items ({order.items?.length || 0})</h4>
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        {order.items?.map((item, index) => (
+                          <div key={item._id || index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                            <div style={{ width: '50px', height: '50px', borderRadius: '6px', overflow: 'hidden', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {item.itemSnapshot?.imageURL ? (
+                                <img src={item.itemSnapshot.imageURL} alt={item.itemSnapshot.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ color: '#9ca3af', fontSize: '18px' }}>📦</div>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '15px', fontWeight: '500', color: '#1f2937', marginBottom: '4px' }}>{item.itemSnapshot?.title || 'Item'}</div>
+                              <div style={{ fontSize: '13px', color: '#6b7280' }}>{item.quantity || 1} × {formatCurrency(item.price)} = {formatCurrency((item.price || 0) * (item.quantity || 1))}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '15px' }}>
+                      <h4 style={{ fontSize: '15px', marginBottom: '10px', color: '#374151', fontWeight: '600' }}>Customer</h4>
+                      <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                        <div style={{ marginBottom: '8px' }}><strong>Name:</strong> {order.user?.name || 'N/A'}</div>
+                        <div style={{ marginBottom: '8px' }}><strong>Email:</strong> {order.user?.email || 'N/A'}</div>
+                        {order.shippingAddress?.phone && <div><strong>Phone:</strong> {order.shippingAddress.phone}</div>}
+                      </div>
+                    </div>
+
+                    {order.shippingAddress && (
+                      <div style={{ marginBottom: '15px' }}>
+                        <h4 style={{ fontSize: '15px', marginBottom: '10px', color: '#374151', fontWeight: '600' }}>Shipping Address</h4>
+                        <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', border: '1px solid #dbeafe' }}>
+                          <div style={{ marginBottom: '5px' }}><strong>{order.shippingAddress.fullName || 'N/A'}</strong></div>
+                          <div style={{ marginBottom: '5px' }}>{order.shippingAddress.street || ''}</div>
+                          <div>{order.shippingAddress.city || ''}, {order.shippingAddress.state || ''}</div>
                         </div>
-                        
-                        <div style={{ flex: 1 }}>
-                          <div style={{ 
-                            fontSize: '16px', 
-                            fontWeight: '600', 
-                            color: '#212529',
-                            marginBottom: '5px'
-                          }}>
-                            {item.itemSnapshot?.title || item.item?.title || 'Item not found'}
-                          </div>
-                          <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                            Qty: {item.quantity || 1} × ₹{item.price?.toFixed(2) || '0.00'} = ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
-                          </div>
-                          {item.itemStatus && (
-                            <span style={{ 
-                              fontSize: '12px', 
-                              background: getSellerActionColor(item.itemStatus),
-                              color: 'white',
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                              fontWeight: '500',
-                              marginTop: '5px',
-                              display: 'inline-block'
-                            }}>
-                              Item Status: {item.itemStatus}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Customer Info */}
-                  <div style={{ 
-                    marginTop: '20px',
-                    padding: '20px',
-                    background: 'white',
-                    borderRadius: '8px',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <h4 style={{ 
-                      fontSize: '16px', 
-                      marginBottom: '15px', 
-                      color: '#212529',
-                      fontWeight: '600'
-                    }}>
-                      Customer Information
-                    </h4>
-                    <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
-                      <div><strong>Name:</strong> {order.user?.name || 'N/A'}</div>
-                      <div><strong>Email:</strong> {order.user?.email || 'N/A'}</div>
-                      <div><strong>Shipping Address:</strong> {order.shippingAddress?.fullName}, {order.shippingAddress?.street}, {order.shippingAddress?.city}</div>
-                      <div><strong>Phone:</strong> {order.shippingAddress?.phone || 'N/A'}</div>
-                    </div>
-                  </div>
-
-                  {/* Shipping Address */}
-                  {order.shippingAddress && (
-                    <div style={{ 
-                      marginTop: '20px',
-                      padding: '20px',
-                      background: '#eef2ff',
-                      borderRadius: '8px',
-                      border: '1px solid #dee2e6'
-                    }}>
-                      <h4 style={{ 
-                        fontSize: '16px', 
-                        marginBottom: '15px', 
-                        color: '#212529',
-                        fontWeight: '600'
-                      }}>
-                        Shipping Address
-                      </h4>
-                      <div style={{ fontSize: '14px', color: '#495057', lineHeight: '1.6' }}>
-                        <div><strong>{order.shippingAddress.fullName || 'N/A'}</strong></div>
-                        <div>{order.shippingAddress.street || ''}</div>
-                        <div>{order.shippingAddress.city || ''}, {order.shippingAddress.state || ''} - {order.shippingAddress.zipCode || ''}</div>
-                        <div>{order.shippingAddress.country || 'Nepal'}</div>
-                        <div>Phone: {order.shippingAddress.phone || 'N/A'}</div>
-                        {order.shippingAddress.notes && (
-                          <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                            <strong>Notes:</strong> {order.shippingAddress.notes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Order Summary */}
-                  <div style={{ 
-                    marginTop: '20px',
-                    display: 'flex',
-                    justifyContent: 'flex-end'
-                  }}>
-                    <div style={{ width: '300px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        marginBottom: '8px'
-                      }}>
-                        <span style={{ color: '#6c757d', fontSize: '14px' }}>Subtotal:</span>
-                        <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        marginBottom: '8px'
-                      }}>
-                        <span style={{ color: '#6c757d', fontSize: '14px' }}>Shipping:</span>
-                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#28a745' }}>
-                          Free
-                        </span>
-                      </div>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        marginTop: '15px',
-                        paddingTop: '15px',
-                        borderTop: '2px solid #dee2e6'
-                      }}>
-                        <span style={{ fontSize: '16px', fontWeight: '700', color: '#212529' }}>
-                          Total:
-                        </span>
-                        <span style={{ fontSize: '18px', fontWeight: '700', color: '#4361ee' }}>
-                          ₹{order.totalAmount?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Order Status & Approval Info */}
-                  <div style={{ 
-                    marginTop: '20px',
-                    padding: '15px',
-                    background: order.sellerAction === 'pending' ? '#fff3cd' : '#d4edda',
-                    borderRadius: '8px',
-                    border: '1px solid',
-                    borderColor: order.sellerAction === 'pending' ? '#ffeaa7' : '#c3e6cb'
-                  }}>
-                    <div style={{ 
-                      fontSize: '14px', 
-                      color: order.sellerAction === 'pending' ? '#856404' : '#155724',
-                      fontWeight: '600',
-                      marginBottom: '5px'
-                    }}>
-                      {order.sellerAction === 'pending' 
-                        ? '⏳ Awaiting Your Action' 
-                        : '✅ Order Processed'}
-                    </div>
-                    <div style={{ fontSize: '13px', color: order.sellerAction === 'pending' ? '#856404' : '#155724' }}>
-                      {order.sellerAction === 'pending' 
-                        ? 'This order is waiting for your approval. Please accept or reject it.'
-                        : 'You have already taken action on this order.'}
-                    </div>
-                    {order.sellerRejectionReason && (
-                      <div style={{ 
-                        fontSize: '13px', 
-                        color: '#dc3545',
-                        marginTop: '10px',
-                        padding: '10px',
-                        background: '#fff5f5',
-                        borderRadius: '4px',
-                        borderLeft: '4px solid #dc3545'
-                      }}>
-                        <strong>Your Rejection Reason:</strong> {order.sellerRejectionReason}
                       </div>
                     )}
+
+                    <div style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '10px', borderTop: '2px solid #e5e7eb' }}>
+                        <span style={{ fontSize: '16px', fontWeight: '700', color: '#1f2937' }}>Total:</span>
+                        <span style={{ fontSize: '18px', fontWeight: '700', color: '#3b82f6' }}>{formatCurrency(order.totalAmount)}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-
-      <style>{`
-        @media (max-width: 768px) {
-          .order-header {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 15px !important;
-          }
-          
-          .order-actions {
-            align-self: flex-start !important;
-          }
-          
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-          
-          .status-filter {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -294,6 +294,11 @@ const itemAPI = {
   },
   delete: (id) => API.delete(`/items/${id}`),
   
+  // ✅ ADDED: Status update method
+  updateStatus: (itemId, status) => {
+    return API.patch(`/items/${itemId}/status`, { status });
+  },
+  
   // Item Actions
   flagItem: (itemId, reason) => API.post(`/items/${itemId}/flag`, { reason }),
   contactSeller: (itemId, message) => API.post(`/items/${itemId}/contact`, { message }),
@@ -326,6 +331,7 @@ const orderAPI = {
   // Admin endpoints (also available through adminAPI)
   getAll: (params = {}) => API.get('/orders', { params }),
 };
+
 // ======================
 // 9. NOTIFICATION API Methods (User)
 // ======================

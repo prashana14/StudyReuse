@@ -7,20 +7,20 @@ const OrdersPage = () => {
   const { admin } = useAdminAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [error, setError] = useState('');
 
-useEffect(() => {
+  useEffect(() => {
     console.log('=== ORDERS PAGE DEBUG ===');
     console.log('Admin:', admin);
     console.log('Admin Token:', localStorage.getItem('adminToken'));
     console.log('API Service:', apiService);
     console.log('Admin API:', apiService.admin);
   }, [admin]);
+
   // Fetch orders function
   const fetchOrders = async () => {
     try {
@@ -31,7 +31,6 @@ useEffect(() => {
       const params = {
         page: currentPage,
         limit: 10,
-        ...(search && { search }),
         ...(status && { status })
       };
 
@@ -68,73 +67,6 @@ useEffect(() => {
     fetchOrders();
   }, [currentPage, status]);
 
-  // Handle search with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search !== undefined) {
-        setCurrentPage(1);
-        fetchOrders();
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // Update order status
-  const updateOrderStatus = async (orderId, newStatus) => {
-    try {
-      const response = await apiService.orders.updateStatus(orderId, newStatus);
-      
-      if (response.success) {
-        // Update local state
-        setOrders(prevOrders =>
-          prevOrders.map(order =>
-            order._id === orderId ? { ...order, status: newStatus } : order
-          )
-        );
-        
-        // Update selected order if open
-        if (selectedOrder && selectedOrder._id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: newStatus });
-        }
-        
-        alert('Order status updated successfully');
-      } else {
-        alert(response.message || 'Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      alert('Failed to update order status');
-    }
-  };
-
-  // Cancel order
-  const cancelOrder = async (orderId) => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) {
-      return;
-    }
-
-    try {
-      const response = await apiService.orders.cancelOrder(orderId);
-      
-      if (response.success) {
-        // Update local state
-        setOrders(prevOrders =>
-          prevOrders.map(order =>
-            order._id === orderId ? { ...order, status: 'Cancelled' } : order
-          )
-        );
-        
-        alert('Order cancelled successfully');
-      } else {
-        alert(response.message || 'Failed to cancel order');
-      }
-    } catch (error) {
-      console.error('Error cancelling order:', error);
-      alert('Failed to cancel order');
-    }
-  };
-
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -159,29 +91,6 @@ useEffect(() => {
       currency: 'INR',
       minimumFractionDigits: 0
     }).format(amount);
-  };
-
-  // Get status color
-  const getStatusColor = (status) => {
-    const colors = {
-      'Pending': { bg: '#fef3c7', text: '#92400e', emoji: '⏳' },
-      'Processing': { bg: '#dbeafe', text: '#1e40af', emoji: '⚙️' },
-      'Shipped': { bg: '#f3e8ff', text: '#6b21a8', emoji: '🚚' },
-      'Delivered': { bg: '#d1fae5', text: '#065f46', emoji: '✅' },
-      'Cancelled': { bg: '#fee2e2', text: '#991b1b', emoji: '❌' }
-    };
-    return colors[status] || { bg: '#f3f4f6', text: '#374151', emoji: '❓' };
-  };
-
-  // Get payment status color
-  const getPaymentStatusColor = (status) => {
-    const colors = {
-      'Pending': { bg: '#fef3c7', text: '#92400e', emoji: '⏳' },
-      'Paid': { bg: '#d1fae5', text: '#065f46', emoji: '💰' },
-      'Failed': { bg: '#fee2e2', text: '#991b1b', emoji: '❌' },
-      'Refunded': { bg: '#f3f4f6', text: '#374151', emoji: '↩️' }
-    };
-    return colors[status] || { bg: '#f3f4f6', text: '#374151', emoji: '❓' };
   };
 
   // If not admin, show access denied
@@ -244,25 +153,6 @@ useEffect(() => {
         marginBottom: '20px'
       }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
-            <input
-              type="text"
-              placeholder="Search orders by ID, customer name, or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 36px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px'
-              }}
-            />
-            <span style={{ position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' }}>
-              🔍
-            </span>
-          </div>
-
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -315,11 +205,11 @@ useEffect(() => {
           </div>
         ) : orders.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-            {search || status ? 'No orders match your filters' : 'No orders found'}
+            {status ? 'No orders match your filters' : 'No orders found'}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
               <thead style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 <tr>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>
@@ -335,161 +225,52 @@ useEffect(() => {
                     Amount
                   </th>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>
-                    Status
-                  </th>
-                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>
-                    Payment
-                  </th>
-                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => {
-                  const statusColor = getStatusColor(order.status);
-                  const paymentColor = getPaymentStatusColor(order.paymentStatus || 'Pending');
-                  
-                  return (
-                    <tr key={order._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '16px', color: '#4b5563' }}>
-                        <div style={{ fontWeight: '500', color: '#1f2937' }}>
-                          {order._id?.slice(-8) || 'N/A'}
+                {orders.map((order) => (
+                  <tr key={order._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '16px', color: '#4b5563' }}>
+                      <div style={{ fontWeight: '500', color: '#1f2937' }}>
+                        {order._id?.slice(-8) || 'N/A'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px', color: '#4b5563' }}>
+                      {order.user?.name || 'N/A'}
+                      {order.user?.email && (
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {order.user.email}
                         </div>
-                      </td>
-                      <td style={{ padding: '16px', color: '#4b5563' }}>
-                        {order.user?.name || 'N/A'}
-                        {order.user?.email && (
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {order.user.email}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px', color: '#4b5563' }}>
-                        {formatDate(order.createdAt)}
-                      </td>
-                      <td style={{ padding: '16px', color: '#4b5563', fontWeight: '500' }}>
-                        {formatCurrency(order.totalAmount)}
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          backgroundColor: statusColor.bg,
-                          color: statusColor.text,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          {statusColor.emoji} {order.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          backgroundColor: paymentColor.bg,
-                          color: paymentColor.text,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          {paymentColor.emoji} {order.paymentStatus || 'Pending'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => setSelectedOrder(order)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#f3f4f6',
-                              color: '#374151',
-                              border: 'none',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            View
-                          </button>
-                          
-                          {order.status !== 'Delivered' && order.status !== 'Cancelled' && (
-                            <button
-                              onClick={() => updateOrderStatus(order._id, 'Processing')}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#e0e7ff',
-                                color: '#3730a3',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Process
-                            </button>
-                          )}
-                          
-                          {order.status === 'Processing' && (
-                            <button
-                              onClick={() => updateOrderStatus(order._id, 'Shipped')}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#f3e8ff',
-                                color: '#6b21a8',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Ship
-                            </button>
-                          )}
-                          
-                          {order.status === 'Shipped' && (
-                            <button
-                              onClick={() => updateOrderStatus(order._id, 'Delivered')}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#d1fae5',
-                                color: '#065f46',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Deliver
-                            </button>
-                          )}
-                          
-                          {order.status !== 'Cancelled' && order.status !== 'Delivered' && (
-                            <button
-                              onClick={() => cancelOrder(order._id)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#fee2e2',
-                                color: '#991b1b',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      )}
+                    </td>
+                    <td style={{ padding: '16px', color: '#4b5563' }}>
+                      {formatDate(order.createdAt)}
+                    </td>
+                    <td style={{ padding: '16px', color: '#4b5563', fontWeight: '500' }}>
+                      {formatCurrency(order.totalAmount)}
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => setSelectedOrder(order)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#f3f4f6',
+                            color: '#374151',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -597,16 +378,14 @@ useEffect(() => {
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>Status</div>
-                    <div>
-                      <span style={{
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        backgroundColor: getStatusColor(selectedOrder.status).bg,
-                        color: getStatusColor(selectedOrder.status).text
-                      }}>
-                        {selectedOrder.status}
-                      </span>
+                    <div style={{ color: '#1f2937', fontWeight: '500' }}>
+                      {selectedOrder.status}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Payment Status</div>
+                    <div style={{ color: '#1f2937', fontWeight: '500' }}>
+                      {selectedOrder.paymentStatus || 'Pending'}
                     </div>
                   </div>
                   <div>

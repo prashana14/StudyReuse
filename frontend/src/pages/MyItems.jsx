@@ -198,36 +198,76 @@ const MyItems = () => {
     fetchItems();
   }, [fetchItems]);
 
-  // Handle status update
+  // Handle status update - FIXED VERSION
   const handleStatusUpdate = async (itemId, newStatus) => {
     try {
       setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
       
       console.log(`Updating item ${itemId} status to: ${newStatus}`);
       
-      const response = await API.items.updateStatus(itemId, newStatus);
+      // FIXED: Direct fetch call with correct endpoint
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:4000/api/items/${itemId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update status');
+      }
       
       // Update local state
       setItems(prevItems => 
         prevItems.map(item => 
           item._id === itemId 
-            ? { ...item, status: newStatus, ...response.data.data }
+            ? { ...item, status: newStatus }
             : item
         )
       );
       
       console.log("Status updated successfully");
+      alert('Status updated successfully!');
       
     } catch (err) {
       console.error("Error updating status:", err);
       
       let errorMessage = "Failed to update status";
-      if (err.response?.status === 404) {
-        errorMessage = "Item not found";
-      } else if (err.response?.status === 403) {
-        errorMessage = "You don't have permission to update this item";
-      } else if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
+      if (err.message.includes('Failed to update')) {
+        // Try alternative endpoint
+        try {
+          const token = localStorage.getItem('token');
+          const altResponse = await fetch(`http://localhost:4000/api/items/${itemId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: newStatus })
+          });
+          
+          const altData = await altResponse.json();
+          
+          if (altResponse.ok) {
+            // Update local state
+            setItems(prevItems => 
+              prevItems.map(item => 
+                item._id === itemId 
+                  ? { ...item, status: newStatus }
+                  : item
+              )
+            );
+            alert('Status updated successfully!');
+            return;
+          }
+        } catch (altErr) {
+          console.log("Alternative method also failed:", altErr);
+        }
       }
       
       alert(errorMessage);
@@ -327,13 +367,13 @@ const MyItems = () => {
             padding: 100px 20px;
           }
           .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4361ee;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            width: '50px';
+            height: '50px';
+            border: '4px solid #f3f3f3';
+            borderTop: '4px solid #4361ee';
+            borderRadius: '50%';
+            animation: 'spin 1s linear infinite';
+            margin: '0 auto 20px';
           }
           @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -459,12 +499,12 @@ const MyItems = () => {
             {stats.availableItems}
           </span>
         </div>
-        <div className="stat">
+        {/* <div className="stat">
           <span className="stat-label">Sold</span>
           <span className="stat-value" style={{color: '#ef4444'}}>
             {stats.soldItems}
           </span>
-        </div>
+        </div> */}
       </div>
 
       {/* Items Grid */}
@@ -949,6 +989,7 @@ const MyItems = () => {
           border-top: 2px solid transparent;
           border-radius: 50%;
           animation: spin 1s linear infinite;
+          margin-right: 5px;
         }
         
         .item-footer {
