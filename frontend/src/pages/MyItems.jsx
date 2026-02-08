@@ -652,14 +652,14 @@ const MyItems = () => {
                   <p className="stat-card-value">{stats.availableItems}</p>
                 </div>
               </div>
-              <div className="stat-card">
+              {/* <div className="stat-card">
                 <div className="stat-card-icon">💰</div>
                 <div className="stat-card-content">
                   <p className="stat-card-label">Successful Sales</p>
                   <p className="stat-card-value">{stats.soldItems}</p>
                 </div>
-              </div>
-              <div className="stat-card">
+              </div> */}
+              {/* <div className="stat-card">
                 <div className="stat-card-icon">📈</div>
                 <div className="stat-card-content">
                   <p className="stat-card-label">Completion Rate</p>
@@ -670,7 +670,7 @@ const MyItems = () => {
                     }
                   </p>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </>
