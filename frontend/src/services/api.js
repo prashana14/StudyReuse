@@ -558,8 +558,8 @@ const apiService = {
     },
     
     formatPrice: (price) => {
-      if (!price && price !== 0) return '₹0';
-      return `₹${parseFloat(price).toLocaleString('en-IN', {
+      if (!price && price !== 0) return 'Rs. 0';
+      return `Rs. ${parseFloat(price).toLocaleString('en-IN', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2
       })}`;

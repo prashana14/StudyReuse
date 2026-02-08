@@ -125,7 +125,210 @@ exports.createBarterRequest = async (req, res) => {
   }
 };
 
-// Update barter status
+// ✅ ADD THIS: Accept barter request (for /:id/accept endpoint)
+exports.acceptBarter = async (req, res) => {
+  try {
+    const barter = await Barter.findById(req.params.id)
+      .populate("item", "title")
+      .populate("offerItem", "title")
+      .populate("requester", "name")
+      .populate("owner", "name");
+    
+    if (!barter) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Barter request not found" 
+      });
+    }
+
+    // Check authorization - only owner can accept
+    if (barter.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to accept this barter request" 
+      });
+    }
+
+    // Check if barter is pending
+    if (barter.status !== "pending") {
+      return res.status(400).json({ 
+        success: false,
+        message: `Cannot accept. Barter is already ${barter.status}` 
+      });
+    }
+
+    // Update both items to reserved
+    await Item.findByIdAndUpdate(barter.item._id, { 
+      status: "reserved",
+      updatedAt: Date.now()
+    });
+
+    await Item.findByIdAndUpdate(barter.offerItem._id, { 
+      status: "reserved",
+      updatedAt: Date.now()
+    });
+
+    // Update barter status
+    barter.status = "accepted";
+    await barter.save();
+
+    // Create notification for requester
+    await Notification.create({
+      user: barter.requester._id,
+      type: "barter",
+      title: "Barter Request Accepted! 🎉",
+      message: `Great news! ${req.user.name} has accepted your barter request for "${barter.item.title}". Both items are now reserved.`,
+      relatedItem: barter.item._id,
+      relatedUser: req.user._id,
+      isRead: false
+    });
+
+    res.json({ 
+      success: true,
+      message: "Barter request accepted successfully. Both items are now reserved.",
+      barter: await Barter.findById(barter._id)
+        .populate("item", "title imageURL category condition price status")
+        .populate("offerItem", "title imageURL category condition price status")
+        .populate("requester", "name email")
+        .populate("owner", "name email")
+    });
+
+  } catch (error) {
+    console.error("❌ Error accepting barter:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+};
+
+// ✅ ADD THIS: Reject barter request (for /:id/reject endpoint)
+exports.rejectBarter = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    
+    const barter = await Barter.findById(req.params.id)
+      .populate("item", "title")
+      .populate("offerItem", "title")
+      .populate("requester", "name")
+      .populate("owner", "name");
+    
+    if (!barter) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Barter request not found" 
+      });
+    }
+
+    // Check authorization - only owner can reject
+    if (barter.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to reject this barter request" 
+      });
+    }
+
+    // Check if barter is pending
+    if (barter.status !== "pending") {
+      return res.status(400).json({ 
+        success: false,
+        message: `Cannot reject. Barter is already ${barter.status}` 
+      });
+    }
+
+    // Update barter status
+    barter.status = "rejected";
+    barter.rejectionReason = reason;
+    await barter.save();
+
+    // Create notification for requester
+    await Notification.create({
+      user: barter.requester._id,
+      type: "barter",
+      title: "Barter Request Rejected",
+      message: `${req.user.name} has rejected your barter request for "${barter.item.title}"${reason ? `: ${reason}` : ''}`,
+      relatedItem: barter.item._id,
+      relatedUser: req.user._id,
+      isRead: false
+    });
+
+    res.json({ 
+      success: true,
+      message: "Barter request rejected",
+      barter: await Barter.findById(barter._id)
+        .populate("item", "title imageURL category condition price status")
+        .populate("offerItem", "title imageURL category condition price status")
+        .populate("requester", "name email")
+        .populate("owner", "name email")
+    });
+
+  } catch (error) {
+    console.error("❌ Error rejecting barter:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+};
+
+// ✅ ADD THIS: Cancel barter request (for /:id/cancel endpoint)
+exports.cancelBarter = async (req, res) => {
+  try {
+    const barter = await Barter.findById(req.params.id)
+      .populate("item", "title")
+      .populate("owner", "name");
+    
+    if (!barter) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Barter request not found" 
+      });
+    }
+
+    // Check if user is the requester
+    if (barter.requester.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Only the requester can cancel this barter request" 
+      });
+    }
+
+    // Check if barter is pending
+    if (barter.status !== "pending") {
+      return res.status(400).json({ 
+        success: false,
+        message: `Cannot cancel. Barter is already ${barter.status}` 
+      });
+    }
+
+    await barter.deleteOne();
+
+    // Create notification for owner
+    await Notification.create({
+      user: barter.owner._id,
+      type: "barter",
+      title: "Barter Request Cancelled",
+      message: `${req.user.name} has cancelled their barter request for "${barter.item.title}"`,
+      relatedItem: barter.item._id,
+      relatedUser: req.user._id,
+      isRead: false
+    });
+
+    res.json({
+      success: true,
+      message: "Barter request cancelled successfully"
+    });
+
+  } catch (error) {
+    console.error("❌ Error cancelling barter:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+};
+
+// Update barter status (general update endpoint - PUT /:id)
 exports.updateBarterStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -294,7 +497,7 @@ exports.getBarterById = async (req, res) => {
   }
 };
 
-// Cancel/withdraw barter request
+// Cancel/withdraw barter request (DELETE endpoint)
 exports.deleteBarter = async (req, res) => {
   try {
     const barter = await Barter.findById(req.params.id);
