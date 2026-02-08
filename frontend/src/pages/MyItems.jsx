@@ -34,9 +34,6 @@ const STATUS_CONFIG = {
   }
 };
 
-// Status options
-const STATUS_OPTIONS = Object.keys(STATUS_CONFIG);
-
 // Cloudinary image helper
 const CloudinaryHelper = {
   // Get optimized image URL with Cloudinary transformations
@@ -100,7 +97,6 @@ const MyItems = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [updatingStatus, setUpdatingStatus] = useState({});
   const [deletingItem, setDeletingItem] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
   const [refreshing, setRefreshing] = useState(false);
@@ -198,112 +194,6 @@ const MyItems = () => {
     fetchItems();
   }, [fetchItems]);
 
-  // Handle status update - FIXED VERSION
-  const handleStatusUpdate = async (itemId, newStatus) => {
-  try {
-    setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
-    
-    console.log(`Updating item ${itemId} status to: ${newStatus}`);
-    
-    // OPTION 1: Try using your API service's update method
-    try {
-      // Use the items.update method which should use PUT /api/items/:id
-      await API.items.update(itemId, { status: newStatus });
-      
-      // Update local state
-      setItems(prevItems => 
-        prevItems.map(item => 
-          item._id === itemId 
-            ? { ...item, status: newStatus }
-            : item
-        )
-      );
-      
-      console.log("Status updated successfully via API service");
-      alert('Status updated successfully!');
-      return;
-    } catch (apiError) {
-      console.log("API service update failed:", apiError);
-    }
-    
-    // OPTION 2: Try direct PATCH to the main items endpoint
-    const token = localStorage.getItem('token');
-    const response = await fetch(`http://localhost:4000/api/items/${itemId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ status: newStatus })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.log("PATCH failed, trying PUT...");
-      
-      // OPTION 3: Try PUT instead of PATCH
-      const putResponse = await fetch(`http://localhost:4000/api/items/${itemId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      
-      const putData = await putResponse.json();
-      
-      if (!putResponse.ok) {
-        throw new Error(putData.message || 'Both PATCH and PUT failed to update status');
-      }
-      
-      // Update local state for PUT success
-      setItems(prevItems => 
-        prevItems.map(item => 
-          item._id === itemId 
-            ? { ...item, status: newStatus }
-            : item
-        )
-      );
-      console.log("Status updated successfully via PUT");
-      alert('Status updated successfully!');
-      return;
-    }
-    
-    // Update local state for PATCH success
-    setItems(prevItems => 
-      prevItems.map(item => 
-        item._id === itemId 
-          ? { ...item, status: newStatus }
-          : item
-      )
-    );
-    
-    console.log("Status updated successfully via PATCH");
-    alert('Status updated successfully!');
-    
-  } catch (err) {
-    console.error("Error updating status:", err);
-    
-    // Final fallback: Update local state only
-    if (confirm("Server update failed. Update status locally only?")) {
-      setItems(prevItems => 
-        prevItems.map(item => 
-          item._id === itemId 
-            ? { ...item, status: newStatus }
-            : item
-        )
-      );
-      alert('Status updated locally only. Changes may not persist.');
-    } else {
-      alert('Status update cancelled.');
-    }
-  } finally {
-    setUpdatingStatus(prev => ({ ...prev, [itemId]: false }));
-  }
-};
-
   // Handle item deletion
   const handleDeleteItem = async (itemId, itemTitle) => {
     if (!window.confirm(`Are you sure you want to delete "${itemTitle}"? This action cannot be undone.`)) {
@@ -395,13 +285,13 @@ const MyItems = () => {
             padding: 100px 20px;
           }
           .spinner {
-            width: '50px';
-            height: '50px';
-            border: '4px solid #f3f3f3';
-            borderTop: '4px solid #4361ee';
-            borderRadius: '50%';
-            animation: 'spin 1s linear infinite';
-            margin: '0 auto 20px';
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4361ee;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
           }
           @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -527,12 +417,12 @@ const MyItems = () => {
             {stats.availableItems}
           </span>
         </div>
-        {/* <div className="stat">
+        <div className="stat">
           <span className="stat-label">Sold</span>
           <span className="stat-value" style={{color: '#ef4444'}}>
             {stats.soldItems}
           </span>
-        </div> */}
+        </div>
       </div>
 
       {/* Items Grid */}
@@ -605,38 +495,6 @@ const MyItems = () => {
                       }
                     </p>
                     
-                    {/* Status Update Section */}
-                    <div className="status-update">
-                      <p className="status-label">Update Status:</p>
-                      <div className="status-buttons">
-                        {STATUS_OPTIONS.map((status) => (
-                          <button
-                            key={status}
-                            onClick={() => handleStatusUpdate(item._id, status)}
-                            disabled={updatingStatus[item._id] || item.status === status}
-                            className="status-btn"
-                            style={{
-                              background: item.status === status ? STATUS_CONFIG[status].color : 'white',
-                              color: item.status === status ? 'white' : STATUS_CONFIG[status].color,
-                              borderColor: STATUS_CONFIG[status].color,
-                              opacity: updatingStatus[item._id] ? 0.7 : 1
-                            }}
-                          >
-                            {updatingStatus[item._id] && item.status === status ? (
-                              <>
-                                <span className="status-spinner"></span>
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                {STATUS_CONFIG[status].icon} {status}
-                              </>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
                     {/* Price and Actions */}
                     <div className="item-footer">
                       <span className="item-price">Rs. {item.price}</span>
@@ -680,14 +538,14 @@ const MyItems = () => {
                   <p className="stat-card-value">{stats.availableItems}</p>
                 </div>
               </div>
-              {/* <div className="stat-card">
+              <div className="stat-card">
                 <div className="stat-card-icon">💰</div>
                 <div className="stat-card-content">
                   <p className="stat-card-label">Successful Sales</p>
                   <p className="stat-card-value">{stats.soldItems}</p>
                 </div>
-              </div> */}
-              {/* <div className="stat-card">
+              </div>
+              <div className="stat-card">
                 <div className="stat-card-icon">📈</div>
                 <div className="stat-card-content">
                   <p className="stat-card-label">Completion Rate</p>
@@ -698,7 +556,7 @@ const MyItems = () => {
                     }
                   </p>
                 </div>
-              </div> */}
+              </div>
             </div>
           </div>
         </>
@@ -921,7 +779,7 @@ const MyItems = () => {
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justifyContent: center;
           color: white;
         }
         
@@ -965,65 +823,12 @@ const MyItems = () => {
           min-height: 42px;
         }
         
-        .status-update {
-          margin-bottom: 20px;
-          padding: 12px;
-          background: #f8fafc;
-          border-radius: 8px;
-        }
-        
-        .status-label {
-          font-size: 13px;
-          font-weight: 600;
-          color: #64748b;
-          margin-bottom: 8px;
-        }
-        
-        .status-buttons {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        
-        .status-btn {
-          padding: 6px 12px;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: 1px solid;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          flex: 1;
-          min-width: 120px;
-          justify-content: center;
-        }
-        
-        .status-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .status-btn:disabled {
-          cursor: not-allowed;
-        }
-        
-        .status-spinner {
-          width: 12px;
-          height: 12px;
-          border: 2px solid white;
-          border-top: 2px solid transparent;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-right: 5px;
-        }
-        
         .item-footer {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          padding-top: 15px;
+          border-top: 1px solid #f1f5f9;
         }
         
         .item-price {
@@ -1157,12 +962,15 @@ const MyItems = () => {
             grid-template-columns: 1fr;
           }
           
-          .status-buttons {
+          .item-footer {
             flex-direction: column;
+            gap: 15px;
+            align-items: flex-start;
           }
           
-          .status-btn {
-            min-width: 100%;
+          .item-actions {
+            width: 100%;
+            justify-content: flex-start;
           }
         }
       `}</style>
