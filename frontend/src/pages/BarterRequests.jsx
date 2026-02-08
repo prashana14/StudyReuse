@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
-import API from "../services/api";
+import apiService from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 const BarterRequests = () => {
@@ -34,13 +34,37 @@ const BarterRequests = () => {
       setLoading(true);
       setError(null);
       
-      const response = await API.get("/barter/my");
-      const barterArray = response.data || [];
+      const response = await apiService.barter.getMyBarters();
+      console.log("Barter API response:", response); // Debug log
       
+      // Handle different possible response structures
+      let barterArray = [];
+      
+      if (Array.isArray(response)) {
+        barterArray = response;
+      } else if (response && Array.isArray(response.data)) {
+        barterArray = response.data;
+      } else if (response && Array.isArray(response.barters)) {
+        barterArray = response.barters;
+      } else if (response && typeof response === 'object') {
+        // If it's an object, try to extract barters array
+        const data = response;
+        if (data.data && Array.isArray(data.data)) {
+          barterArray = data.data;
+        } else if (data.results && Array.isArray(data.results)) {
+          barterArray = data.results;
+        } else if (data.barters && Array.isArray(data.barters)) {
+          barterArray = data.barters;
+        } else if (data.items && Array.isArray(data.items)) {
+          barterArray = data.items;
+        }
+      }
+      
+      console.log("Extracted barters:", barterArray); // Debug log
       setRequests(barterArray);
       
       // Calculate stats
-      const userId = user?.id?.toString();
+      const userId = user?.id?.toString() || user?._id?.toString();
       const stats = {
         pending: barterArray.filter(b => b.status === "pending").length,
         accepted: barterArray.filter(b => b.status === "accepted").length,
@@ -72,14 +96,45 @@ const BarterRequests = () => {
   const fetchUserItems = async () => {
     try {
       setItemsLoading(true);
-      const response = await API.get("/items/my");
-      const items = response.data || [];
+      const response = await apiService.items.getMyItems();
+      console.log("User items API response:", response); // Debug log
+      
+      // Handle different possible response structures
+      let items = [];
+      
+      if (Array.isArray(response)) {
+        items = response;
+      } else if (response && Array.isArray(response.data)) {
+        items = response.data;
+      } else if (response && Array.isArray(response.items)) {
+        items = response.items;
+      } else if (response && typeof response === 'object') {
+        // If it's an object, try to extract items array
+        const data = response;
+        if (data.data && Array.isArray(data.data)) {
+          items = data.data;
+        } else if (data.results && Array.isArray(data.results)) {
+          items = data.results;
+        } else if (data.items && Array.isArray(data.items)) {
+          items = data.items;
+        }
+      }
+      
+      console.log("Extracted user items:", items.length, "items");
+      
+      // Now filter the items
       const availableItems = items.filter(item => 
-        item.status === "available"
+        item && item.status === "available"
       );
+      
       setUserItems(availableItems);
+      
     } catch (err) {
       console.error("Error fetching user items:", err);
+      console.error("Error response:", err.response?.data);
+      
+      // Set empty array as fallback
+      setUserItems([]);
     } finally {
       setItemsLoading(false);
     }
@@ -100,12 +155,12 @@ const BarterRequests = () => {
 
     try {
       const barterData = {
-        itemId: selectedItemForBarter._id,
-        offerItemId: selectedOfferItem._id,
+        itemId: selectedItemForBarter._id || selectedItemForBarter.id,
+        offerItemId: selectedOfferItem._id || selectedOfferItem.id,
         message: barterMessage
       };
 
-      await API.post("/barter", barterData);
+      await apiService.barter.create(barterData);
       
       alert("✅ Barter request sent successfully!");
       setShowOfferModal(false);
@@ -119,7 +174,14 @@ const BarterRequests = () => {
 
   const updateStatus = async (id, status) => {
     try {
-      await API.put(`/barter/${id}`, { status });
+      if (status === "accepted") {
+        await apiService.barter.acceptBarter(id);
+      } else if (status === "rejected") {
+        await apiService.barter.rejectBarter(id);
+      } else {
+        // For other status updates if needed
+        await apiService.put(`/barter/${id}`, { status });
+      }
       
       setRequests(prev => prev.map(req => 
         req._id === id ? { ...req, status } : req
@@ -147,7 +209,7 @@ const BarterRequests = () => {
     }
 
     try {
-      await API.delete(`/barter/${id}`);
+      await apiService.barter.cancelBarter(id);
       
       setRequests(prev => prev.filter(req => req._id !== id));
       fetchBarters();
@@ -160,13 +222,14 @@ const BarterRequests = () => {
     }
   };
 
-  const filteredRequests = requests.filter(req => {
+  const filteredRequests = Array.isArray(requests) ? requests.filter(req => {
+    if (!req) return false;
     if (activeFilter === "all") return true;
     if (activeFilter === "pending") return req.status === "pending";
     if (activeFilter === "accepted") return req.status === "accepted";
     if (activeFilter === "rejected") return req.status === "rejected";
     
-    const userId = user?.id?.toString();
+    const userId = user?.id?.toString() || user?._id?.toString();
     const requesterId = req.requester?._id?.toString() || req.requester?.id?.toString();
     const ownerId = req.owner?._id?.toString() || req.owner?.id?.toString();
     
@@ -174,7 +237,7 @@ const BarterRequests = () => {
     if (activeFilter === "received") return ownerId === userId;
     
     return true;
-  });
+  }) : [];
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -228,7 +291,9 @@ const BarterRequests = () => {
   };
 
   const BarterCard = ({ request }) => {
-    const userId = user?.id?.toString();
+    if (!request) return null;
+    
+    const userId = user?.id?.toString() || user?._id?.toString();
     const requesterId = request.requester?._id?.toString() || request.requester?.id?.toString();
     const ownerId = request.owner?._id?.toString() || request.owner?.id?.toString();
     
@@ -236,6 +301,7 @@ const BarterRequests = () => {
     const isRequester = requesterId === userId;
     
     const formatDate = (dateString) => {
+      if (!dateString) return "Unknown date";
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', {
         month: 'short',
@@ -284,7 +350,7 @@ const BarterRequests = () => {
                 alignItems: "center",
                 gap: "6px"
               }}>
-                📅 {formatDate(request.createdAt)}
+                📅 {formatDate(request.createdAt || request.createdDate)}
               </span>
             </div>
             
@@ -334,7 +400,7 @@ const BarterRequests = () => {
                       </div>
                       <div>
                         <p style={{ fontSize: "12px", color: "#6B7280", margin: "0 0 4px 0" }}>
-                          {isRequester ? "You offer" : `${request.requester?.name || "User"} offers`}
+                          {isRequester ? "You offer" : `${request.requester?.name || request.requester?.username || "User"} offers`}
                         </p>
                         <p style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>
                           {request.offerItem?.title || "Unknown Item"}
@@ -494,13 +560,13 @@ const BarterRequests = () => {
                   fontWeight: "bold",
                   margin: "0 auto 8px auto"
                 }}>
-                  {isRequester ? "👤" : request.requester?.name?.charAt(0) || "?"}
+                  {isRequester ? "👤" : (request.requester?.name?.charAt(0) || request.requester?.username?.charAt(0) || "?")}
                 </div>
                 <p style={{ fontSize: "12px", color: "#6B7280", margin: "0 0 4px 0" }}>
                   {isRequester ? "You" : "Requester"}
                 </p>
                 <p style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: 0 }}>
-                  {isRequester ? "You" : request.requester?.name || "Unknown"}
+                  {isRequester ? "You" : request.requester?.name || request.requester?.username || "Unknown"}
                 </p>
               </div>
               
@@ -522,13 +588,13 @@ const BarterRequests = () => {
                   fontWeight: "bold",
                   margin: "0 auto 8px auto"
                 }}>
-                  {isOwner ? "👤" : request.owner?.name?.charAt(0) || "?"}
+                  {isOwner ? "👤" : (request.owner?.name?.charAt(0) || request.owner?.username?.charAt(0) || "?")}
                 </div>
                 <p style={{ fontSize: "12px", color: "#6B7280", margin: "0 0 4px 0" }}>
                   {isOwner ? "You" : "Owner"}
                 </p>
                 <p style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: 0 }}>
-                  {isOwner ? "You" : request.owner?.name || "Unknown"}
+                  {isOwner ? "You" : request.owner?.name || request.owner?.username || "Unknown"}
                 </p>
               </div>
             </div>
@@ -549,6 +615,9 @@ const BarterRequests = () => {
                     borderRadius: "8px",
                     border: "2px solid #10B981"
                   }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
                 />
               </div>
             )}
@@ -566,6 +635,9 @@ const BarterRequests = () => {
                     borderRadius: "8px",
                     border: "2px solid #6366F1"
                   }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
                 />
               </div>
             )}
@@ -580,7 +652,7 @@ const BarterRequests = () => {
           borderTop: "1px solid #E5E7EB" 
         }}>
           <button 
-            onClick={() => navigate(`/item/${request.item?._id}`)}
+            onClick={() => navigate(`/item/${request.item?._id || request.item?.id}`)}
             style={{ 
               flex: 1, 
               padding: "12px",
@@ -612,7 +684,7 @@ const BarterRequests = () => {
           {isOwner && request.status === "pending" && (
             <>
               <button 
-                onClick={() => updateStatus(request._id, "accepted")}
+                onClick={() => updateStatus(request._id || request.id, "accepted")}
                 style={{ 
                   flex: 1, 
                   padding: "12px",
@@ -640,7 +712,7 @@ const BarterRequests = () => {
               </button>
               
               <button 
-                onClick={() => updateStatus(request._id, "rejected")}
+                onClick={() => updateStatus(request._id || request.id, "rejected")}
                 style={{ 
                   flex: 1, 
                   padding: "12px",
@@ -671,7 +743,7 @@ const BarterRequests = () => {
           
           {isRequester && request.status === "pending" && (
             <button 
-              onClick={() => withdrawBarter(request._id)}
+              onClick={() => withdrawBarter(request._id || request.id)}
               style={{ 
                 flex: 1, 
                 padding: "12px",
@@ -701,7 +773,7 @@ const BarterRequests = () => {
           
           {request.status === "accepted" && (
             <button 
-              onClick={() => navigate(`/chat/${request.owner?._id}`)}
+              onClick={() => navigate(`/chat/${request.owner?._id || request.owner?.id}`)}
               style={{ 
                 flex: 1, 
                 padding: "12px",
@@ -1008,7 +1080,7 @@ const BarterRequests = () => {
               fontSize: "14px",
               fontWeight: "500"
             }}>
-              {filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'}
+              {Array.isArray(filteredRequests) ? filteredRequests.length : 0} {filteredRequests.length === 1 ? 'request' : 'requests'}
             </span>
           </h3>
           
@@ -1041,7 +1113,7 @@ const BarterRequests = () => {
           </div>
         </div>
 
-        {filteredRequests.length === 0 ? (
+        {!Array.isArray(filteredRequests) || filteredRequests.length === 0 ? (
           <div style={{ 
             backgroundColor: "white",
             borderRadius: "12px",
@@ -1122,7 +1194,7 @@ const BarterRequests = () => {
         ) : (
           <div>
             {filteredRequests.map(request => (
-              <BarterCard key={request._id} request={request} />
+              <BarterCard key={request._id || request.id} request={request} />
             ))}
           </div>
         )}
@@ -1226,7 +1298,7 @@ const BarterRequests = () => {
                   }}></div>
                   <p style={{ color: "#6B7280", marginTop: "8px", fontSize: "12px" }}>Loading your items...</p>
                 </div>
-              ) : userItems.length === 0 ? (
+              ) : (!Array.isArray(userItems) || userItems.length === 0) ? (
                 <div style={{ 
                   backgroundColor: "#F9FAFB", 
                   padding: "24px", 
@@ -1248,26 +1320,45 @@ const BarterRequests = () => {
                     📦
                   </div>
                   <p style={{ color: "#6B7280", marginBottom: "12px", fontSize: "13px" }}>
-                    You don't have any available items to offer.
+                    {!Array.isArray(userItems) 
+                      ? "Unable to load your items. Please try again." 
+                      : "You don't have any available items to offer."}
                   </p>
-                  <button 
-                    onClick={() => {
-                      setShowOfferModal(false);
-                      navigate("/add-item");
-                    }}
-                    style={{ 
-                      padding: "8px 16px",
-                      backgroundColor: "#6366F1",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      cursor: "pointer"
-                    }}
-                  >
-                    ➕ Add New Item
-                  </button>
+                  <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                    <button 
+                      onClick={() => {
+                        setShowOfferModal(false);
+                        navigate("/add-item");
+                      }}
+                      style={{ 
+                        padding: "8px 16px",
+                        backgroundColor: "#6366F1",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        cursor: "pointer"
+                      }}
+                    >
+                      ➕ Add New Item
+                    </button>
+                    <button 
+                      onClick={fetchUserItems}
+                      style={{ 
+                        padding: "8px 16px",
+                        backgroundColor: "#F3F4F6",
+                        color: "#6B7280",
+                        border: "1px solid #E5E7EB",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        cursor: "pointer"
+                      }}
+                    >
+                      🔄 Retry
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ 
@@ -1277,7 +1368,7 @@ const BarterRequests = () => {
                 }}>
                   {userItems.map(item => (
                     <div
-                      key={item._id}
+                      key={item._id || item.id}
                       onClick={() => setSelectedOfferItem(item)}
                       style={{
                         backgroundColor: selectedOfferItem?._id === item._id ? "#EEF2FF" : "white",

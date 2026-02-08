@@ -502,7 +502,7 @@ const Navbar = () => {
 
                 {/* Barter Link */}
                 <Link 
-                  to="/barter" 
+                  to="/barter-requests" 
                   style={{
                     ...navLinkBaseStyle,
                     ...(isActive('/barter') ? activeNavLinkStyle : {})

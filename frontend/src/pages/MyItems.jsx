@@ -200,27 +200,15 @@ const MyItems = () => {
 
   // Handle status update - FIXED VERSION
   const handleStatusUpdate = async (itemId, newStatus) => {
+  try {
+    setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
+    
+    console.log(`Updating item ${itemId} status to: ${newStatus}`);
+    
+    // OPTION 1: Try using your API service's update method
     try {
-      setUpdatingStatus(prev => ({ ...prev, [itemId]: true }));
-      
-      console.log(`Updating item ${itemId} status to: ${newStatus}`);
-      
-      // FIXED: Direct fetch call with correct endpoint
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:4000/api/items/${itemId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update status');
-      }
+      // Use the items.update method which should use PUT /api/items/:id
+      await API.items.update(itemId, { status: newStatus });
       
       // Update local state
       setItems(prevItems => 
@@ -231,50 +219,90 @@ const MyItems = () => {
         )
       );
       
-      console.log("Status updated successfully");
+      console.log("Status updated successfully via API service");
       alert('Status updated successfully!');
+      return;
+    } catch (apiError) {
+      console.log("API service update failed:", apiError);
+    }
+    
+    // OPTION 2: Try direct PATCH to the main items endpoint
+    const token = localStorage.getItem('token');
+    const response = await fetch(`http://localhost:4000/api/items/${itemId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: newStatus })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.log("PATCH failed, trying PUT...");
       
-    } catch (err) {
-      console.error("Error updating status:", err);
+      // OPTION 3: Try PUT instead of PATCH
+      const putResponse = await fetch(`http://localhost:4000/api/items/${itemId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
       
-      let errorMessage = "Failed to update status";
-      if (err.message.includes('Failed to update')) {
-        // Try alternative endpoint
-        try {
-          const token = localStorage.getItem('token');
-          const altResponse = await fetch(`http://localhost:4000/api/items/${itemId}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ status: newStatus })
-          });
-          
-          const altData = await altResponse.json();
-          
-          if (altResponse.ok) {
-            // Update local state
-            setItems(prevItems => 
-              prevItems.map(item => 
-                item._id === itemId 
-                  ? { ...item, status: newStatus }
-                  : item
-              )
-            );
-            alert('Status updated successfully!');
-            return;
-          }
-        } catch (altErr) {
-          console.log("Alternative method also failed:", altErr);
-        }
+      const putData = await putResponse.json();
+      
+      if (!putResponse.ok) {
+        throw new Error(putData.message || 'Both PATCH and PUT failed to update status');
       }
       
-      alert(errorMessage);
-    } finally {
-      setUpdatingStatus(prev => ({ ...prev, [itemId]: false }));
+      // Update local state for PUT success
+      setItems(prevItems => 
+        prevItems.map(item => 
+          item._id === itemId 
+            ? { ...item, status: newStatus }
+            : item
+        )
+      );
+      console.log("Status updated successfully via PUT");
+      alert('Status updated successfully!');
+      return;
     }
-  };
+    
+    // Update local state for PATCH success
+    setItems(prevItems => 
+      prevItems.map(item => 
+        item._id === itemId 
+          ? { ...item, status: newStatus }
+          : item
+      )
+    );
+    
+    console.log("Status updated successfully via PATCH");
+    alert('Status updated successfully!');
+    
+  } catch (err) {
+    console.error("Error updating status:", err);
+    
+    // Final fallback: Update local state only
+    if (confirm("Server update failed. Update status locally only?")) {
+      setItems(prevItems => 
+        prevItems.map(item => 
+          item._id === itemId 
+            ? { ...item, status: newStatus }
+            : item
+        )
+      );
+      alert('Status updated locally only. Changes may not persist.');
+    } else {
+      alert('Status update cancelled.');
+    }
+  } finally {
+    setUpdatingStatus(prev => ({ ...prev, [itemId]: false }));
+  }
+};
 
   // Handle item deletion
   const handleDeleteItem = async (itemId, itemTitle) => {
